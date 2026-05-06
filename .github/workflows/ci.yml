@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Cancel older runs on the same ref so the latest push wins quickly.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Pure-unit suite. Stubbed/mocked fetch, in-memory Blob, synthetic
+  # parser fixtures — no real network. Fast (~1s) and deterministic;
+  # gates every push and PR.
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run test:unit
+
+  # Playwright e2e against the real page served by Python's static
+  # http.server. The viewer pulls a small OpenNeuro recording at
+  # runtime so this depends on S3 reachability — keep retries on.
+  e2e:
+    name: Playwright e2e
+    runs-on: ubuntu-latest
+    needs: unit
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - run: npm ci
+
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e
+        env:
+          CI: '1'
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Network-bound reader + integration suite (sidecars, EEGLAB / EDF /
+  # BDF / BrainVision bitwise checks, integration matrix + stress).
+  # OpenNeuro S3 has variance, so run on a nightly schedule and on
+  # demand rather than blocking every PR. Keep the schedule on so the
+  # default branch is exercised against real data continuously.
+  network:
+    name: Network suite
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run test:net
+
+      - run: npm run test:integration

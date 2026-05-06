@@ -1,0 +1,29 @@
+name: Nightly network suite
+
+# The reader + integration tests pull real recordings from OpenNeuro
+# S3, so they're too slow / S3-dependent to gate every PR on. Running
+# them once a day catches drift in the OpenNeuro layout / dataset
+# contents independent of any local change.
+on:
+  schedule:
+    - cron: '17 4 * * *'  # 04:17 UTC, off-peak
+  workflow_dispatch:
+
+jobs:
+  network:
+    name: Network suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run test:net
+
+      - run: npm run test:integration

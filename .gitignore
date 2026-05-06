@@ -1,0 +1,7 @@
+node_modules/
+playwright-report/
+test-results/
+scripts/.cache/
+scripts/cross_check_*.json
+perf-trace.json
+.DS_Store

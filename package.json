@@ -1,0 +1,18 @@
+{
+  "name": "eeg-viewer",
+  "private": true,
+  "scripts": {
+    "test": "node --test --test-reporter=spec --test-concurrency=1 tests/*.test.mjs",
+    "test:unit": "node --test --test-reporter=spec tests/traces.test.mjs tests/unit-*.test.mjs tests/local-blob.test.mjs tests/tile-fetching.test.mjs tests/eegdash-fallback.test.mjs",
+    "test:net": "node --test --test-reporter=spec --test-concurrency=1 tests/sidecars.test.mjs tests/eeglab.test.mjs tests/edf.test.mjs tests/brainvision.test.mjs tests/bdf.test.mjs",
+    "test:integration": "node --test --test-reporter=spec --test-concurrency=1 tests/integration.test.mjs",
+    "test:e2e": "playwright test",
+    "bench": "node scripts/bench-fetch.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}
