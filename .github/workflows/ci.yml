@@ -12,6 +12,12 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Opt the JS-action runtime into Node 24 ahead of the June 2026 default
+# flip. Silences deprecation warnings without affecting our test code,
+# which already requests `node-version: '20'` for its own runtime.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   # Pure-unit suite. Stubbed/mocked fetch, in-memory Blob, synthetic
   # parser fixtures — no real network. Fast (~1s) and deterministic;
@@ -53,16 +59,32 @@ jobs:
 
       - run: npm ci
 
+      # Resolve the actually-installed Playwright version (post-`npm ci`)
+      # so the browser cache key is keyed on the binary contract, not
+      # on every unrelated package-lock change.
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
       - name: Cache Playwright browsers
         id: pw-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      # System-level deps live in the runner image, not in the cache —
+      # always run install-deps so a cache HIT can't leave us with stale
+      # libgbm/libnss/etc on a future image refresh. Cheap (apt is a
+      # near-no-op when packages are already present).
+      - name: Install Playwright system deps
+        run: npx playwright install-deps chromium
 
       - name: Install Playwright browsers
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - run: npm run test:e2e
         env:
