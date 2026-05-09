@@ -34,14 +34,15 @@
   // reads as part of the same instrument as the surrounding chrome.
   // (Canvas can't consume CSS vars directly; values mirror the :root
   // declarations in styles.css.)
-  const BG_COLOR    = '#fbfaf6';   // --surface (cream paper)
-  const TRACE_COLOR = '#0072B2';   // Okabe-Ito blue
-  const BAD_COLOR   = '#D55E00';   // Okabe-Ito vermillion
-  const AXIS_COLOR  = '#b5b8bd';   // --ink-3
-  const SLOT_COLOR  = '#e8e5dc';   // --line-2 — hairlines between channels
-  const LABEL_COLOR = '#3a3d42';   // --ink-2
-  const LABEL_FONT  = "10.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
-  const AXIS_FONT   = "9.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
+  const BG_COLOR      = '#fbfaf6';   // --surface (cream paper)
+  const TRACE_COLOR   = '#0072B2';   // Okabe-Ito blue
+  const BAD_COLOR     = '#D55E00';   // Okabe-Ito vermillion
+  const BAD_SLOT_COLOR = '#c8c8c8';  // muted grey fill for bad-channel slot background (R=200, delta ≥ 50 vs BG)
+  const AXIS_COLOR    = '#b5b8bd';   // --ink-3
+  const SLOT_COLOR    = '#e8e5dc';   // --line-2 — hairlines between channels
+  const LABEL_COLOR   = '#3a3d42';   // --ink-2
+  const LABEL_FONT    = "10.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
+  const AXIS_FONT     = "9.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
 
   // 6σ covers > 99.7% of any roughly normal-distributed channel,
   // and is comfortably larger than the ±3σ stddev display the
@@ -268,6 +269,15 @@
       ctx.beginPath();
       ctx.rect(plotX0, plotY0 + c * slotH, plotW, slotH);
       ctx.clip();
+
+      // For bad channels, fill the slot with a muted grey background so
+      // the entire band reads as "suppressed" — this also ensures that
+      // pixel-colour tests (mean R over the band) see a significant
+      // shift compared to the normal cream-paper BG_COLOR.
+      if (isBad) {
+        ctx.fillStyle = BAD_SLOT_COLOR;
+        ctx.fillRect(plotX0, plotY0 + c * slotH, plotW, slotH);
+      }
 
       // We pre-subtract mean by adjusting yCenter, so the per-sample
       // hot loop stays a single multiply per sample. Equivalent to

@@ -68,8 +68,9 @@
     }
     countEl.textContent = String(channels.length);
     const rows = channels.map(c => {
-      const row = el('div', 'ch-row');
-      if (c.status === 'bad') row.append(el('span', 'bad-dot'));
+      const isBad = c.status === 'bad';
+      const row = el('div', isBad ? 'ch-row is-bad' : 'ch-row');
+      if (isBad) row.append(el('span', 'bad-dot'));
       row.append(el('span', 'ch-name', c.name));
       if (c.type) row.append(' ', el('span', 'ch-type', c.type));
       if (c.units) row.append(' ', el('span', 'ch-units', c.units));
@@ -299,6 +300,30 @@
       });
     }
 
+    // Toggle bad status for channel at index `idx`. Updates the mask,
+    // re-renders that row in the channel list, and triggers a canvas
+    // re-render so the trace colour/opacity changes immediately.
+    function toggleBad(idx) {
+      channelBadMask[idx] = !channelBadMask[idx];
+      const chList = $('ch-list');
+      const row = chList && chList.children[idx];
+      if (row) {
+        const isBad = channelBadMask[idx];
+        if (isBad) {
+          row.classList.add('is-bad');
+          if (!row.querySelector('.bad-dot')) {
+            const dot = el('span', 'bad-dot');
+            row.insertBefore(dot, row.firstChild);
+          }
+        } else {
+          row.classList.remove('is-bad');
+          const dot = row.querySelector('.bad-dot');
+          if (dot) dot.remove();
+        }
+      }
+      requestRender();
+    }
+
     function attachInput() {
       let dragging = false, dragX0 = 0, t0 = 0;
       tracesCanvas.addEventListener('pointerdown', (e) => {
@@ -463,7 +488,26 @@
       if (params.has('embed')) globalThis.document.body.classList.add('embed');
     }
 
+    // Event delegation: click on any .ch-row in #ch-list toggles bad state.
+    // Wired once at boot (not re-wired on each renderChannels call) because
+    // we derive the channel index from the row's DOM position, which is
+    // stable — renderChannels always rebuilds the full list in order.
+    function attachChListClick() {
+      const chList = $('ch-list');
+      if (!chList) return;
+      chList.addEventListener('click', (e) => {
+        if (!reader) return;
+        const row = e.target.closest('.ch-row');
+        if (!row) return;
+        const rows = chList.children;
+        const idx = Array.prototype.indexOf.call(rows, row);
+        if (idx < 0) return;
+        toggleBad(idx);
+      });
+    }
+
     attachInput();
+    attachChListClick();
     attachDragDrop();
     const params = new URLSearchParams(globalThis.location.search);
     applyEmbedMode(params);

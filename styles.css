@@ -244,7 +244,9 @@ code {
   padding: 3px 10px;
   letter-spacing: 0.02em;
 }
+.ch-row { cursor: pointer; }
 .ch-row:hover, .ev-row:hover { background: var(--bg-2); }
+.ch-row.is-bad { background: color-mix(in oklab, var(--bad) 6%, transparent); }
 .ch-name { font-weight: 500; color: var(--ink); }
 .ch-type, .ch-units, .ev-label {
   color: var(--muted);
