@@ -332,7 +332,9 @@
       // hot loop stays a single multiply per sample. Equivalent to
       // (data[s] - mean) * vToPx but cheaper per draw.
       const yC = yCenter + mean * vToPx;
-      ctx.strokeStyle = isBad ? BAD_COLOR : TRACE_COLOR;
+      const channelColors = opts.channel_colors;
+      const typeColor = (channelColors && channelColors[c]) ? channelColors[c] : TRACE_COLOR;
+      ctx.strokeStyle = isBad ? BAD_COLOR : typeColor;
       ctx.lineWidth = isBad ? TRACE_WIDTH_BAD : TRACE_WIDTH_DEFAULT;
       if (decimated) {
         drawChannelDecimated(ctx, data, nVisible, plotX0, plotW, yC, vToPx);

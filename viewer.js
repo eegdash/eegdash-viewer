@@ -17,6 +17,44 @@
 
   const ELECTRODE_EXPLORER = 'https://electrodes.eegdash.org/';
 
+  // Okabe-Ito colorblind-safe palette (8 colours)
+  const OKABE_ITO = [
+    '#0072B2', '#009E73', '#D55E00', '#CC79A7',
+    '#E69F00', '#56B4E9', '#F0E442', '#000000',
+  ];
+
+  // Default channel-type → palette-index mapping.
+  // Types not listed here are assigned round-robin from remaining indices.
+  const TYPE_COLOR_INDEX = {
+    EEG:  0,  // #0072B2
+    EOG:  2,  // #D55E00
+    ECG:  1,  // #009E73
+    EMG:  3,  // #CC79A7
+    MISC: 4,  // #E69F00
+  };
+
+  // Build a {type → hexColor} map for a given set of distinct types,
+  // assigning known types their fixed index and round-robining the rest.
+  function buildTypeColors(types) {
+    const result = {};
+    let roundRobinIdx = 0;
+    const usedIndices = new Set(Object.values(TYPE_COLOR_INDEX));
+    const remainingIndices = OKABE_ITO
+      .map((_, i) => i)
+      .filter(i => !usedIndices.has(i));
+
+    for (const type of types) {
+      const upper = (type || '').toUpperCase();
+      if (TYPE_COLOR_INDEX.hasOwnProperty(upper)) {
+        result[upper] = OKABE_ITO[TYPE_COLOR_INDEX[upper]];
+      } else {
+        result[upper] = OKABE_ITO[remainingIndices[roundRobinIdx % remainingIndices.length] ?? 0];
+        roundRobinIdx++;
+      }
+    }
+    return result;
+  }
+
   // ---- DOM helpers ------------------------------------------
   // Each helper reads `globalThis.document` at call time so unit
   // tests can swap in a synthetic Document stub without forking
@@ -95,6 +133,45 @@
       return row;
     });
     setChildren(listEl, ...rows);
+  }
+
+  // Render per-type colour swatches into #channel-colors.
+  // typeColors: {TYPE → hexColor} (current mapping)
+  // onSwatchClick: (type, newColor) → void
+  function renderChannelColors(channels, containerEl, typeColors, onSwatchClick) {
+    if (!channels || !channels.length) {
+      containerEl.replaceChildren();
+      return;
+    }
+    // Compute distinct types in encounter order.
+    const seenTypes = [];
+    const seenSet = new Set();
+    for (const ch of channels) {
+      const t = (ch.type || 'MISC').toUpperCase();
+      if (!seenSet.has(t)) { seenSet.add(t); seenTypes.push(t); }
+    }
+
+    const rows = seenTypes.map(type => {
+      const row = el('div', 'color-swatch-row');
+      const label = el('span', 'ch-type-label', type);
+      const pickerRow = el('div', 'color-picker-row');
+
+      const buttons = OKABE_ITO.map(hex => {
+        const btn = globalThis.document.createElement('button');
+        btn.className = 'color-swatch' + (typeColors[type] === hex ? ' active' : '');
+        btn.style.background = hex;
+        btn.setAttribute('data-color', hex);
+        btn.setAttribute('aria-label', hex);
+        btn.addEventListener('click', () => onSwatchClick(type, hex));
+        return btn;
+      });
+
+      pickerRow.replaceChildren(...buttons);
+      row.append(label, pickerRow);
+      return row;
+    });
+
+    containerEl.replaceChildren(...rows);
   }
 
   // Hide the link unless the dataset has `_electrodes.tsv` resolved
@@ -198,6 +275,7 @@
     let channelLabels = [];
     let channelBadMask = [];
     let metaChannels = null;   // kept for units lookup in cursor readout
+    let typeColors = {};     // {TYPE → hexColor} — mutated by swatch clicks
     let pending = null;
     let inFlight = null;
 
@@ -289,11 +367,16 @@
         }
         if (!channels || ctrl.signal.aborted) return;
         const drawStartSec = startSample / fs;
+        // Build per-channel colour array from current type→colour mapping.
+        const channelColors = metaChannels && metaChannels.length
+          ? metaChannels.map(ch => typeColors[(ch.type || 'MISC').toUpperCase()] || null)
+          : null;
         TraceRenderer.draw(tracesCanvas, {
           channels,
           n_samples_visible: channels[0]?.length || 0,
           channel_labels: channelLabels,
           bad_mask: channelBadMask,
+          channel_colors: channelColors,
           fs,
           start_sec: drawStartSec,
           gain: view.gain,
@@ -509,6 +592,27 @@
         renderEvents(meta.events, $('ev-list'), $('event-count'));
         updateElectrodeLink(meta, $('electrode-link'));
 
+        // Initialise per-type colour mapping for the new recording.
+        const _metaChannels = meta.channels || [];
+        const distinctTypes = [...new Set(_metaChannels.map(ch => (ch.type || 'MISC').toUpperCase()))];
+        typeColors = buildTypeColors(distinctTypes);
+        const colorContainer = $('channel-colors');
+        if (colorContainer) {
+          renderChannelColors(_metaChannels, colorContainer, typeColors, (type, hex) => {
+            typeColors[type] = hex;
+            // Swap .active on all swatches for this type row.
+            const rows = colorContainer.querySelectorAll('.color-swatch-row');
+            rows.forEach(row => {
+              const lbl = row.querySelector('.ch-type-label');
+              if (!lbl || lbl.textContent !== type) return;
+              row.querySelectorAll('button.color-swatch').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-color') === hex);
+              });
+            });
+            requestRender();
+          });
+        }
+
         const readerModule = READERS[meta.ext];
         if (!readerModule) {
           throw new Error(`No reader for *_eeg.${meta.ext} (supported: ${Object.keys(READERS).join(', ')})`);
@@ -516,7 +620,7 @@
         reader = await readerModule.open(meta);
         channelLabels = deriveChannelLabels(reader, meta.channels);
         channelBadMask = deriveBadMask(meta.channels, reader.n_channels);
-        metaChannels = meta.channels || null;
+        metaChannels = _metaChannels.length ? _metaChannels : (meta.channels || null);
 
         setPill('pill-fs', reader.sampling_frequency + ' Hz');
         setPill('pill-channels', reader.n_channels + ' ch');
@@ -567,6 +671,9 @@
                 n_samples_visible: initChannels[0]?.length || 0,
                 channel_labels: channelLabels,
                 bad_mask: channelBadMask,
+                channel_colors: metaChannels && metaChannels.length
+                  ? metaChannels.map(ch => typeColors[(ch.type || 'MISC').toUpperCase()] || null)
+                  : null,
                 fs,
                 start_sec: 0,
                 gain: view.gain,
@@ -701,9 +808,12 @@
     boot,
     el, setChildren, setPill,
     renderProvenance, renderChannels, renderEvents,
+    renderChannelColors,
     updateElectrodeLink, renderStageCaption,
     clampStart, deriveChannelLabels, deriveBadMask,
     pickDefaultWindowSec,
+    buildTypeColors,
+    OKABE_ITO,
     ELECTRODE_EXPLORER,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
