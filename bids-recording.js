@@ -75,7 +75,20 @@
     const run  = params.run || null;
     const ext  = (params.ext || 'set').toLowerCase();
 
-    const bucket = 'https://s3.amazonaws.com/openneuro.org';
+    // Default: route through cdn.eegdash.org — Cloudflare Worker proxy
+    // that caches OpenNeuro S3 byte-ranges at the global edge.
+    // Measured cold-cache vs raw S3 (see docs/streaming-and-cdn-study.md
+    // and cdn-worker/): TTFB 41-61 ms vs 333-460 ms (~10× faster), total
+    // 77-176 ms vs 946-2622 ms (~13× faster), throughput 6-14 MB/s vs
+    // 0.4-1.1 MB/s (~10× higher) for the same byte ranges.
+    //
+    // Override with ?direct=1 in the URL to bypass the CDN and hit
+    // raw S3 — useful for debugging or when the CDN is having issues.
+    const useDirect = typeof globalThis.location !== 'undefined' &&
+      new URLSearchParams(globalThis.location.search).has('direct');
+    const bucket = useDirect
+      ? 'https://s3.amazonaws.com/openneuro.org'
+      : 'https://cdn.eegdash.org';
     const segs = [bucket, ds, `sub-${sub}`];
     if (ses) segs.push(`ses-${ses}`);
     segs.push('eeg');
@@ -189,7 +202,9 @@
   const _eegdashCache = new Map();             // datasetId → record | null
 
   function openNeuroDatasetId(dir) {
-    const m = /^https?:\/\/s3\.amazonaws\.com\/openneuro\.org\/([^/]+)\//.exec(dir);
+    // Match either the raw S3 bucket OR the CDN proxy in front of it
+    // (cdn.eegdash.org is a transparent edge cache for the same paths).
+    const m = /^https?:\/\/(?:s3\.amazonaws\.com\/openneuro\.org|cdn\.eegdash\.org)\/([^/]+)\//.exec(dir);
     return m ? m[1] : null;
   }
 

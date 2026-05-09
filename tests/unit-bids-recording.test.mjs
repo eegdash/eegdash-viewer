@@ -154,18 +154,21 @@ test('parseEegUrl: rejects URLs that are not BIDS *_eeg.<ext>', () => {
 
 // ----- buildOpenNeuroEegUrl --------------------------------------
 
-test('buildOpenNeuroEegUrl: full entity set', () => {
+// Default URL routes through cdn.eegdash.org (Cloudflare Worker proxy
+// in front of OpenNeuro S3, ~10× cold-cache speedup). Old S3 URLs still
+// work as-is when passed via ?eeg=, and ?direct=1 forces raw S3.
+test('buildOpenNeuroEegUrl: full entity set (CDN-routed by default)', () => {
   assert.equal(
     BIDSRecording.buildOpenNeuroEegUrl({
       dataset: 'ds002034', sub: '01', ses: '01', task: 'offline', run: '01', ext: 'edf',
     }),
-    'https://s3.amazonaws.com/openneuro.org/ds002034/sub-01/ses-01/eeg/sub-01_ses-01_task-offline_run-01_eeg.edf');
+    'https://cdn.eegdash.org/ds002034/sub-01/ses-01/eeg/sub-01_ses-01_task-offline_run-01_eeg.edf');
 });
 
-test('buildOpenNeuroEegUrl: no ses, no run', () => {
+test('buildOpenNeuroEegUrl: no ses, no run (CDN-routed by default)', () => {
   assert.equal(
     BIDSRecording.buildOpenNeuroEegUrl({ dataset: 'ds002336', sub: 'xp101', task: 'motorloc', ext: 'vhdr' }),
-    'https://s3.amazonaws.com/openneuro.org/ds002336/sub-xp101/eeg/sub-xp101_task-motorloc_eeg.vhdr');
+    'https://cdn.eegdash.org/ds002336/sub-xp101/eeg/sub-xp101_task-motorloc_eeg.vhdr');
 });
 
 test('buildOpenNeuroEegUrl: missing required dataset throws', () => {

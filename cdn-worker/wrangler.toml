@@ -1,16 +1,12 @@
 name            = "eegdash-cdn"
 main            = "src/worker.js"
 compatibility_date = "2026-05-09"
-workers_dev     = true   # publishes at <name>.<account>.workers.dev for testing
+workers_dev     = false  # custom route only — no .workers.dev subdomain needed
 
-# ------------------------------------------------------------------
-# Custom domain / route (uncomment and fill in once you have a domain
-# pointed at Cloudflare's nameservers):
-#
-# routes = [
-#   { pattern = "eeg-cdn.example.com/*", zone_name = "example.com" }
-# ]
-#
-# Then add a CNAME at your DNS registrar:
-#   eeg-cdn  CNAME  eegdash-cdn.<account>.workers.dev
-# ------------------------------------------------------------------
+routes = [
+  { pattern = "cdn.eegdash.org", custom_domain = true }
+]
+# Custom-domain binding (newer than the bare `pattern` form): Cloudflare
+# automatically creates a proxied DNS record for cdn.eegdash.org pointing
+# to the worker. No manual DNS step needed when the zone is in this CF
+# account.
