@@ -172,9 +172,70 @@
   }
   const fetchTextOrNull = (url) => fetchText(url, { allowMissing: true });
 
+  // ---- Streaming fetch ----------------------------------------
+  // Returns an AsyncIterable<{ offset, bytes: Uint8Array }> where
+  // `offset` is 0-based within the requested range [byteStart, byteEnd].
+  // Falls back to a single rangeFetch (yielding one chunk) for:
+  //   - local blobs (synchronous slice, no streaming gain)
+  //   - tiny ranges below STREAM_THRESHOLD (chunking overhead not worth it)
+  // opts.signal aborts mid-stream cleanly.
+  // Throws if total received bytes != requested length.
+  const STREAM_THRESHOLD = 64 * 1024;  // 64 KiB — chunking tiny ranges is wasteful
+
+  async function* rangeFetchStreaming(url, byteStart, byteEndInclusive, opts) {
+    const total = byteEndInclusive - byteStart + 1;
+    if (total <= 0) return;
+
+    // For local blobs or small ranges, fall back to a single arraybuffer
+    // chunk — no streaming benefit for tiny or synchronous sources.
+    if (isLocal(url) || total < STREAM_THRESHOLD) {
+      const buf = await rangeFetch(url, byteStart, byteEndInclusive, total, opts);
+      yield { offset: 0, bytes: new Uint8Array(buf) };
+      return;
+    }
+
+    const signal = opts && opts.signal;
+    const r = await fetch(url, {
+      headers: { Range: `bytes=${byteStart}-${byteEndInclusive}` },
+      signal,
+    });
+    if (r.status !== 206 && r.status !== 200) {
+      throw new Error(`Range fetch (streaming) failed: HTTP ${r.status} for ${url}`);
+    }
+
+    const reader = r.body.getReader();
+    let offset = 0;
+    try {
+      while (true) {
+        // Check abort signal before each read
+        if (signal && signal.aborted) {
+          reader.cancel();
+          throw new DOMException('aborted', 'AbortError');
+        }
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value && value.byteLength > 0) {
+          yield { offset, bytes: value };
+          offset += value.byteLength;
+        }
+      }
+    } catch (e) {
+      reader.cancel();
+      throw e;
+    }
+
+    if (offset !== total) {
+      throw new Error(
+        `Streaming range fetch received ${offset}B, expected ${total}B ` +
+        `(server may have ignored Range header or truncated response).`
+      );
+    }
+  }
+
   const api = {
-    probeLength, rangeFetch, fetchText, fetchTextOrNull,
+    probeLength, rangeFetch, rangeFetchStreaming, fetchText, fetchTextOrNull,
     registerLocal, clearLocal,
+    _STREAM_THRESHOLD: STREAM_THRESHOLD,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.HttpRange = api;

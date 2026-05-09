@@ -423,11 +423,41 @@
   // (any length ≥ nVisible); we read indices [0, nVisible).
   // `bad_mask` is an optional boolean[]; channels marked true render
   // in the highlight colour.
+  //
+  // 1C streaming: when `opts.partial_fill` is present:
+  //   { sample_start, sample_end, total_samples }
+  // ONLY the x-region corresponding to those samples is redrawn.
+  // The rest of the canvas is left intact (stale content stays visible
+  // until the full window arrives). The caller is responsible for
+  // calling draw() without partial_fill for the first chunk (to clear
+  // the old frame) and subsequent chunks with partial_fill.
   function draw(canvas, opts) {
     const { dpr, cssW, cssH } = deviceFitCanvas(canvas);
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    clear(ctx, cssW, cssH);
+
+    // Partial-fill mode: only repaint the x-band for the new samples.
+    // We must NOT call clear() — that would erase the already-painted part.
+    const partialFill = opts.partial_fill;
+    if (partialFill) {
+      // Compute the x-pixel range for the new samples
+      const allChannels0 = opts.channels;
+      const nSamplesTotal = partialFill.total_samples || (allChannels0[0] ? allChannels0[0].length : 0);
+      const plotX0 = PAD_LEFT;
+      const plotX1 = cssW - PAD_RIGHT;
+      const plotW = plotX1 - plotX0;
+      if (nSamplesTotal > 0 && plotW > 0) {
+        const xStart = Math.floor(plotX0 + (partialFill.sample_start / nSamplesTotal) * plotW);
+        const xEnd = Math.ceil(plotX0 + ((partialFill.sample_end + 1) / nSamplesTotal) * plotW);
+        const bandW = Math.max(1, xEnd - xStart);
+        // Clear only the band for the new samples (plus label area)
+        ctx.fillStyle = BG_COLOR;
+        ctx.fillRect(xStart, 0, bandW, cssH);
+      }
+      // Fall through to normal draw but skip clear()
+    } else {
+      clear(ctx, cssW, cssH);
+    }
 
     const allChannels = opts.channels;
     const totalCh = allChannels.length;

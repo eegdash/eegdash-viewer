@@ -126,6 +126,8 @@
         if (end <= start) return ChannelBuffers.empty(nChannels);
         return readInterleavedWindow(fdtUrl, nChannels, start, end - start, opts);
       },
+      readWindowStreaming: (startSample, nSamplesWindow, opts) =>
+        streamInterleavedWindow(fdtUrl, nChannels, nSamples, startSample, nSamplesWindow, opts),
     };
   };
 
@@ -151,6 +153,56 @@
   // Underscore prefix marks "stable for tests, not for production
   // callers". Production code consumes `open()` only.
   api._classifyDurationMismatch = classifyDurationMismatch;
+
+  // Streaming decode for EEGLAB .fdt (channel-interleaved Float32).
+  // Yields { firstSampleIdx, lastSampleIdx, channels } as bytes arrive.
+  // Each chunk is decoded by de-interleaving complete frames (nCh * 4 bytes).
+  // STREAM_BATCH_FRAMES controls how many frames to accumulate before yielding.
+  const STREAM_BATCH_FRAMES = 512;
+
+  async function* streamInterleavedWindow(url, nChannels, nSamples, startSample, nWinReq, opts) {
+    const start = Math.max(0, startSample);
+    if (start >= nSamples || nWinReq <= 0) return;
+    const end = Math.min(start + nWinReq, nSamples);
+    const nWin = end - start;
+
+    const byteStart = start * nChannels * BYTES_PER_SAMPLE;
+    const expectedBytes = nWin * nChannels * BYTES_PER_SAMPLE;
+    const frameSize = nChannels * BYTES_PER_SAMPLE;
+
+    let leftover = new Uint8Array(0);
+    let outSamples = 0;
+
+    for await (const { bytes } of HttpRange.rangeFetchStreaming(
+      url, byteStart, byteStart + expectedBytes - 1, opts
+    )) {
+      const boundary = StreamingUtils.decodeChunkBoundary(leftover, bytes, frameSize);
+      leftover = boundary.leftover;
+      const completeBytes = boundary.completeRecordBytes;
+      const nFrames = Math.floor(completeBytes.length / frameSize);
+      if (nFrames === 0) continue;
+
+      // Decode in batches to limit memory pressure
+      let fOff = 0;
+      while (fOff < nFrames && outSamples < nWin) {
+        const batchFrames = Math.min(STREAM_BATCH_FRAMES, nFrames - fOff, nWin - outSamples);
+        const batchU8 = completeBytes.subarray(fOff * frameSize, (fOff + batchFrames) * frameSize);
+        const interleaved = new Float32Array(batchU8.buffer, batchU8.byteOffset, batchFrames * nChannels);
+        const out = ChannelBuffers.alloc(nChannels, batchFrames);
+        let i = 0;
+        for (let s = 0; s < batchFrames; s++) {
+          for (let c = 0; c < nChannels; c++) {
+            out[c][s] = interleaved[i++];
+          }
+        }
+        const firstSampleIdx = start + outSamples;
+        const lastSampleIdx = firstSampleIdx + batchFrames - 1;
+        outSamples += batchFrames;
+        yield { firstSampleIdx, lastSampleIdx, channels: out };
+        fOff += batchFrames;
+      }
+    }
+  }
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.EEGLABReader = api;

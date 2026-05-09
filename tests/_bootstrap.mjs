@@ -15,6 +15,7 @@ require('../bids-loader.js');
 require('../formats/_buffers.js');
 
 export const HttpRange         = require('../formats/_http_range.js');
+export const StreamingUtils    = require('../formats/_streaming.js');
 export const SidecarChecks     = require('../formats/_sidecar.js');
 export const BIDSRecording     = require('../bids-recording.js');
 export const EEGLABReader      = require('../formats/eeglab.js');

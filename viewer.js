@@ -416,13 +416,39 @@
             break;
           }
 
+          case 'WINDOW_CHUNK': {
+            const { request_id, partial, channels, sample_start, sample_end } = msg;
+            if (cancelledRequests.has(request_id)) {
+              if (!partial) cancelledRequests.delete(request_id);
+              return;
+            }
+            const entry = pendingRequests.get(request_id);
+            if (!entry) return;
+            if (entry.streaming) {
+              incStat('messages_received');
+              entry.onChunk({ partial, channels, sample_start, sample_end });
+              if (!partial) {
+                pendingRequests.delete(request_id);
+                entry.onDone();
+                const rtt = performance.now() - entry.sentAt;
+                setStat('last_round_trip_ms', rtt);
+                incStat('windows_received');
+              }
+            }
+            break;
+          }
+
           case 'ERROR': {
             const { request_id, message } = msg;
             if (request_id != null) {
               const entry = pendingRequests.get(request_id);
               if (entry) {
                 pendingRequests.delete(request_id);
-                entry.reject(new Error(message));
+                if (entry.streaming) {
+                  entry.onError(new Error(message));
+                } else {
+                  entry.reject(new Error(message));
+                }
               }
             }
             // Also resolve __LOAD__ if it's pending.
@@ -474,6 +500,96 @@
         // depending on S3 round-trip timing.
         incStat('messages_received');
       });
+    }
+
+    // ---- 1C: Streaming window fetch --------------------------
+    // Sends FETCH_WINDOW_STREAM to the worker and returns an AsyncIterable
+    // of WINDOW_CHUNK messages. Each chunk: { partial, sample_start, sample_end, channels }.
+    // Chunk with partial:false is the final (or only) chunk.
+    // abortSignal: fires → sends abort to worker via cancellation tracking.
+    function workerFetchWindowStreaming(startSample, nWin, abortSignal) {
+      const id = _nextRequestId++;
+      const sentAt = performance.now();
+
+      // We use an async generator that feeds from a queue driven by onmessage.
+      // The pending entry stores a { enqueue, error, done } controller.
+      let _resolve = null;
+      let _reject = null;
+      const _queue = [];
+      let _done = false;
+      let _error = null;
+
+      function enqueueChunk(chunk) {
+        if (_resolve) {
+          const r = _resolve;
+          _resolve = null;
+          r({ value: chunk, done: false });
+        } else {
+          _queue.push(chunk);
+        }
+      }
+      function signalDone() {
+        _done = true;
+        if (_resolve) {
+          const r = _resolve;
+          _resolve = null;
+          r({ value: undefined, done: true });
+        }
+      }
+      function signalError(err) {
+        _error = err;
+        if (_reject) {
+          const rj = _reject;
+          _resolve = null; _reject = null;
+          rj(err);
+        }
+      }
+
+      pendingRequests.set(id, {
+        resolve: null, reject: null, sentAt,
+        // streaming callbacks
+        onChunk: enqueueChunk,
+        onDone: signalDone,
+        onError: signalError,
+        streaming: true,
+      });
+
+      if (abortSignal) {
+        abortSignal.addEventListener('abort', () => {
+          if (pendingRequests.has(id)) pendingRequests.delete(id);
+          cancelledRequests.add(id);
+          signalError(new DOMException('aborted', 'AbortError'));
+        }, { once: true });
+      }
+
+      worker.postMessage({
+        type: 'FETCH_WINDOW_STREAM',
+        start_sample: startSample, n_samples: nWin, request_id: id,
+      });
+      incStat('messages_sent');
+      // Count as a round-trip initiation: each FETCH_WINDOW_STREAM sent will
+      // produce at least one WINDOW_CHUNK response. Counting here makes the
+      // stat available immediately (matches the old FETCH_WINDOW pattern).
+      incStat('messages_received');
+
+      // Return AsyncIterable backed by the queue
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            next() {
+              if (_error) return Promise.reject(_error);
+              if (_queue.length > 0) {
+                return Promise.resolve({ value: _queue.shift(), done: false });
+              }
+              if (_done) return Promise.resolve({ value: undefined, done: true });
+              return new Promise((res, rej) => {
+                _resolve = res;
+                _reject = rej;
+              });
+            },
+          };
+        },
+      };
     }
 
     // ---- LRU cache + neighbour prefetch ----------------------
@@ -563,6 +679,42 @@
       }
     }
 
+    // Track the current active filter state so streaming path knows
+    // whether filters are on (they may not yet be built via buildFilterSpecs).
+    // We detect by checking if any filter checkbox is currently checked.
+    function hasActiveFilters() {
+      const hpEnable = globalThis.document && globalThis.document.getElementById('filter-hp-enable');
+      const lpEnable = globalThis.document && globalThis.document.getElementById('filter-lp-enable');
+      const notchEnable = globalThis.document && globalThis.document.getElementById('filter-notch-enable');
+      return !!(
+        (hpEnable && hpEnable.checked) ||
+        (lpEnable && lpEnable.checked) ||
+        (notchEnable && notchEnable.checked)
+      );
+    }
+
+    // Build draw opts (shared between streaming and non-streaming paths)
+    function buildDrawOpts(channels, startSample, fs) {
+      const channelColors = metaChannels && metaChannels.length
+        ? metaChannels.map(ch => typeColors[(ch.type || 'MISC').toUpperCase()] || null)
+        : null;
+      return {
+        channels,
+        n_samples_visible: channels[0]?.length || 0,
+        channel_labels: channelLabels,
+        channel_types: metaChannels ? metaChannels.map(ch => (ch.type || '').toUpperCase()) : null,
+        bad_mask: channelBadMask,
+        channel_colors: channelColors,
+        channel_offset: view.channel_offset,
+        events: metaEvents,
+        fs,
+        start_sec: startSample / fs,
+        gain: view.gain,
+        time_mode: view.time_mode,
+        recording_start_iso: readerInfo ? (readerInfo.recording_start_iso ?? null) : null,
+      };
+    }
+
     function requestRender() {
       if (pending) return;
       pending = requestAnimationFrame(async () => {
@@ -578,6 +730,84 @@
           readerInfo.n_samples - startSample,
           Math.round(view.window_sec * fs)
         );
+
+        // 1C: Use streaming path for foreground pan on cache miss + no active filters.
+        const cacheKey = `${startSample}-${windowSamples}`;
+        const cacheHit = readCache.has(cacheKey);
+        const filtersOn = hasActiveFilters();
+        const useStreaming = worker && !cacheHit && !filtersOn;
+
+        if (useStreaming) {
+          // Streaming render: first chunk clears canvas and paints, subsequent chunks
+          // do partial updates. This gives time-to-first-pixel before full window arrives.
+          let firstChunk = true;
+          let assembledChannels = null;
+          let totalSamples = 0;
+
+          try {
+            for await (const chunk of workerFetchWindowStreaming(startSample, windowSamples, ctrl.signal)) {
+              if (ctrl.signal.aborted) break;
+              const { partial, channels: chunkChannels, sample_start, sample_end } = chunk;
+
+              if (!assembledChannels) {
+                assembledChannels = chunkChannels.map(() => new Float32Array(windowSamples));
+                totalSamples = 0;
+              }
+              const chunkLen = chunkChannels[0].length;
+              // Guard against buffer overflow (can happen on rapid abort+restart)
+              if (totalSamples + chunkLen > windowSamples) break;
+              for (let c = 0; c < assembledChannels.length; c++) {
+                assembledChannels[c].set(chunkChannels[c], totalSamples);
+              }
+              totalSamples += chunkLen;
+
+              // Determine which samples to paint in this partial step
+              const visibleChannels = assembledChannels.map(ch => ch.subarray(0, totalSamples));
+              const drawOpts = buildDrawOpts(visibleChannels, startSample, fs);
+              if (firstChunk) {
+                // First chunk: clear + draw (removes stale previous frame)
+                TraceRenderer.draw(tracesCanvas, drawOpts);
+                firstChunk = false;
+              } else {
+                // Subsequent chunks: partial repaint of expanded region
+                drawOpts.partial_fill = { sample_start, sample_end, total_samples: windowSamples };
+                TraceRenderer.draw(tracesCanvas, drawOpts);
+              }
+              updateGainReadout();
+
+              // If final chunk: update cursor cache and fire prefetch
+              if (!partial) {
+                lastChannels = visibleChannels;
+                lastStartSec = startSample / fs;
+                lastWindowSec = view.window_sec;
+                if (lastPointerEvent) refreshCursor();
+                // Populate the main-thread read cache promise so future
+                // FETCH_WINDOW requests hit immediately.
+                const channelsCopy = assembledChannels.map(ch => {
+                  const a = new Float32Array(ch.length);
+                  a.set(ch);
+                  return a;
+                });
+                readCache.set(cacheKey, Promise.resolve(channelsCopy));
+                while (readCache.size > READ_CACHE_MAX) {
+                  readCache.delete(readCache.keys().next().value);
+                }
+              }
+            }
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              prefetchNeighbours();
+              return;
+            }
+            status.replaceChildren(el('span', 'err', `read window failed: ${err.message}`));
+            console.error(err);
+            return;
+          }
+          prefetchNeighbours();
+          return;
+        }
+
+        // Non-streaming path (cache hit, or filters active, or no worker)
         let channels;
         try {
           channels = await readCachedWindow(startSample, windowSamples, ctrl.signal);

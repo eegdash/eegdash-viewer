@@ -25,6 +25,7 @@
 importScripts(
   'formats/_buffers.js',
   'formats/_http_range.js',
+  'formats/_streaming.js',
   'formats/_sidecar.js',
   'bids-recording.js',
   'formats/eeglab.js',
@@ -184,6 +185,155 @@ self.onmessage = async function (evt) {
         // Acknowledge so the main thread knows the chain is installed.
         // Subsequent WINDOWs will carry filtered data.
         self.postMessage({ type: 'FILTERED', filter_id: specs.map(s => s.kind).join('+') });
+        break;
+      }
+
+      // 1C: Streaming window fetch.
+      // When filter chain is active, streaming is unsafe (filtfilt needs full signal):
+      // collect all chunks, apply filter, then send ONE final WINDOW_CHUNK with partial:false.
+      // When no filter: stream chunks as they arrive (partial:true), then final (partial:false).
+      // Also populates rawCache so subsequent non-streaming FETCH_WINDOW hits are cache hits.
+      case 'FETCH_WINDOW_STREAM': {
+        const { start_sample, n_samples, request_id } = msg;
+        if (!reader) {
+          self.postMessage({ type: 'ERROR', request_id, message: 'No reader loaded' });
+          return;
+        }
+
+        // If no streaming method available, fall back to non-streaming
+        if (!reader.readWindowStreaming) {
+          const cacheKey = `${start_sample}-${n_samples}`;
+          let rawChannels = rawCache.get(cacheKey);
+          if (!rawChannels) {
+            const fresh = await reader.readWindow(start_sample, n_samples);
+            rawCachePut(cacheKey, fresh);
+            rawChannels = rawCache.get(cacheKey);
+          }
+          const owned = rawChannels.map(rawCh => {
+            if (activeFilterCoefs.length > 0) {
+              return globalThis.Filters.applyChain(rawCh, activeFilterCoefs);
+            }
+            const a = new Float32Array(rawCh.length);
+            a.set(rawCh);
+            return a;
+          });
+          self.postMessage(
+            { type: 'WINDOW_CHUNK', request_id, partial: false,
+              sample_start: start_sample, sample_end: start_sample + owned[0].length - 1,
+              channels: owned },
+            owned.map(a => a.buffer),
+          );
+          return;
+        }
+
+        const cacheKey = `${start_sample}-${n_samples}`;
+
+        // Check rawCache — if already populated, no streaming needed
+        const cachedRaw = rawCache.get(cacheKey);
+        if (cachedRaw) {
+          const owned = cachedRaw.map(rawCh => {
+            if (activeFilterCoefs.length > 0) {
+              return globalThis.Filters.applyChain(rawCh, activeFilterCoefs);
+            }
+            const a = new Float32Array(rawCh.length);
+            a.set(rawCh);
+            return a;
+          });
+          self.postMessage(
+            { type: 'WINDOW_CHUNK', request_id, partial: false,
+              sample_start: start_sample, sample_end: start_sample + owned[0].length - 1,
+              channels: owned },
+            owned.map(a => a.buffer),
+          );
+          return;
+        }
+
+        const hasFilter = activeFilterCoefs.length > 0;
+
+        if (hasFilter) {
+          // Filter is active: collect all chunks, then apply filter and send single final chunk.
+          // rawCache assembly: accumulate into a single buffer per channel.
+          let assembledChannels = null;
+          let totalSamples = 0;
+          for await (const chunk of reader.readWindowStreaming(start_sample, n_samples)) {
+            if (!assembledChannels) {
+              assembledChannels = chunk.channels.map(ch => {
+                const a = new Float32Array(n_samples);
+                a.set(ch, 0);
+                return a;
+              });
+              totalSamples = chunk.channels[0].length;
+            } else {
+              for (let c = 0; c < assembledChannels.length; c++) {
+                assembledChannels[c].set(chunk.channels[c], totalSamples);
+              }
+              totalSamples += chunk.channels[0].length;
+            }
+          }
+          if (!assembledChannels) return;
+          // Trim to actual samples received
+          const trimmed = assembledChannels.map(ch => ch.subarray(0, totalSamples));
+          rawCachePut(cacheKey, trimmed);
+          const filtered = trimmed.map(rawCh => globalThis.Filters.applyChain(rawCh, activeFilterCoefs));
+          const ownedFiltered = filtered.map(ch => {
+            const a = new Float32Array(ch.length);
+            a.set(ch);
+            return a;
+          });
+          self.postMessage(
+            { type: 'WINDOW_CHUNK', request_id, partial: false,
+              sample_start: start_sample, sample_end: start_sample + ownedFiltered[0].length - 1,
+              channels: ownedFiltered },
+            ownedFiltered.map(a => a.buffer),
+          );
+        } else {
+          // No filter: stream chunks as they arrive, each as partial:true WINDOW_CHUNK.
+          // Assemble into rawCache simultaneously (deep copy each chunk).
+          let assembledChannels = null;
+          let totalSamples = 0;
+          for await (const chunk of reader.readWindowStreaming(start_sample, n_samples)) {
+            const chunkLen = chunk.channels[0].length;
+            if (!assembledChannels) {
+              assembledChannels = chunk.channels.map(() => new Float32Array(n_samples));
+            }
+            for (let c = 0; c < assembledChannels.length; c++) {
+              assembledChannels[c].set(chunk.channels[c], totalSamples);
+            }
+            totalSamples += chunkLen;
+
+            // Send partial chunk (transferable — transfer ownership; assembledChannels
+            // keeps its own copy so we can't transfer from that; must copy for transfer)
+            const transferable = chunk.channels.map(ch => {
+              const a = new Float32Array(ch.length);
+              a.set(ch);
+              return a;
+            });
+            self.postMessage(
+              { type: 'WINDOW_CHUNK', request_id, partial: true,
+                sample_start: chunk.firstSampleIdx, sample_end: chunk.lastSampleIdx,
+                channels: transferable },
+              transferable.map(a => a.buffer),
+            );
+          }
+
+          if (!assembledChannels) return;
+          // Populate rawCache with complete assembled buffer
+          const trimmed = assembledChannels.map(ch => ch.subarray(0, totalSamples));
+          rawCachePut(cacheKey, trimmed);
+
+          // Send final chunk (assembled full window, no filter)
+          const ownedFinal = trimmed.map(ch => {
+            const a = new Float32Array(ch.length);
+            a.set(ch);
+            return a;
+          });
+          self.postMessage(
+            { type: 'WINDOW_CHUNK', request_id, partial: false,
+              sample_start: start_sample, sample_end: start_sample + ownedFinal[0].length - 1,
+              channels: ownedFinal },
+            ownedFinal.map(a => a.buffer),
+          );
+        }
         break;
       }
 
