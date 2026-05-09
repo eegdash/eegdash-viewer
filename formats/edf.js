@@ -134,6 +134,73 @@
     };
   };
 
+  // TAL = Time-stamped Annotation List.
+  // Format: +<onset>[\x15<duration>]\x14<text>\x14[<text2>\x14...]\x00
+  // \x14 = 0x14 (field separator), \x15 = 0x15 (onset-duration sep), \x00 = record end.
+  // The first TAL in each data record is the timestamp anchor (empty text) — skip it.
+  api.parseTAL = function (bytes) {
+    const events = [];
+    const dec = new TextDecoder('utf-8');
+    let i = 0;
+    const n = bytes.length;
+
+    while (i < n) {
+      // Find the next \x00 record boundary.
+      let end = i;
+      while (end < n && bytes[end] !== 0x00) end++;
+      if (end === i) { i++; continue; }   // empty record
+
+      const record = dec.decode(bytes.subarray(i, end));
+      i = end + 1;
+
+      // Each record is a set of TALs separated by... actually each
+      // record already is one TAL. But the spec allows multiple TALs
+      // concatenated before the \x00 — split on the '+' sign at position 0
+      // of each sub-record (EDF+ uses '+' prefix for onset).
+      // Strategy: split on \x14 first to get all fields, then reconstruct.
+      // A TAL is: onset_str [\x15 duration_str] \x14 text \x14 [text2 \x14 ...] \x00
+      // After splitting on \x00, each piece is one TAL.
+      // We already have one record (between two \x00s). Now parse it.
+
+      // The onset field starts with '+' or '-'. Find the first \x14.
+      const sep14 = record.indexOf('\x14');
+      if (sep14 < 0) continue;          // malformed, skip
+
+      const onsetPart = record.slice(0, sep14);
+      const restPart = record.slice(sep14 + 1);
+
+      // Split onset and duration by \x15.
+      const sep15 = onsetPart.indexOf('\x15');
+      let onsetStr, durationStr;
+      if (sep15 >= 0) {
+        onsetStr    = onsetPart.slice(0, sep15);
+        durationStr = onsetPart.slice(sep15 + 1);
+      } else {
+        onsetStr    = onsetPart;
+        durationStr = '';
+      }
+
+      const onset = parseFloat(onsetStr);
+      if (!isFinite(onset)) continue;     // skip anchor records (no '+' prefix? unlikely but safe)
+
+      // The rest after the first \x14 is annotation text(s) terminated by \x14.
+      // Multiple annotations are separated by \x14; the record ends with \x14.
+      // The very first TAL in a data record has empty text — skip those.
+      const textParts = restPart.split('\x14').filter(t => t.length > 0);
+      if (!textParts.length) continue;    // timestamp anchor — skip
+
+      const duration = durationStr ? parseFloat(durationStr) : 0;
+      for (const text of textParts) {
+        events.push({
+          onset,
+          duration: isFinite(duration) ? duration : 0,
+          label: text,
+        });
+      }
+    }
+    return events;
+  };
+
   api.open = async function (meta) {
     const url = meta.eeg_url;
 
@@ -267,7 +334,54 @@
       n_channels: nDisplay,
       sigOffsetInRec, scales, offsets,
     };
-    const reader = hdr.isBDF ? readWindowBDF : readWindowEDF;
+    const readerFn = hdr.isBDF ? readWindowBDF : readWindowEDF;
+
+    // Parse TAL records from every annotation channel and surface them
+    // as structured events. Annotation channels store raw bytes (not
+    // calibrated int16s) so we read them differently: pull all data
+    // records for each annotation channel and decode as ASCII TAL.
+    let annotation_events = [];
+    const annotIdx = hdr.signals
+      .map((s, i) => s.is_annotation ? i : -1)
+      .filter(i => i >= 0);
+
+    if (annotIdx.length) {
+      // Pre-compute byte offset of each annotation channel within each record.
+      // cumByOrigIdx was computed above for display channels; reuse the logic.
+      const annotOffsets = annotIdx.map(i => {
+        let cum = 0;
+        for (let j = 0; j < i; j++) cum += hdr.signals[j].samples_per_record;
+        return cum * bytesPerSample;
+      });
+      const annotByteLens = annotIdx.map(i =>
+        hdr.signals[i].samples_per_record * bytesPerSample);
+
+      // Read all data records in one range fetch (files with annotations
+      // tend to be small; the entire data section is usually < 1 MB).
+      const dataStart = hdr.header_bytes;
+      const dataEnd   = dataStart + actualRecords * recordSize - 1;
+      try {
+        const dataBuf = await HttpRange.rangeFetch(url, dataStart, dataEnd, actualRecords * recordSize);
+        const u8 = new Uint8Array(dataBuf);
+
+        for (let ai = 0; ai < annotIdx.length; ai++) {
+          const chanOff  = annotOffsets[ai];
+          const chanLen  = annotByteLens[ai];
+          // Gather all bytes for this annotation channel across all records.
+          const allBytes = new Uint8Array(actualRecords * chanLen);
+          for (let r = 0; r < actualRecords; r++) {
+            const srcOff = r * recordSize + chanOff;
+            allBytes.set(u8.subarray(srcOff, srcOff + chanLen), r * chanLen);
+          }
+          const parsed = api.parseTAL(allBytes);
+          annotation_events = annotation_events.concat(parsed);
+        }
+        // Sort by onset time for consistent display.
+        annotation_events.sort((a, b) => a.onset - b.onset);
+      } catch (e) {
+        console.warn('EDF+: could not read annotation channel bytes; events skipped.', e.message);
+      }
+    }
 
     return {
       n_channels: nDisplay,
@@ -279,7 +393,8 @@
       channel_labels: channelLabels,
       bids_channels: meta.channels || null,
       recording_start_iso,
-      readWindow: (start, n, opts) => reader(layout, start, n, opts),
+      annotation_events,
+      readWindow: (start, n, opts) => readerFn(layout, start, n, opts),
     };
   };
 

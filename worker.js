@@ -84,6 +84,7 @@ self.onmessage = async function (evt) {
           bytes_per_sample:    reader.bytes_per_sample,
           n_samples:           reader.n_samples,
           recording_start_iso: reader.recording_start_iso ?? null,
+          annotation_events:   reader.annotation_events || null,
         });
         break;
       }

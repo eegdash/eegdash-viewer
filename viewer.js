@@ -896,7 +896,9 @@
         setPill('pill-duration', (meta.eeg_json.recording_duration ?? '?') + ' s');
         renderProvenance(meta, provenance);
         renderChannels(meta.channels, $('ch-list'), $('channel-count'));
-        renderEvents(meta.events, $('ev-list'), $('event-count'));
+        // F09: defer renderEvents until after the reader opens so we can
+        // merge in EDF+ annotation-channel events when no _events.tsv
+        // sidecar was found.
         updateElectrodeLink(meta, $('electrode-link'));
 
         // Initialise per-type colour mapping for the new recording.
@@ -946,8 +948,17 @@
             bytes_per_sample:   fallbackReader.bytes_per_sample,
             n_samples:          fallbackReader.n_samples,
             recording_start_iso: fallbackReader.recording_start_iso ?? null,
+            annotation_events:  fallbackReader.annotation_events || null,
           };
         }
+
+        // F09: merge EDF+ annotation-channel events when no _events.tsv
+        // was found. Sidecar events always win; annotation events fall
+        // back only when the sidecar produced zero events.
+        if ((!meta.events || meta.events.length === 0) && readerInfo.annotation_events?.length) {
+          meta.events = readerInfo.annotation_events;
+        }
+        renderEvents(meta.events, $('ev-list'), $('event-count'));
 
         channelLabels = deriveChannelLabels(readerInfo, meta.channels);
         channelBadMask = deriveBadMask(meta.channels, readerInfo.n_channels);

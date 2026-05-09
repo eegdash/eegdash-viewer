@@ -25,9 +25,12 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: {
-    // Stand up a Python static file server so the viewer loads via
-    // http:// (CORS for OpenNeuro fetches works; file:// would 0-origin).
-    command: 'python3 -m http.server 8011',
+    // Use a Node static server with Range-request support — the EDF/BDF
+    // range-fetch path needs RFC 7233 byte ranges for local fixtures
+    // (Python's built-in http.server ≤ 3.12 silently ignores Range and
+    // returns 200, which breaks HttpRange.rangeFetchSingle's byte-count
+    // validation against the F09 EDF+ test fixture).
+    command: 'node scripts/serve.mjs 8011',
     url: 'http://localhost:8011/index.html',
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
