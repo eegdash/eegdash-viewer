@@ -75,20 +75,21 @@
     const run  = params.run || null;
     const ext  = (params.ext || 'set').toLowerCase();
 
-    // Default: route through cdn.eegdash.org — Cloudflare Worker proxy
-    // that caches OpenNeuro S3 byte-ranges at the global edge.
-    // Measured cold-cache vs raw S3 (see docs/streaming-and-cdn-study.md
-    // and cdn-worker/): TTFB 41-61 ms vs 333-460 ms (~10× faster), total
-    // 77-176 ms vs 946-2622 ms (~13× faster), throughput 6-14 MB/s vs
-    // 0.4-1.1 MB/s (~10× higher) for the same byte ranges.
-    //
-    // Override with ?direct=1 in the URL to bypass the CDN and hit
-    // raw S3 — useful for debugging or when the CDN is having issues.
-    const useDirect = typeof globalThis.location !== 'undefined' &&
-      new URLSearchParams(globalThis.location.search).has('direct');
-    const bucket = useDirect
-      ? 'https://s3.amazonaws.com/openneuro.org'
-      : 'https://cdn.eegdash.org';
+    // Default: raw OpenNeuro S3 (universally reachable, no DNS gotchas).
+    // Opt into the cdn.eegdash.org Cloudflare proxy for ~10× cold-pan
+    // speedup (see docs/streaming-and-cdn-study.md + cdn-worker/) by
+    // appending ?cdn=1 to the viewer URL. The CDN is opt-in rather
+    // than default while the cdn.eegdash.org subdomain finishes
+    // propagating through ISP DNS resolvers — Cloudflare-managed zones
+    // have a 30-min SOA negative-cache TTL, so any resolver that asked
+    // for cdn.eegdash.org before the deploy holds NXDOMAIN until that
+    // window expires. Flip back to default-CDN after ~24 h universal
+    // propagation.
+    const useCdn = typeof globalThis.location !== 'undefined' &&
+      new URLSearchParams(globalThis.location.search).has('cdn');
+    const bucket = useCdn
+      ? 'https://cdn.eegdash.org'
+      : 'https://s3.amazonaws.com/openneuro.org';
     const segs = [bucket, ds, `sub-${sub}`];
     if (ses) segs.push(`ses-${ses}`);
     segs.push('eeg');
