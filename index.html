@@ -17,6 +17,7 @@
 <script src="formats/edf.js?v=2"></script>
 <script src="formats/brainvision.js?v=2"></script>
 <script src="traces.js?v=1"></script>
+<script src="filters.js?v=1"></script>
 <script src="viewer.js?v=1"></script>
 </head>
 <body>
@@ -87,6 +88,41 @@
     <section class="rail-section">
       <h3 class="rail-title"><span>Channel Colors</span></h3>
       <div id="channel-colors"></div>
+    </section>
+
+    <!-- F08: Filter controls — HP / LP / notch (display-only).
+         Enabling any filter sends APPLY_FILTER to the worker; the worker
+         applies filtfilt per channel before posting the WINDOW response. -->
+    <section class="rail-section">
+      <h3 class="rail-title"><span>Filters</span></h3>
+      <div id="filter-controls">
+        <div class="filter-row">
+          <label>
+            <input type="checkbox" id="filter-hp-enable" />
+            HP
+          </label>
+          <input type="number" id="filter-hp-cutoff" min="0.1" max="100" step="0.1" value="0.5" />
+          <span class="filter-unit">Hz</span>
+        </div>
+        <div class="filter-row">
+          <label>
+            <input type="checkbox" id="filter-lp-enable" />
+            LP
+          </label>
+          <input type="number" id="filter-lp-cutoff" min="1" max="500" step="1" value="45" />
+          <span class="filter-unit">Hz</span>
+        </div>
+        <div class="filter-row">
+          <label>
+            <input type="checkbox" id="filter-notch-enable" />
+            Notch
+          </label>
+          <select id="filter-notch-freq">
+            <option value="50">50 Hz</option>
+            <option value="60" selected>60 Hz</option>
+          </select>
+        </div>
+      </div>
     </section>
 
     <section class="rail-section">
