@@ -278,7 +278,33 @@
     const tracesCanvas = $('traces');
     const stageHint = $('stage-hint');
 
-    const view = { start_sec: 0, window_sec: 10, gain: 1, time_mode: 'relative' };
+    const view = { start_sec: 0, window_sec: 10, gain: 1, time_mode: 'relative', channel_offset: 0 };
+    // Recording-level events; cached so requestRender can pass them
+    // to the renderer for on-canvas event-onset markers (data-viz tier 1).
+    let metaEvents = null;
+
+    // Gain readout helper. Reads `lastSlotMicrovolts` from the renderer
+    // (set on every draw based on the median std of visible channels)
+    // so the user sees the absolute amplitude scale, not just the
+    // multiplicative factor: "1× (~140 µV/slot)" instead of just "1×".
+    // Falls back to "1×" when no draw has happened yet.
+    function updateGainReadout() {
+      const node = globalThis.document?.getElementById('gain-readout');
+      if (!node) return;
+      const tr = globalThis.TraceRenderer;
+      const slotMv = tr ? tr.lastSlotMicrovolts : 0;
+      const factor = view.gain.toFixed(2) + '×';
+      if (slotMv > 0 && isFinite(slotMv)) {
+        const fmt = slotMv < 1
+          ? slotMv.toFixed(2) + ' µV'
+          : slotMv < 1000
+            ? Math.round(slotMv) + ' µV'
+            : (slotMv / 1000).toFixed(1) + ' mV';
+        node.textContent = `${factor} (~${fmt}/slot)`;
+      } else {
+        node.textContent = factor;
+      }
+    }
 
     // readerInfo holds the metadata fields returned in the HEADER
     // message (or from reader.open() in the fallback path). It
@@ -577,14 +603,18 @@
           channels,
           n_samples_visible: channels[0]?.length || 0,
           channel_labels: channelLabels,
+          channel_types: metaChannels ? metaChannels.map(ch => (ch.type || '').toUpperCase()) : null,
           bad_mask: channelBadMask,
           channel_colors: channelColors,
+          channel_offset: view.channel_offset,
+          events: metaEvents,
           fs,
           start_sec: drawStartSec,
           gain: view.gain,
           time_mode: view.time_mode,
           recording_start_iso: readerInfo ? (readerInfo.recording_start_iso ?? null) : null,
         });
+        updateGainReadout();
         // Cache for cursor readout.
         lastChannels = channels;
         lastStartSec = drawStartSec;
@@ -866,6 +896,19 @@
         }
         if (e.key === 'ArrowLeft')  { lastPanDir = -1; view.start_sec = clampStart(view.start_sec - view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
         if (e.key === 'ArrowRight') { lastPanDir = +1; view.start_sec = clampStart(view.start_sec + view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
+        // PgUp / PgDn: page through channels when the recording has more
+        // than fits at MIN_SLOT_PX (data-viz tier 3 — virtual scroll).
+        if (e.key === 'PageUp' || e.key === 'PageDown') {
+          const tr = globalThis.TraceRenderer;
+          const total = tr ? (tr.lastTotalChannels || 0) : 0;
+          const page  = tr ? (tr.lastMaxVisibleChannels || 1) : 1;
+          if (total > page) {
+            const dir = e.key === 'PageUp' ? -1 : +1;
+            view.channel_offset = Math.max(0, Math.min(total - page, view.channel_offset + dir * page));
+            requestRender();
+            e.preventDefault();
+          }
+        }
       });
       window.addEventListener('resize', requestRender);
       $('window-sec').addEventListener('change', (e) => {
@@ -879,7 +922,7 @@
       });
       $('gain').addEventListener('input', (e) => {
         view.gain = parseFloat(e.target.value);
-        $('gain-readout').textContent = view.gain.toFixed(2) + '×';
+        updateGainReadout();
         requestRender();
       });
       const timeModeBtn = $('time-mode-toggle');
@@ -976,6 +1019,8 @@
           meta.events = readerInfo.annotation_events;
         }
         renderEvents(meta.events, $('ev-list'), $('event-count'));
+        // Cache events for the renderer (on-canvas event-onset markers).
+        metaEvents = meta.events || [];
 
         channelLabels = deriveChannelLabels(readerInfo, meta.channels);
         channelBadMask = deriveBadMask(meta.channels, readerInfo.n_channels);
@@ -1008,6 +1053,7 @@
         stageHint.hidden = true;
         tracesCanvas.hidden = false;
         view.start_sec = 0;
+        view.channel_offset = 0;
 
         // Perform initial render before revealing stage-caption so that
         // TraceRenderer.lastDrawnXLabels is populated when the test reads it.
@@ -1029,16 +1075,20 @@
                 channels: initChannels,
                 n_samples_visible: initChannels[0]?.length || 0,
                 channel_labels: channelLabels,
+                channel_types: metaChannels ? metaChannels.map(ch => (ch.type || '').toUpperCase()) : null,
                 bad_mask: channelBadMask,
                 channel_colors: metaChannels && metaChannels.length
                   ? metaChannels.map(ch => typeColors[(ch.type || 'MISC').toUpperCase()] || null)
                   : null,
+                channel_offset: view.channel_offset,
+                events: metaEvents,
                 fs,
                 start_sec: 0,
                 gain: view.gain,
                 time_mode: view.time_mode,
                 recording_start_iso: readerInfo.recording_start_iso ?? null,
               });
+              updateGainReadout();
             }
           } catch (_) {
             // If initial render fails, proceed normally — requestRender() below
