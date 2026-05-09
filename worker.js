@@ -47,6 +47,32 @@ let reader = null;
 // Updated on APPLY_FILTER messages; applied to each channel in FETCH_WINDOW.
 let activeFilterCoefs = [];
 
+// Perf: raw (unfiltered) window cache, keyed by `${start}-${n}`. The
+// viewer's main-thread cache holds FILTERED Float32Arrays (their bytes
+// are transferred to the main thread, zero-copy, so the worker doesn't
+// keep them anyway). When a filter toggles, the viewer dumps its
+// filtered cache and re-asks for the same windows; without this raw
+// cache, that means a 700 ms S3 round-trip per re-ask. With it, the
+// worker re-applies the new filter chain to in-memory bytes (~30 ms).
+//
+// Bounded LRU; size matches the viewer's cache (READ_CACHE_MAX = 6) so
+// no extra retention beyond what the viewer is already asking for.
+const RAW_CACHE_MAX = 6;
+const rawCache = new Map();   // "start-n" → Float32Array[] (one per channel)
+function rawCachePut(key, channels) {
+  // Deep-copy into owned buffers — the reader returns subarrays of a
+  // shared backing buffer that may be reused on the next readWindow.
+  const owned = channels.map(ch => {
+    const a = new Float32Array(ch.length);
+    a.set(ch);
+    return a;
+  });
+  rawCache.set(key, owned);
+  while (rawCache.size > RAW_CACHE_MAX) {
+    rawCache.delete(rawCache.keys().next().value);
+  }
+}
+
 // Build a biquad coef object from a filter spec descriptor.
 // Called when APPLY_FILTER arrives; fs comes from the current reader.
 function buildCoefs(spec, fs) {
@@ -96,8 +122,9 @@ self.onmessage = async function (evt) {
         // sidecars is the serialised meta object from BIDSRecording.loadRecordingMetadata
         // (already fetched on the main thread); pass it straight into open().
         reader = await readerModule.open(sidecars);
-        // Reset filter chain on new file load (fs may differ).
+        // Reset filter chain + raw cache on new file load (fs may differ).
         activeFilterCoefs = [];
+        rawCache.clear();
         self.postMessage({
           type: 'HEADER',
           n_channels:          reader.n_channels,
@@ -118,18 +145,25 @@ self.onmessage = async function (evt) {
           self.postMessage({ type: 'ERROR', request_id, message: 'No reader loaded' });
           return;
         }
-        const channels = await reader.readWindow(start_sample, n_samples);
-        // Transfer the underlying ArrayBuffers for zero-copy IPC.
-        // Each channel is a Float32Array subarray of a shared backing
-        // buffer in ChannelBuffers.alloc — we need to copy to owned
-        // buffers so they can be transferred.
-        const owned = channels.map(ch => {
-          // Apply active filter chain (filtfilt per stage) if any.
+        const cacheKey = `${start_sample}-${n_samples}`;
+        let rawChannels = rawCache.get(cacheKey);
+        if (!rawChannels) {
+          // Cache miss — pay the S3 round-trip, then store the raw
+          // (unfiltered) buffers so subsequent filter changes can
+          // re-filter without re-fetching.
+          const fresh = await reader.readWindow(start_sample, n_samples);
+          rawCachePut(cacheKey, fresh);
+          rawChannels = rawCache.get(cacheKey);
+        }
+        // Apply current filter chain to a fresh OUTPUT buffer per
+        // channel — never mutate the cached raw. Each output buffer
+        // is owned + transferable.
+        const owned = rawChannels.map(rawCh => {
           if (activeFilterCoefs.length > 0) {
-            return globalThis.Filters.applyChain(ch, activeFilterCoefs);
+            return globalThis.Filters.applyChain(rawCh, activeFilterCoefs);
           }
-          const a = new Float32Array(ch.length);
-          a.set(ch);
+          const a = new Float32Array(rawCh.length);
+          a.set(rawCh);
           return a;
         });
         self.postMessage(

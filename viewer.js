@@ -480,9 +480,13 @@
     // The bottleneck on 5 kHz BV recordings is bytes-on-the-wire
     // (perf-trace.mjs: 5 s read, 6 ms decode), so the highest-
     // leverage win is not to fetch the same window twice.
-    const READ_CACHE_MAX = 8;                // bumped from 4 to fit the
-                                             // wider directional prefetch
-                                             // (3 windows ahead in pan dir)
+    const READ_CACHE_MAX = 6;                // 1 foreground + 1 prefetch +
+                                             // 4 historical windows; the
+                                             // wider 8-slot cache bumped
+                                             // alongside the multi-target
+                                             // prefetch fan-out is no longer
+                                             // needed now prefetch is single
+                                             // -target and idle-gated.
     const readCache = new Map();             // "start-n" → Promise<channels>
     function clearReadCache() { readCache.clear(); }
 
@@ -524,22 +528,24 @@
 
     function prefetchNeighbours() {
       if (!readerInfo) return;
+      // Gate: if the worker has any in-flight FETCH_WINDOW, do NOT
+      // queue prefetches behind it. The worker processes requests
+      // serially; queuing 4 prefetches behind a foreground fetch
+      // pushes the user's NEXT pan ~5 round-trips deep and produces
+      // the multi-second lag the perf benchmark exposed (cold p50 was
+      // 3× the floor, warm p95 6× over budget). Prefetch only when the
+      // worker is idle.
+      if (pendingRequests.size > 0) return;
       const fs = readerInfo.sampling_frequency;
       const n = Math.round(view.window_sec * fs);
-      // Always: ±half-window — covers mouse-drag pans and the no-direction
-      // case (after fresh load).
-      // When panning: also fetch +1.0 and +1.5 windows ahead in lastPanDir
-      // so 2-3 rapid arrow presses keep hitting cache despite S3 round-
-      // trip latency (~1-2 s uncached).
+      // Single-target prefetch: the most likely next window in the
+      // user's pan direction. Fan-out higher than 1 amplifies queue
+      // contention without speeding up perception (the user's NEXT
+      // arrow press only needs 1 cached window, not 4).
       const half = view.window_sec / 2;
-      const targets = [
-        clampStartSamples(view.start_sec + half),
-        clampStartSamples(view.start_sec - half),
-      ];
-      if (lastPanDir !== 0) {
-        targets.push(clampStartSamples(view.start_sec + lastPanDir * view.window_sec));
-        targets.push(clampStartSamples(view.start_sec + lastPanDir * 1.5 * view.window_sec));
-      }
+      const targets = lastPanDir !== 0
+        ? [clampStartSamples(view.start_sec + lastPanDir * half)]
+        : [clampStartSamples(view.start_sec + half)];
       for (const s of targets) {
         const key = `${s}-${n}`;
         if (readCache.has(key)) continue;

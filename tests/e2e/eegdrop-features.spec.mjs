@@ -239,8 +239,13 @@ test.describe('eegdrop incorporation', () => {
     await page.waitForTimeout(500);
 
     const stats = await page.evaluate(() => ({ ...(globalThis.__viewerWorkerStats || {}) }));
-    expect(stats.messages_sent ?? 0).toBeGreaterThanOrEqual(10 + before);
-    expect(stats.messages_received ?? 0).toBeGreaterThanOrEqual(10);
+    // Expect at least one FETCH_WINDOW per pan after RAF coalescing.
+    // Was 10+before before the prefetch idle-gate (which amplified each
+    // render to 5 messages); now each pan produces 1 foreground +
+    // optionally 1 prefetch when the worker is idle. 5 is a robust
+    // lower bound that still proves the worker is in active use.
+    expect(stats.messages_sent ?? 0).toBeGreaterThanOrEqual(5 + before);
+    expect(stats.messages_received ?? 0).toBeGreaterThanOrEqual(5);
 
     fs.writeFileSync(path.join(dir, 'stats.json'), JSON.stringify(stats, null, 2));
     await page.screenshot({ path: path.join(dir, 'screenshot.png') });
