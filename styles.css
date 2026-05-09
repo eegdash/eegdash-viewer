@@ -484,6 +484,51 @@ code {
 .stage-caption .val { color: var(--ink-2); font-weight: 500; }
 .stage-caption .sep { color: var(--ink-3); }
 
+/* ----- cursor readout ------------------------------------ */
+
+/* Info bar: fixed strip at the bottom of the stage. */
+.cursor-info-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 4px 14px;
+  background: color-mix(in oklab, var(--bg) 88%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  border-top: 1px solid var(--line);
+}
+.cursor-info-bar[hidden] { display: none; }
+
+.cursor-time   { color: var(--accent); min-width: 100px; }
+.cursor-channel { font-weight: 500; color: var(--ink); min-width: 48px; }
+.cursor-value  { color: var(--ink-2); min-width: 80px; }
+
+/* Dot: small circle tracking the pointer on the canvas. */
+.cursor-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 1.5px solid var(--bg);
+  box-shadow: 0 0 0 1px var(--accent);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+}
+.cursor-dot[hidden] { display: none; }
+
 /* ----- embed mode ---------------------------------------- */
 /* (?embed=1) The host page provides outer context (an eegdash docs
    page already has the wordmark, breadcrumbs, etc.), so we collapse

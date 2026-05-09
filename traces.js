@@ -39,10 +39,10 @@
   const BAD_COLOR     = '#D55E00';   // Okabe-Ito vermillion
   const BAD_SLOT_COLOR = '#c8c8c8';  // muted grey fill for bad-channel slot background (R=200, delta ≥ 50 vs BG)
   const AXIS_COLOR    = '#b5b8bd';   // --ink-3
-  const SLOT_COLOR    = '#e8e5dc';   // --line-2 — hairlines between channels
-  const LABEL_COLOR   = '#3a3d42';   // --ink-2
-  const LABEL_FONT    = "10.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
-  const AXIS_FONT     = "9.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
+  const SLOT_COLOR  = '#e8e5dc';   // --line-2 — hairlines between channels
+  const LABEL_COLOR = '#3a3d42';   // --ink-2
+  const LABEL_FONT  = "10.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
+  const AXIS_FONT   = "9.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
 
   // 6σ covers > 99.7% of any roughly normal-distributed channel,
   // and is comfortably larger than the ±3σ stddev display the

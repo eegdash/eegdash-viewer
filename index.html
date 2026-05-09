@@ -104,6 +104,14 @@
       <p>Supported raw formats: <code>.set</code>+<code>.fdt</code> · <code>.edf</code> · <code>.bdf</code> · <code>.vhdr</code>+<code>.eeg</code></p>
     </div>
     <canvas id="traces" class="traces" hidden></canvas>
+    <!-- Cursor readout bar: time, channel label, amplitude on hover. -->
+    <div id="cursor-info-bar" class="cursor-info-bar" hidden>
+      <span class="cursor-time"></span>
+      <span class="cursor-channel"></span>
+      <span class="cursor-value"></span>
+    </div>
+    <!-- Cursor dot: follows the pointer on the canvas. -->
+    <div id="cursor-dot" class="cursor-dot" hidden></div>
     <!-- Engraved instrument legend, populated from the loaded recording. -->
     <div id="stage-caption" class="stage-caption" hidden></div>
   </main>

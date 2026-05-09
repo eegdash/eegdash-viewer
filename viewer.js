@@ -197,8 +197,17 @@
     let reader = null;
     let channelLabels = [];
     let channelBadMask = [];
+    let metaChannels = null;   // kept for units lookup in cursor readout
     let pending = null;
     let inFlight = null;
+
+    // Cursor readout — last rendered window, updated after each draw.
+    let lastChannels = null;
+    let lastStartSec = 0;
+    let lastWindowSec = 10;
+    // Last pointer position over the canvas, used to refresh the cursor
+    // readout when a new render lands while the mouse is already hovering.
+    let lastPointerEvent = null;
 
     // Tiny LRU cache + neighbour prefetch. The bottleneck on 5 kHz BV
     // recordings is bytes-on-the-wire (perf-trace.mjs: 5 s read, 6 ms
@@ -279,15 +288,24 @@
           return;
         }
         if (!channels || ctrl.signal.aborted) return;
+        const drawStartSec = startSample / fs;
         TraceRenderer.draw(tracesCanvas, {
           channels,
           n_samples_visible: channels[0]?.length || 0,
           channel_labels: channelLabels,
           bad_mask: channelBadMask,
           fs,
-          start_sec: startSample / fs,
+          start_sec: drawStartSec,
           gain: view.gain,
         });
+        // Cache for cursor readout.
+        lastChannels = channels;
+        lastStartSec = drawStartSec;
+        lastWindowSec = view.window_sec;
+        // If the pointer is already over the canvas, refresh the readout
+        // now that we have data (the mouse may have moved before the first
+        // render completed).
+        if (lastPointerEvent) refreshCursor();
         // Prefetch fires AFTER the foreground draw lands. Initial
         // experiments with parallel-with-foreground prefetch (firing
         // both reads concurrently) regressed all three recordings —
@@ -298,6 +316,96 @@
         // decimation (fewer bytes), not parallelism.
         prefetchNeighbours();
       });
+    }
+
+    // Cursor readout DOM references — looked up once here so they can
+    // also be used from refreshCursor (called after each render).
+    const cursorBar  = $('cursor-info-bar');
+    const cursorDot  = $('cursor-dot');
+    const cursorTime = cursorBar && cursorBar.querySelector('.cursor-time');
+    const cursorChan = cursorBar && cursorBar.querySelector('.cursor-channel');
+    const cursorVal  = cursorBar && cursorBar.querySelector('.cursor-value');
+
+    function updateCursor(clientX, clientY) {
+      if (!lastChannels || !reader) return;
+      const rect = tracesCanvas.getBoundingClientRect();
+      const cssX = clientX - rect.left;
+      const cssY = clientY - rect.top;
+      const cssW = tracesCanvas.clientWidth;
+      const cssH = tracesCanvas.clientHeight;
+
+      const PAD_LEFT   = TraceRenderer.PAD_LEFT;
+      const PAD_RIGHT  = TraceRenderer.PAD_RIGHT;
+      const PAD_TOP    = TraceRenderer.PAD_TOP;
+      const PAD_BOTTOM = TraceRenderer.PAD_BOTTOM;
+
+      const plotW = cssW - PAD_LEFT - PAD_RIGHT;
+      const plotH = cssH - PAD_TOP - PAD_BOTTOM;
+      const nCh   = lastChannels.length;
+
+      if (plotW <= 0 || plotH <= 0 || nCh === 0) return;
+
+      // Clamp x to the plot area.
+      const xInPlot = Math.max(0, Math.min(plotW, cssX - PAD_LEFT));
+      const xFrac   = xInPlot / plotW;
+      const tSec    = lastStartSec + xFrac * lastWindowSec;
+
+      // Channel index: which vertical band does Y fall in?
+      const yInPlot  = Math.max(0, Math.min(plotH, cssY - PAD_TOP));
+      const slotH    = plotH / nCh;
+      const chIdx    = Math.max(0, Math.min(nCh - 1, Math.floor(yInPlot / slotH)));
+
+      // Sample index within the cached window.
+      const nSamples = lastChannels[chIdx].length;
+      const sampleIdx = Math.max(0, Math.min(nSamples - 1,
+        Math.round(xFrac * (nSamples - 1))));
+
+      const amplitude = lastChannels[chIdx][sampleIdx];
+      const label = channelLabels[chIdx] || `Ch${chIdx + 1}`;
+
+      // Units: prefer _channels.tsv, else µV. Normalise common variants
+      // so the display always shows one of: µV, mV, V, au.
+      let units = 'µV';
+      if (metaChannels && metaChannels[chIdx] && metaChannels[chIdx].units) {
+        const raw = metaChannels[chIdx].units;
+        const lo = raw.toLowerCase();
+        // Map BIDS / EDF spelling variants to canonical display symbols.
+        if (lo === 'µv' || lo === 'uv' || lo === 'microv' || lo.startsWith('microvolt')) {
+          units = 'µV';
+        } else if (lo === 'mv' || lo.startsWith('millivolt')) {
+          units = 'mV';
+        } else if (lo === 'v' || lo.startsWith('volt')) {
+          units = 'V';
+        } else if (lo === 'au' || lo.startsWith('arb') || lo.startsWith('arbitrary')) {
+          units = 'au';
+        } else {
+          units = raw;   // pass through unknown units unchanged
+        }
+      }
+
+      // Format strings to match spec regexes.
+      const timeStr  = `t = ${tSec.toFixed(3)} s`;
+      const valStr   = `${amplitude.toFixed(2)} ${units}`;
+
+      if (cursorTime)  cursorTime.textContent  = timeStr;
+      if (cursorChan)  cursorChan.textContent  = label;
+      if (cursorVal)   cursorVal.textContent   = valStr;
+
+      // Position the dot.
+      if (cursorDot) {
+        cursorDot.style.left = `${cssX}px`;
+        cursorDot.style.top  = `${cssY}px`;
+        cursorDot.hidden = false;
+      }
+
+      if (cursorBar) cursorBar.hidden = false;
+    }
+
+    // Called from requestRender when new data lands and the pointer is
+    // already over the canvas.
+    function refreshCursor() {
+      if (!lastPointerEvent) return;
+      updateCursor(lastPointerEvent.clientX, lastPointerEvent.clientY);
     }
 
     // Toggle bad status for channel at index `idx`. Updates the mask,
@@ -335,6 +443,8 @@
         try { tracesCanvas.releasePointerCapture(e.pointerId); } catch {}
       });
       tracesCanvas.addEventListener('pointermove', (e) => {
+        lastPointerEvent = e;
+        updateCursor(e.clientX, e.clientY);
         if (!dragging) return;
         const w = tracesCanvas.clientWidth - TraceRenderer.PAD_LEFT - TraceRenderer.PAD_RIGHT;
         if (w <= 0) return;
@@ -393,6 +503,7 @@
         reader = await readerModule.open(meta);
         channelLabels = deriveChannelLabels(reader, meta.channels);
         channelBadMask = deriveBadMask(meta.channels, reader.n_channels);
+        metaChannels = meta.channels || null;
 
         setPill('pill-fs', reader.sampling_frequency + ' Hz');
         setPill('pill-channels', reader.n_channels + ' ch');
