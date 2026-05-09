@@ -35,9 +35,28 @@ jobs:
           mkdir -p _site
           cp -r index.html viewer.js traces.js topo2d.js \
                 bids-loader.js bids-recording.js \
+                worker.js filters.js perf.js \
                 styles.css eegdash-logo.svg \
                 formats \
                 _site/
+          # Sanity gate: every <script src="..."> referenced from
+          # index.html must exist under _site/. Catches the regression
+          # where worker.js / filters.js / perf.js were added to the
+          # repo (commits ade49a5, 4aa8d6f, 2beb279) but not to this
+          # cp allowlist — the deployed viewer was loading viewer.js
+          # but failing to spawn its worker, breaking traces entirely.
+          missing=()
+          while IFS= read -r src; do
+            case "$src" in
+              http*) continue ;;        # external URL, e.g. fonts
+              "")    continue ;;
+            esac
+            test -f "_site/${src%%\?*}" || missing+=("$src")
+          done < <(grep -oE 'src="[^"]+\.js[^"]*"' index.html | sed -E 's/src="([^"]+)"/\1/')
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::index.html references files not staged in _site/: ${missing[*]}"
+            exit 1
+          fi
 
       - uses: actions/configure-pages@v5
 
