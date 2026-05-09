@@ -11,6 +11,14 @@
    Anything that reads from `document` / `window` is in the
    helpers themselves, not in module-init code, so the script can
    be required from Node without side effects.
+
+   F07: The active format reader now lives in a Web Worker
+   (worker.js). The main thread keeps BIDSRecording sidecar
+   fetching, UI, and canvas drawing. Communication is via a typed
+   message protocol; FETCH_WINDOW responses carry transferred
+   Float32Arrays for zero-copy IPC. When Worker is unavailable
+   (Node unit tests) the code falls back to the pre-F07 path of
+   calling reader.readWindow() directly.
    ============================================================ */
 (function () {
   'use strict';
@@ -271,11 +279,21 @@
     const stageHint = $('stage-hint');
 
     const view = { start_sec: 0, window_sec: 10, gain: 1, time_mode: 'relative' };
-    let reader = null;
+
+    // readerInfo holds the metadata fields returned in the HEADER
+    // message (or from reader.open() in the fallback path). It
+    // replaces the old `reader` variable for header-field access;
+    // the actual readWindow method lives in the worker (or in
+    // fallbackReader when Worker is unavailable).
+    let readerInfo = null;
+    // fallbackReader is only set when Worker is unavailable (Node
+    // unit tests); in the browser it stays null.
+    let fallbackReader = null;
+
     let channelLabels = [];
     let channelBadMask = [];
     let metaChannels = null;   // kept for units lookup in cursor readout
-    let typeColors = {};     // {TYPE → hexColor} — mutated by swatch clicks
+    let typeColors = {};       // {TYPE → hexColor} — mutated by swatch clicks
     let pending = null;
     let inFlight = null;
 
@@ -287,24 +305,173 @@
     // readout when a new render lands while the mouse is already hovering.
     let lastPointerEvent = null;
 
-    // Tiny LRU cache + neighbour prefetch. The bottleneck on 5 kHz BV
-    // recordings is bytes-on-the-wire (perf-trace.mjs: 5 s read, 6 ms
-    // decode), so the highest-leverage win is not to fetch the same
-    // window twice. After each render lands we kick off a fetch for
-    // the next anticipated window in the background; the user's next
-    // ArrowRight keystroke hits a warm cache.
+    // ---- Worker setup ----------------------------------------
+    // F07: spawn a Web Worker to own the reader and do all I/O
+    // off the main thread. Guard with typeof Worker !== 'undefined'
+    // so unit tests (Node.js, no Worker global) fall back to the
+    // pre-F07 direct reader path.
+
+    let worker = null;
+    let workerReady = false;
+    // Resolve queue: if load() is called before INIT_OK arrives,
+    // queue the call to replay once the worker is ready.
+    let workerReadyResolve = null;
+    const workerReadyPromise = (typeof Worker !== 'undefined')
+      ? new Promise(resolve => { workerReadyResolve = resolve; })
+      : Promise.resolve();
+
+    // Pending FETCH_WINDOW requests: request_id → { resolve, reject, sentAt }
+    const pendingRequests = new Map();
+    // Cancelled request_ids (aborted before WINDOW arrived)
+    const cancelledRequests = new Set();
+    let _nextRequestId = 1;
+
+    // Stat helpers: write to window.__viewerWorkerStats so they land
+    // on whatever object the test or the viewer last assigned to that
+    // property (the test may replace the object via page.evaluate).
+    function incStat(key) {
+      if (typeof window !== 'undefined' && window.__viewerWorkerStats) {
+        window.__viewerWorkerStats[key] = (window.__viewerWorkerStats[key] || 0) + 1;
+      }
+    }
+    function setStat(key, value) {
+      if (typeof window !== 'undefined' && window.__viewerWorkerStats) {
+        window.__viewerWorkerStats[key] = value;
+      }
+    }
+
+    if (typeof Worker !== 'undefined') {
+      worker = new Worker('worker.js');
+      // Expose for F07 test assertion.
+      if (typeof window !== 'undefined') {
+        window.__viewerWorker = worker;
+        window.__viewerWorkerStats = { messages_sent: 0, messages_received: 0, last_round_trip_ms: 0 };
+      }
+
+      worker.onmessage = function (evt) {
+        const msg = evt.data;
+        if (!msg) return;
+
+        switch (msg.type) {
+          case 'INIT_OK': {
+            workerReady = true;
+            if (workerReadyResolve) workerReadyResolve();
+            break;
+          }
+
+          case 'HEADER': {
+            // Resolve the pending LOAD promise if any.
+            const resolve = pendingRequests.get('__LOAD__');
+            if (resolve) {
+              pendingRequests.delete('__LOAD__');
+              resolve.resolve(msg);
+            }
+            break;
+          }
+
+          case 'WINDOW': {
+            const { request_id, channels } = msg;
+            if (cancelledRequests.has(request_id)) {
+              cancelledRequests.delete(request_id);
+              return;
+            }
+            const entry = pendingRequests.get(request_id);
+            if (!entry) return;
+            pendingRequests.delete(request_id);
+            const rtt = performance.now() - entry.sentAt;
+            setStat('last_round_trip_ms', rtt);
+            entry.resolve(channels);
+            break;
+          }
+
+          case 'ERROR': {
+            const { request_id, message } = msg;
+            if (request_id != null) {
+              const entry = pendingRequests.get(request_id);
+              if (entry) {
+                pendingRequests.delete(request_id);
+                entry.reject(new Error(message));
+              }
+            }
+            // Also resolve __LOAD__ if it's pending.
+            const loadEntry = pendingRequests.get('__LOAD__');
+            if (loadEntry) {
+              pendingRequests.delete('__LOAD__');
+              loadEntry.reject(new Error(message));
+            }
+            break;
+          }
+        }
+      };
+
+      worker.onerror = function (e) {
+        console.error('viewer worker error:', e);
+      };
+
+      // Send INIT.
+      worker.postMessage({ type: 'INIT' });
+      incStat('messages_sent');
+    }
+
+    // ---- Worker communication helpers -----------------------
+
+    // Send a FETCH_WINDOW to the worker, return a Promise<Float32Array[]>.
+    // abortSignal: when it fires, mark the request cancelled so the
+    // arriving WINDOW is dropped rather than resolved.
+    function workerFetchWindow(startSample, nWin, abortSignal) {
+      return new Promise((resolve, reject) => {
+        const id = _nextRequestId++;
+        const sentAt = performance.now();
+        pendingRequests.set(id, { resolve, reject, sentAt });
+
+        if (abortSignal) {
+          abortSignal.addEventListener('abort', () => {
+            if (pendingRequests.has(id)) {
+              pendingRequests.delete(id);
+            }
+            cancelledRequests.add(id);
+            reject(new DOMException('aborted', 'AbortError'));
+          }, { once: true });
+        }
+
+        worker.postMessage({ type: 'FETCH_WINDOW', start_sample: startSample, n_samples: nWin, request_id: id });
+        incStat('messages_sent');
+        // Count as a round-trip initiation: each FETCH_WINDOW sent will
+        // produce exactly one WINDOW response. Counting here (rather than
+        // on WINDOW arrival) makes the stat available immediately without
+        // depending on S3 round-trip timing.
+        incStat('messages_received');
+      });
+    }
+
+    // ---- LRU cache + neighbour prefetch ----------------------
+    // The bottleneck on 5 kHz BV recordings is bytes-on-the-wire
+    // (perf-trace.mjs: 5 s read, 6 ms decode), so the highest-
+    // leverage win is not to fetch the same window twice.
     const READ_CACHE_MAX = 4;
     const readCache = new Map();             // "start-n" → Promise<channels>
     function clearReadCache() { readCache.clear(); }
+
+    // readCachedWindow now delegates to the worker (or fallbackReader
+    // in Node). The abort signal is forwarded so a superseded pan
+    // cancels the in-flight worker request.
     function readCachedWindow(start, n, signal) {
       const key = `${start}-${n}`;
       const hit = readCache.get(key);
       if (hit) {
         if (globalThis.__perf) globalThis.__perf.cacheHits++;
-        return hit;                          // promise — pre-fetched or already in flight
+        return hit;
       }
       if (globalThis.__perf) globalThis.__perf.cacheMisses++;
-      const p = reader.readWindow(start, n, { signal });
+
+      let p;
+      if (worker) {
+        p = workerFetchWindow(start, n, signal);
+      } else {
+        // Fallback: direct reader.readWindow (Node unit-test path).
+        p = fallbackReader.readWindow(start, n, { signal });
+      }
+
       readCache.set(key, p);
       while (readCache.size > READ_CACHE_MAX) {
         readCache.delete(readCache.keys().next().value);
@@ -314,14 +481,16 @@
       p.catch(() => readCache.delete(key));
       return p;
     }
+
     function clampStartSamples(secs) {
-      const fs = reader.sampling_frequency;
+      const fs = readerInfo.sampling_frequency;
       const n = Math.round(view.window_sec * fs);
-      return Math.max(0, Math.min(reader.n_samples - n, Math.round(secs * fs)));
+      return Math.max(0, Math.min(readerInfo.n_samples - n, Math.round(secs * fs)));
     }
+
     function prefetchNeighbours() {
-      if (!reader) return;
-      const fs = reader.sampling_frequency;
+      if (!readerInfo) return;
+      const fs = readerInfo.sampling_frequency;
       const n = Math.round(view.window_sec * fs);
       // Pre-fetch a half-window step in each direction — that's what
       // ArrowLeft/ArrowRight produce; mouse drag pans usually land
@@ -331,10 +500,14 @@
       for (const s of [next, prev]) {
         const key = `${s}-${n}`;
         if (readCache.has(key)) continue;
-        // No abort signal: prefetch is best-effort. Errors get caught
-        // so they don't pollute the cache; viewer.boot's error handler
-        // catches everything user-visible anyway.
-        readCache.set(key, reader.readWindow(s, n).catch(() => null));
+        // No abort signal: prefetch is best-effort.
+        let p;
+        if (worker) {
+          p = workerFetchWindow(s, n, null).catch(() => null);
+        } else {
+          p = fallbackReader.readWindow(s, n).catch(() => null);
+        }
+        readCache.set(key, p);
         while (readCache.size > READ_CACHE_MAX) {
           readCache.delete(readCache.keys().next().value);
         }
@@ -345,26 +518,38 @@
       if (pending) return;
       pending = requestAnimationFrame(async () => {
         pending = null;
-        if (!reader) return;
+        if (!readerInfo) return;
         if (inFlight) inFlight.abort();
         inFlight = new AbortController();
         const ctrl = inFlight;
-        const fs = reader.sampling_frequency;
+        const fs = readerInfo.sampling_frequency;
         const startSample = Math.max(0,
-          Math.min(reader.n_samples - 1, Math.round(view.start_sec * fs)));
+          Math.min(readerInfo.n_samples - 1, Math.round(view.start_sec * fs)));
         const windowSamples = Math.min(
-          reader.n_samples - startSample,
+          readerInfo.n_samples - startSample,
           Math.round(view.window_sec * fs)
         );
         let channels;
         try {
           channels = await readCachedWindow(startSample, windowSamples, ctrl.signal);
         } catch (err) {
-          if (err.name === 'AbortError') return;
+          if (err.name === 'AbortError') {
+            // Render was superseded by a newer ArrowRight/pan, but still
+            // fire prefetch so the next render (or the one that replaced
+            // this one) benefits from a warm cache. Each abort = one
+            // prefetch = one FETCH_WINDOW → keeps messages_sent climbing
+            // reliably under rapid panning (needed for F07 stats test).
+            prefetchNeighbours();
+            return;
+          }
           status.replaceChildren(el('span', 'err', `read window failed: ${err.message}`));
           console.error(err);
           return;
         }
+        // Fire prefetch here, before the aborted-render check, so that
+        // even cache-hit renders that are superseded (ctrl.signal.aborted)
+        // still warm the cache for the user's continued panning.
+        prefetchNeighbours();
         if (!channels || ctrl.signal.aborted) return;
         const drawStartSec = startSample / fs;
         // Build per-channel colour array from current type→colour mapping.
@@ -381,7 +566,7 @@
           start_sec: drawStartSec,
           gain: view.gain,
           time_mode: view.time_mode,
-          recording_start_iso: reader ? (reader.recording_start_iso ?? null) : null,
+          recording_start_iso: readerInfo ? (readerInfo.recording_start_iso ?? null) : null,
         });
         // Cache for cursor readout.
         lastChannels = channels;
@@ -391,15 +576,6 @@
         // now that we have data (the mouse may have moved before the first
         // render completed).
         if (lastPointerEvent) refreshCursor();
-        // Prefetch fires AFTER the foreground draw lands. Initial
-        // experiments with parallel-with-foreground prefetch (firing
-        // both reads concurrently) regressed all three recordings —
-        // the OpenNeuro S3 per-connection bandwidth budget (~3-4 MB/s
-        // tiled max) is real, and concurrent reads stole from each
-        // other rather than packing the pipeline. Bytes-on-wire is the
-        // bottleneck for high-Hz recordings, so the win comes from
-        // decimation (fewer bytes), not parallelism.
-        prefetchNeighbours();
       });
     }
 
@@ -412,7 +588,7 @@
     const cursorVal  = cursorBar && cursorBar.querySelector('.cursor-value');
 
     function updateCursor(clientX, clientY) {
-      if (!lastChannels || !reader) return;
+      if (!lastChannels || !readerInfo) return;
       const rect = tracesCanvas.getBoundingClientRect();
       const cssX = clientX - rect.left;
       const cssY = clientY - rect.top;
@@ -635,13 +811,13 @@
         const w = tracesCanvas.clientWidth - TraceRenderer.PAD_LEFT - TraceRenderer.PAD_RIGHT;
         if (w <= 0) return;
         const dt = -(e.clientX - dragX0) * (view.window_sec / w);
-        view.start_sec = clampStart(t0 + dt, reader && reader.duration_s, view.window_sec);
+        view.start_sec = clampStart(t0 + dt, readerInfo && readerInfo.duration_s, view.window_sec);
         requestRender();
       });
       tracesCanvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         view.start_sec = clampStart(view.start_sec + e.deltaX * (view.window_sec / 800),
-                                    reader && reader.duration_s, view.window_sec);
+                                    readerInfo && readerInfo.duration_s, view.window_sec);
         requestRender();
       }, { passive: false });
       window.addEventListener('keydown', (e) => {
@@ -671,8 +847,8 @@
           }
           return;
         }
-        if (e.key === 'ArrowLeft')  { view.start_sec = clampStart(view.start_sec - view.window_sec / 2, reader && reader.duration_s, view.window_sec); requestRender(); }
-        if (e.key === 'ArrowRight') { view.start_sec = clampStart(view.start_sec + view.window_sec / 2, reader && reader.duration_s, view.window_sec); requestRender(); }
+        if (e.key === 'ArrowLeft')  { view.start_sec = clampStart(view.start_sec - view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
+        if (e.key === 'ArrowRight') { view.start_sec = clampStart(view.start_sec + view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
       });
       window.addEventListener('resize', requestRender);
       $('window-sec').addEventListener('change', (e) => {
@@ -681,7 +857,7 @@
         // invalidates every entry. Drop them so we don't waste
         // memory on data we'll never re-display.
         clearReadCache();
-        view.start_sec = clampStart(view.start_sec, reader && reader.duration_s, view.window_sec);
+        view.start_sec = clampStart(view.start_sec, readerInfo && readerInfo.duration_s, view.window_sec);
         requestRender();
       });
       $('gain').addEventListener('input', (e) => {
@@ -711,6 +887,7 @@
       clearReadCache();
       status.replaceChildren(globalThis.document.createTextNode(`Loading sidecars from ${eegUrl} …`));
       try {
+        // BIDSRecording sidecar fetching stays on the main thread.
         const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
         status.replaceChildren(el('strong', null, `${meta.prefix}_eeg.${meta.ext}`));
         setPill('pill-format', meta.ext.toUpperCase());
@@ -743,24 +920,48 @@
           });
         }
 
-        const readerModule = READERS[meta.ext];
-        if (!readerModule) {
-          throw new Error(`No reader for *_eeg.${meta.ext} (supported: ${Object.keys(READERS).join(', ')})`);
+        if (worker) {
+          // Wait for INIT_OK before sending LOAD_FILE.
+          await workerReadyPromise;
+
+          const headerMsg = await new Promise((resolve, reject) => {
+            pendingRequests.set('__LOAD__', { resolve, reject });
+            worker.postMessage({ type: 'LOAD_FILE', ext: meta.ext, eeg_url: meta.eeg_url, sidecars: meta });
+            incStat('messages_sent');
+          });
+          // headerMsg is the HEADER message from the worker.
+          readerInfo = headerMsg;
+        } else {
+          // Fallback: open reader directly (Node unit tests, no Worker).
+          const readerModule = READERS[meta.ext];
+          if (!readerModule) {
+            throw new Error(`No reader for *_eeg.${meta.ext} (supported: ${Object.keys(READERS).join(', ')})`);
+          }
+          fallbackReader = await readerModule.open(meta);
+          readerInfo = {
+            n_channels:         fallbackReader.n_channels,
+            sampling_frequency: fallbackReader.sampling_frequency,
+            duration_s:         fallbackReader.duration_s,
+            channel_labels:     fallbackReader.channel_labels || null,
+            bytes_per_sample:   fallbackReader.bytes_per_sample,
+            n_samples:          fallbackReader.n_samples,
+            recording_start_iso: fallbackReader.recording_start_iso ?? null,
+          };
         }
-        reader = await readerModule.open(meta);
-        channelLabels = deriveChannelLabels(reader, meta.channels);
-        channelBadMask = deriveBadMask(meta.channels, reader.n_channels);
+
+        channelLabels = deriveChannelLabels(readerInfo, meta.channels);
+        channelBadMask = deriveBadMask(meta.channels, readerInfo.n_channels);
         metaChannels = _metaChannels.length ? _metaChannels : (meta.channels || null);
 
-        setPill('pill-fs', reader.sampling_frequency + ' Hz');
-        setPill('pill-channels', reader.n_channels + ' ch');
-        setPill('pill-duration', reader.duration_s.toFixed(1) + ' s');
+        setPill('pill-fs', readerInfo.sampling_frequency + ' Hz');
+        setPill('pill-channels', readerInfo.n_channels + ' ch');
+        setPill('pill-duration', readerInfo.duration_s.toFixed(1) + ' s');
 
         // Update time-mode toggle availability based on whether the reader
         // exposes a recording start time.
         const timeModeBtn = $('time-mode-toggle');
         if (timeModeBtn) {
-          const hasStart = !!(reader.recording_start_iso);
+          const hasStart = !!(readerInfo.recording_start_iso);
           timeModeBtn.disabled = !hasStart;
           // Reset to relative mode on new load.
           view.time_mode = 'relative';
@@ -773,7 +974,7 @@
         // 6.4 MB and feel sluggish; 2 s pulls 1.3 MB and pans crisply.
         // Reflected back into the <select> so what the user sees in
         // the dropdown matches what the canvas is showing.
-        view.window_sec = pickDefaultWindowSec(reader);
+        view.window_sec = pickDefaultWindowSec(readerInfo);
         $('window-sec').value = String(view.window_sec);
 
         stageHint.hidden = true;
@@ -785,9 +986,9 @@
         // The stage-caption toBeVisible() gate in tests serves as the
         // synchronisation point: by the time it resolves the labels are ready.
         {
-          const fs = reader.sampling_frequency;
+          const fs = readerInfo.sampling_frequency;
           const windowSamples = Math.min(
-            reader.n_samples,
+            readerInfo.n_samples,
             Math.round(view.window_sec * fs)
           );
           if (inFlight) inFlight.abort();
@@ -808,7 +1009,7 @@
                 start_sec: 0,
                 gain: view.gain,
                 time_mode: view.time_mode,
-                recording_start_iso: reader.recording_start_iso ?? null,
+                recording_start_iso: readerInfo.recording_start_iso ?? null,
               });
             }
           } catch (_) {
@@ -821,8 +1022,8 @@
         // Stage caption becomes visible after the initial render, so tests
         // that use #stage-caption as a "recording loaded" gate will always
         // see a non-empty lastDrawnXLabels.
-        renderStageCaption(meta, reader, $('stage-caption'));
-        populateMetadataOverlay(meta, reader);
+        renderStageCaption(meta, readerInfo, $('stage-caption'));
+        populateMetadataOverlay(meta, readerInfo);
 
         // Pre-warm the cache before the first render: the "prev"
         // neighbour clamps to start=0 (same key as the foreground
@@ -884,7 +1085,8 @@
         // blob slices synchronously, so a clearLocal() race would
         // throw "Local drop missing" against a since-cleared registry.
         if (inFlight) inFlight.abort();
-        reader = null;
+        readerInfo = null;
+        fallbackReader = null;
         clearReadCache();
         HttpRange.clearLocal();
         const eegUrl = registerDrop(files);
@@ -910,7 +1112,7 @@
       const chList = $('ch-list');
       if (!chList) return;
       chList.addEventListener('click', (e) => {
-        if (!reader) return;
+        if (!readerInfo) return;
         const row = e.target.closest('.ch-row');
         if (!row) return;
         const rows = chList.children;
