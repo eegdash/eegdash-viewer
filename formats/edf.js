@@ -225,6 +225,35 @@
 
     SidecarChecks.crossCheckChannelOrder(channelLabels, meta.channels, 'EDF');
 
+    // Parse recording start date+time from the EDF fixed header.
+    // Offset 168: "startdate of recording" (8 bytes, format "dd.mm.yy")
+    // Offset 176: "starttime of recording" (8 bytes, format "hh.mm.ss")
+    // EDF spec year heuristic: yy < 85 → 20yy, else 19yy.
+    let recording_start_iso = null;
+    try {
+      const v = new Uint8Array(headerBuf);
+      const dateStr = ascii(v, 168, 8);  // "dd.mm.yy"
+      const timeStr = ascii(v, 176, 8);  // "hh.mm.ss"
+      const dateParts = dateStr.split('.');
+      const timeParts = timeStr.split('.');
+      if (dateParts.length === 3 && timeParts.length === 3) {
+        const dd = dateParts[0].padStart(2, '0');
+        const mm = dateParts[1].padStart(2, '0');
+        const yy = parseInt(dateParts[2], 10);
+        const yyyy = yy < 85 ? 2000 + yy : 1900 + yy;
+        const hh = timeParts[0].padStart(2, '0');
+        const mn = timeParts[1].padStart(2, '0');
+        const ss = timeParts[2].padStart(2, '0');
+        // Validate all parts are numbers
+        if (!isNaN(yy) && !isNaN(parseInt(dd, 10)) && !isNaN(parseInt(mm, 10)) &&
+            !isNaN(parseInt(hh, 10)) && !isNaN(parseInt(mn, 10)) && !isNaN(parseInt(ss, 10))) {
+          recording_start_iso = `${yyyy}-${mm}-${dd}T${hh}:${mn}:${ss}`;
+        }
+      }
+    } catch (_) {
+      // Leave recording_start_iso as null if parsing fails
+    }
+
     // Layout state for readWindow lives in this closure rather than on
     // the public handle so callers can't accidentally rely on internals.
     const layout = {
@@ -249,6 +278,7 @@
       url,
       channel_labels: channelLabels,
       bids_channels: meta.channels || null,
+      recording_start_iso,
       readWindow: (start, n, opts) => reader(layout, start, n, opts),
     };
   };

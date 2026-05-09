@@ -135,7 +135,54 @@
     }
   }
 
-  function drawTimeAxis(ctx, x0, x1, y, t0Sec, t1Sec) {
+  // Format an absolute number of seconds-since-midnight as HH:MM:SS.
+  // Works for recording offsets that may wrap past midnight.
+  function secToHHMMSS(totalSec) {
+    const s = Math.floor(totalSec) % 86400;
+    const hh = String(Math.floor(s / 3600) % 24).padStart(2, '0');
+    const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    return `${hh}:${mm}:${ss}`;
+  }
+
+  // Parse an ISO 8601 string "YYYY-MM-DDTHH:MM:SS" and return the
+  // number of seconds since midnight (i.e. time-of-day portion only).
+  // Returns null if the string is not parseable.
+  function isoToSecOfDay(isoStr) {
+    if (!isoStr) return null;
+    const m = isoStr.match(/T(\d{2}):(\d{2}):(\d{2})/);
+    if (!m) return null;
+    return parseInt(m[1], 10) * 3600 + parseInt(m[2], 10) * 60 + parseInt(m[3], 10);
+  }
+
+  // Compute tick positions and labels; returns { ticks: [{t, label}], step }.
+  // When time_mode === 'clock' AND recording_start_iso is set, labels are
+  // HH:MM:SS; otherwise labels are relative numeric strings.
+  function computeTimeTicks(t0Sec, t1Sec, time_mode, recording_start_iso) {
+    const span = t1Sec - t0Sec;
+    const niceSteps = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60];
+    const target = span / 7;
+    let step = niceSteps[0];
+    for (const s of niceSteps) if (s <= target) step = s;
+    const first = Math.ceil(t0Sec / step) * step;
+
+    const useClock = time_mode === 'clock' && !!recording_start_iso;
+    const startSecOfDay = useClock ? isoToSecOfDay(recording_start_iso) : null;
+
+    const ticks = [];
+    for (let t = first; t <= t1Sec + 1e-9; t += step) {
+      let label;
+      if (useClock && startSecOfDay !== null) {
+        label = secToHHMMSS(startSecOfDay + t);
+      } else {
+        label = t.toFixed(step >= 1 ? 0 : 2);
+      }
+      ticks.push({ t, label });
+    }
+    return { ticks, step, useClock };
+  }
+
+  function drawTimeAxis(ctx, x0, x1, y, t0Sec, t1Sec, time_mode, recording_start_iso) {
     ctx.strokeStyle = AXIS_COLOR;
     ctx.fillStyle = AXIS_COLOR;
     ctx.font = AXIS_FONT;
@@ -147,22 +194,21 @@
     ctx.lineTo(x1, y);
     ctx.stroke();
 
-    // Pick a tick spacing that yields ~6-10 ticks across the window.
     const span = t1Sec - t0Sec;
-    const niceSteps = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60];
-    const target = span / 7;
-    let step = niceSteps[0];
-    for (const s of niceSteps) if (s <= target) step = s;
-    const first = Math.ceil(t0Sec / step) * step;
+    const { ticks, useClock } = computeTimeTicks(t0Sec, t1Sec, time_mode, recording_start_iso);
 
     ctx.beginPath();
-    for (let t = first; t <= t1Sec + 1e-9; t += step) {
+    for (const { t, label } of ticks) {
       const x = x0 + ((t - t0Sec) / span) * (x1 - x0);
       ctx.moveTo(x, y);
       ctx.lineTo(x, y + 4);
-      ctx.fillText(t.toFixed(step >= 1 ? 0 : 2) + ' s', x, y + 6);
+      // For relative mode, append " s" unit suffix; clock mode labels are self-describing.
+      ctx.fillText(useClock ? label : label + ' s', x, y + 6);
     }
     ctx.stroke();
+
+    // Return the labels array so the caller can save it.
+    return ticks.map(tk => tk.label);
   }
 
   // Module-scope scratch buffers reused across decimate calls. Each
@@ -248,7 +294,10 @@
 
     drawSlotDividers(ctx, plotX0, plotX1, plotY0, slotH, nCh);
     drawChannelLabels(ctx, opts.channel_labels, slotH, plotX0, plotY0);
-    drawTimeAxis(ctx, plotX0, plotX1, plotY0 + plotH + 4, t0, t1);
+    const xLabels = drawTimeAxis(
+      ctx, plotX0, plotX1, plotY0 + plotH + 4, t0, t1,
+      opts.time_mode, opts.recording_start_iso
+    );
 
     const decimated = nVisible > plotW * DECIMATE_RATIO;
     const badMask = opts.bad_mask;
@@ -292,6 +341,12 @@
       }
       ctx.restore();
     }
+
+    // Persist the tick labels so tests and extensions can read them
+    // without re-computing tick positions.
+    api.lastDrawnXLabels = xLabels;
+    if (typeof window !== 'undefined' && window.TraceRenderer) window.TraceRenderer.lastDrawnXLabels = xLabels;
+    if (typeof globalThis !== 'undefined' && globalThis.TraceRenderer) globalThis.TraceRenderer.lastDrawnXLabels = xLabels;
   }
 
   // PAD_* are exported so the page can compute drag-pixel-to-time
@@ -300,6 +355,7 @@
   const api = {
     draw, decimateMinMax, meanStd,
     PAD_LEFT, PAD_RIGHT, PAD_TOP, PAD_BOTTOM,
+    lastDrawnXLabels: [],
   };
   if (typeof window !== 'undefined') window.TraceRenderer = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

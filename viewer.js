@@ -193,7 +193,7 @@
     const tracesCanvas = $('traces');
     const stageHint = $('stage-hint');
 
-    const view = { start_sec: 0, window_sec: 10, gain: 1 };
+    const view = { start_sec: 0, window_sec: 10, gain: 1, time_mode: 'relative' };
     let reader = null;
     let channelLabels = [];
     let channelBadMask = [];
@@ -297,6 +297,8 @@
           fs,
           start_sec: drawStartSec,
           gain: view.gain,
+          time_mode: view.time_mode,
+          recording_start_iso: reader ? (reader.recording_start_iso ?? null) : null,
         });
         // Cache for cursor readout.
         lastChannels = channels;
@@ -478,6 +480,17 @@
         $('gain-readout').textContent = view.gain.toFixed(2) + '×';
         requestRender();
       });
+      const timeModeBtn = $('time-mode-toggle');
+      if (timeModeBtn) {
+        timeModeBtn.addEventListener('click', () => {
+          if (timeModeBtn.disabled) return;
+          const isRel = view.time_mode === 'relative';
+          view.time_mode = isRel ? 'clock' : 'relative';
+          timeModeBtn.dataset.mode = view.time_mode;
+          timeModeBtn.textContent = isRel ? 'clock' : 'rel';
+          requestRender();
+        });
+      }
     }
 
     async function load(eegUrl) {
@@ -508,7 +521,18 @@
         setPill('pill-fs', reader.sampling_frequency + ' Hz');
         setPill('pill-channels', reader.n_channels + ' ch');
         setPill('pill-duration', reader.duration_s.toFixed(1) + ' s');
-        renderStageCaption(meta, reader, $('stage-caption'));
+
+        // Update time-mode toggle availability based on whether the reader
+        // exposes a recording start time.
+        const timeModeBtn = $('time-mode-toggle');
+        if (timeModeBtn) {
+          const hasStart = !!(reader.recording_start_iso);
+          timeModeBtn.disabled = !hasStart;
+          // Reset to relative mode on new load.
+          view.time_mode = 'relative';
+          timeModeBtn.dataset.mode = 'relative';
+          timeModeBtn.textContent = 'rel';
+        }
 
         // Tune the default window per recording so per-pan byte cost
         // stays bounded — a 5 kHz × 64 ch BV file at 10 s would pull
@@ -521,6 +545,47 @@
         stageHint.hidden = true;
         tracesCanvas.hidden = false;
         view.start_sec = 0;
+
+        // Perform initial render before revealing stage-caption so that
+        // TraceRenderer.lastDrawnXLabels is populated when the test reads it.
+        // The stage-caption toBeVisible() gate in tests serves as the
+        // synchronisation point: by the time it resolves the labels are ready.
+        {
+          const fs = reader.sampling_frequency;
+          const windowSamples = Math.min(
+            reader.n_samples,
+            Math.round(view.window_sec * fs)
+          );
+          if (inFlight) inFlight.abort();
+          inFlight = new AbortController();
+          const ctrl = inFlight;
+          try {
+            const initChannels = await readCachedWindow(0, windowSamples, ctrl.signal);
+            if (initChannels && !ctrl.signal.aborted) {
+              TraceRenderer.draw(tracesCanvas, {
+                channels: initChannels,
+                n_samples_visible: initChannels[0]?.length || 0,
+                channel_labels: channelLabels,
+                bad_mask: channelBadMask,
+                fs,
+                start_sec: 0,
+                gain: view.gain,
+                time_mode: view.time_mode,
+                recording_start_iso: reader.recording_start_iso ?? null,
+              });
+            }
+          } catch (_) {
+            // If initial render fails, proceed normally — requestRender() below
+            // will retry via the rAF path.
+          }
+          inFlight = null;
+        }
+
+        // Stage caption becomes visible after the initial render, so tests
+        // that use #stage-caption as a "recording loaded" gate will always
+        // see a non-empty lastDrawnXLabels.
+        renderStageCaption(meta, reader, $('stage-caption'));
+
         // Pre-warm the cache before the first render: the "prev"
         // neighbour clamps to start=0 (same key as the foreground
         // window the upcoming render is about to fetch), so they
