@@ -1,0 +1,24 @@
+==========================================
+  EEGLAB — ds002893 / sub-001 / task-AuditoryVisualShift_run-01
+==========================================
+  set        status=200  bytes=67788501  ttfb=0.566766s  cdn=miss
+  fdt.range  status=206  bytes=1048576  ttfb=0.057154s  cdn=hit
+  eeg.json  status=200  bytes=2579  cdn=hit
+  channels.tsv  status=200  bytes=773  cdn=miss
+  events.tsv  status=200  bytes=549007  cdn=miss
+==========================================
+  EDF    — ds002034 / sub-01 / ses-01_task-offline_run-01
+==========================================
+  edf.range  status=206  bytes=1048576  ttfb=0.537419s  cdn=miss
+  eeg.json  status=200  bytes=1135  cdn=miss
+  channels.tsv  status=200  bytes=3071  cdn=miss
+  events.tsv  status=200  bytes=12869  cdn=miss
+==========================================
+  BV     — ds002336 / sub-01 / ses-01_task-rest_run-01
+==========================================
+  vhdr        status=404  bytes=337  ttfb=0.631979s  cdn=miss
+  eeg.range  status=404  bytes=336  ttfb=0.493869s  cdn=miss
+  vmrk        status=404  bytes=337  ttfb=0.497356s  cdn=miss
+  eeg.json  status=404  bytes=357  cdn=miss
+  channels.tsv  status=404  bytes=361  cdn=miss
+  events.tsv  status=404  bytes=359  cdn=miss

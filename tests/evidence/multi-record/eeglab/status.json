@@ -1,0 +1,14 @@
+{
+  "record": "eeglab",
+  "label": "EEGLAB (.set+.fdt)",
+  "url": "http://localhost:8011/index.html?dataset=ds002893&sub=001&task=AuditoryVisualShift&run=01&ext=set",
+  "format": "SET",
+  "n_channels": 36,
+  "sampling_frequency_pill": "250 Hz",
+  "duration_pill": "3473.4 s",
+  "n_ch_rows": 36,
+  "n_canvas_nonbg_pixels": 757,
+  "n_console_errors": 0,
+  "console_errors": [],
+  "timestamp": "2026-05-09T22:25:09.027Z"
+}

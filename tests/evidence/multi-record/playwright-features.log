@@ -1,0 +1,13 @@
+
+Running 9 tests using 1 worker
+
+[1A[2K[1/9] [chromium] › tests/e2e/eegdrop-features.spec.mjs:38:3 › eegdrop incorporation › F01: cursor readout shows time, channel, amplitude on hover
+[1A[2K[2/9] [chromium] › tests/e2e/eegdrop-features.spec.mjs:72:3 › eegdrop incorporation › F02: keyboard shortcuts overlay opens with ? and closes with Escape
+[1A[2K[3/9] [chromium] › tests/e2e/eegdrop-features.spec.mjs:97:3 › eegdrop incorporation › F03: file metadata overlay opens with i, lists sidecar provenance
+[1A[2K[4/9] [chromium] › tests/e2e/eegdrop-features.spec.mjs:138:3 › eegdrop incorporation › F04: click channel row toggles bad state and changes canvas pixels
+[1A[2K[5/9] [chromium] › tests/e2e/eegdrop-features.spec.mjs:168:3 › eegdrop incorporation › F05: per-channel-type colors render and accept overrides
+[1A[2K[6/9] [chromium] › tests/e2e/eegdrop-features.spec.mjs:202:3 › eegdrop incorporation › F06: time mode toggle flips axis labels between relative and clock
+[1A[2K[7/9] [chromium] › tests/e2e/eegdrop-features.spec.mjs:227:3 › eegdrop incorporation › F07: viewer offloads reads to a Web Worker
+[1A[2K[8/9] [chromium] › tests/e2e/eegdrop-features.spec.mjs:254:3 › eegdrop incorporation › F08: enabling a filter changes canvas pixels (UI wiring)
+[1A[2K[9/9] [chromium] › tests/e2e/eegdrop-features.spec.mjs:306:3 › eegdrop incorporation › F09: EDF+ Annotations channel events render in #ev-list
+[1A[2K  9 passed (35.4s)

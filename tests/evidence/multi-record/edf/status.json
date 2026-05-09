@@ -1,0 +1,14 @@
+{
+  "record": "edf",
+  "label": "EDF",
+  "url": "http://localhost:8011/index.html?dataset=ds002034&sub=01&ses=01&task=offline&run=01&ext=edf",
+  "format": "EDF",
+  "n_channels": 82,
+  "sampling_frequency_pill": "512 Hz",
+  "duration_pill": "733.0 s",
+  "n_ch_rows": 81,
+  "n_canvas_nonbg_pixels": 1276,
+  "n_console_errors": 0,
+  "console_errors": [],
+  "timestamp": "2026-05-09T22:25:10.346Z"
+}

@@ -1,0 +1,9 @@
+
+Running 5 tests using 1 worker
+
+[1A[2K[1/5] [chromium] › tests/e2e/viewer.spec.mjs:14:3 › viewer end-to-end › cold load renders 36-channel EEG without console errors
+[1A[2K[2/5] [chromium] › tests/e2e/viewer.spec.mjs:65:3 › viewer end-to-end › canvas paints non-blank pixels (the renderer ran)
+[1A[2K[3/5] [chromium] › tests/e2e/viewer.spec.mjs:86:3 › viewer end-to-end › embed mode collapses to a thin header with eegdash brand
+[1A[2K[4/5] [chromium] › tests/e2e/viewer.spec.mjs:101:3 › viewer end-to-end › drag-drop overlay shows when a file is dragged into the page
+[1A[2K[5/5] [chromium] › tests/e2e/viewer.spec.mjs:118:3 › viewer end-to-end › ResizeObserver reflows the canvas on window resize
+[1A[2K  5 passed (15.2s)

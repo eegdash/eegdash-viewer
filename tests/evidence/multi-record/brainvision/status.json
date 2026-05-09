@@ -1,0 +1,14 @@
+{
+  "record": "brainvision",
+  "label": "BrainVision (.vhdr+.eeg+.vmrk)",
+  "url": "http://localhost:8011/index.html?dataset=ds002336&sub=xp101&task=motorloc&ext=vhdr",
+  "format": "VHDR",
+  "n_channels": 64,
+  "sampling_frequency_pill": "5000 Hz",
+  "duration_pill": "336.9 s",
+  "n_ch_rows": 64,
+  "n_canvas_nonbg_pixels": 460,
+  "n_console_errors": 0,
+  "console_errors": [],
+  "timestamp": "2026-05-09T22:25:11.585Z"
+}
