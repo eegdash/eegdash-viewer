@@ -517,6 +517,107 @@
       requestRender();
     }
 
+    // ---- overlay helpers (F02 shortcuts, F03 metadata) -----
+
+    function showOverlay(id) {
+      const overlayEl = $(id);
+      if (overlayEl) overlayEl.removeAttribute('hidden');
+    }
+    function hideOverlay(id) {
+      const overlayEl = $(id);
+      if (overlayEl) overlayEl.setAttribute('hidden', '');
+    }
+    function isOverlayVisible(id) {
+      const overlayEl = $(id);
+      return overlayEl && !overlayEl.hasAttribute('hidden');
+    }
+
+    function attachOverlayClose(id) {
+      const overlay = $(id);
+      if (!overlay) return;
+      // Click on the backdrop (outside the panel) also closes
+      overlay.querySelector('.overlay-backdrop').addEventListener('click', (e) => {
+        if (e.target === overlay.querySelector('.overlay-backdrop')) hideOverlay(id);
+      });
+      overlay.querySelector('.overlay-close').addEventListener('click', () => hideOverlay(id));
+    }
+
+    // ---- F03 metadata population ----------------------------
+
+    function populateMetadataOverlay(meta, readerObj) {
+      // Recording section
+      const tbody = $('meta-recording-rows');
+      if (!tbody) return;
+      const fs  = readerObj.sampling_frequency;
+      const dur = readerObj.duration_s;
+      const nch = readerObj.n_channels;
+      const nsa = readerObj.n_samples;
+      const fmt = meta.ext.toUpperCase();
+      const rows = [
+        ['Sample rate', `${fs} Hz`],
+        ['Channels',    String(nch)],
+        ['Duration',    `${dur.toFixed(1)} s`],
+        ['Format',      fmt],
+        ['Samples',     String(nsa)],
+      ];
+      tbody.replaceChildren(...rows.map(([k, v]) => {
+        const tr = globalThis.document.createElement('tr');
+        const td1 = globalThis.document.createElement('td');
+        td1.textContent = k;
+        const td2 = globalThis.document.createElement('td');
+        td2.textContent = v;
+        tr.append(td1, td2);
+        return tr;
+      }));
+
+      // BIDS sidecars section
+      const sourcesDiv = $('meta-bids-sources');
+      if (sourcesDiv) {
+        const codes = [];
+        for (const [, url] of Object.entries(meta.sidecar_sources)) {
+          if (!url) continue;
+          const code = globalThis.document.createElement('code');
+          code.textContent = url;
+          codes.push(code);
+        }
+        sourcesDiv.replaceChildren(...codes.length ? codes : [el('span', 'muted', 'no sidecars resolved')]);
+      }
+
+      // Channels section
+      const chTbody = $('meta-channels-rows');
+      if (chTbody) {
+        const channels = meta.channels;
+        if (channels && channels.length) {
+          chTbody.replaceChildren(...channels.map(c => {
+            const tr = globalThis.document.createElement('tr');
+            const td1 = globalThis.document.createElement('td');
+            if (c.status === 'bad') {
+              const dot = globalThis.document.createElement('span');
+              dot.className = 'bad-dot';
+              td1.append(dot);
+            }
+            td1.append(c.name);
+            const td2 = globalThis.document.createElement('td');
+            td2.textContent = c.type || '';
+            const td3 = globalThis.document.createElement('td');
+            td3.textContent = c.units || '';
+            tr.append(td1, td2, td3);
+            return tr;
+          }));
+        } else {
+          // No channels.tsv — still add a row per reader channel
+          const synthRows = Array.from({ length: readerObj.n_channels }, (_, i) => {
+            const tr = globalThis.document.createElement('tr');
+            const td1 = globalThis.document.createElement('td');
+            td1.textContent = `Ch${i + 1}`;
+            tr.append(td1);
+            return tr;
+          });
+          chTbody.replaceChildren(...synthRows);
+        }
+      }
+    }
+
     function attachInput() {
       let dragging = false, dragX0 = 0, t0 = 0;
       tracesCanvas.addEventListener('pointerdown', (e) => {
@@ -545,6 +646,31 @@
       }, { passive: false });
       window.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+        // Close whichever overlay is open first
+        if (e.key === 'Escape') {
+          if (isOverlayVisible('shortcuts-overlay')) { hideOverlay('shortcuts-overlay'); return; }
+          if (isOverlayVisible('metadata-overlay'))  { hideOverlay('metadata-overlay');  return; }
+        }
+        // F02: toggle shortcuts overlay on '?'
+        if (e.key === '?') {
+          if (isOverlayVisible('shortcuts-overlay')) {
+            hideOverlay('shortcuts-overlay');
+          } else {
+            hideOverlay('metadata-overlay');
+            showOverlay('shortcuts-overlay');
+          }
+          return;
+        }
+        // F03: toggle metadata overlay on 'i'
+        if (e.key === 'i') {
+          if (isOverlayVisible('metadata-overlay')) {
+            hideOverlay('metadata-overlay');
+          } else {
+            hideOverlay('shortcuts-overlay');
+            showOverlay('metadata-overlay');
+          }
+          return;
+        }
         if (e.key === 'ArrowLeft')  { view.start_sec = clampStart(view.start_sec - view.window_sec / 2, reader && reader.duration_s, view.window_sec); requestRender(); }
         if (e.key === 'ArrowRight') { view.start_sec = clampStart(view.start_sec + view.window_sec / 2, reader && reader.duration_s, view.window_sec); requestRender(); }
       });
@@ -574,6 +700,10 @@
           requestRender();
         });
       }
+
+      // Wire overlay close buttons
+      attachOverlayClose('shortcuts-overlay');
+      attachOverlayClose('metadata-overlay');
     }
 
     async function load(eegUrl) {
@@ -692,6 +822,7 @@
         // that use #stage-caption as a "recording loaded" gate will always
         // see a non-empty lastDrawnXLabels.
         renderStageCaption(meta, reader, $('stage-caption'));
+        populateMetadataOverlay(meta, reader);
 
         // Pre-warm the cache before the first render: the "prev"
         // neighbour clamps to start=0 (same key as the foreground

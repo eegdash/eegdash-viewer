@@ -121,6 +121,79 @@
     <!-- Engraved instrument legend, populated from the loaded recording. -->
     <div id="stage-caption" class="stage-caption" hidden></div>
   </main>
+
+  <!-- F02: Keyboard shortcuts overlay. Hidden until user presses '?'. -->
+  <div id="shortcuts-overlay" hidden>
+    <div class="overlay-backdrop">
+      <div class="overlay-panel">
+        <div class="overlay-header">
+          <h2>Keyboard Shortcuts</h2>
+          <button class="overlay-close" aria-label="Close">Esc</button>
+        </div>
+        <div class="shortcut-rows">
+          <div class="shortcut-section-title">Navigation</div>
+          <span class="shortcut-key"><kbd>←</kbd></span>
+          <span class="shortcut-desc">Pan left half a window</span>
+          <span class="shortcut-key"><kbd>→</kbd></span>
+          <span class="shortcut-desc">Pan right half a window</span>
+          <span class="shortcut-key"><kbd>PgUp</kbd></span>
+          <span class="shortcut-desc">Jump one full page back</span>
+          <span class="shortcut-key"><kbd>PgDn</kbd></span>
+          <span class="shortcut-desc">Jump one full page forward</span>
+
+          <div class="shortcut-section-title">Display</div>
+          <span class="shortcut-key"><kbd>+</kbd></span>
+          <span class="shortcut-desc">Increase amplitude gain</span>
+          <span class="shortcut-key"><kbd>−</kbd></span>
+          <span class="shortcut-desc">Decrease amplitude gain</span>
+          <span class="shortcut-key"><kbd>[</kbd></span>
+          <span class="shortcut-desc">Shorten timebase window</span>
+          <span class="shortcut-key"><kbd>]</kbd></span>
+          <span class="shortcut-desc">Lengthen timebase window</span>
+
+          <div class="shortcut-section-title">Channels &amp; Info</div>
+          <span class="shortcut-key"><kbd>b</kbd></span>
+          <span class="shortcut-desc">Toggle bad channel under cursor</span>
+          <span class="shortcut-key"><kbd>i</kbd></span>
+          <span class="shortcut-desc">Open file metadata overlay</span>
+
+          <div class="shortcut-section-title">Help</div>
+          <span class="shortcut-key"><kbd>?</kbd></span>
+          <span class="shortcut-desc">Show keyboard shortcuts help</span>
+          <span class="shortcut-key"><kbd>Esc</kbd></span>
+          <span class="shortcut-desc">Close overlays</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- F03: File metadata overlay. Hidden until user presses 'i'. -->
+  <div id="metadata-overlay" hidden>
+    <div class="overlay-backdrop">
+      <div class="overlay-panel">
+        <div class="overlay-header">
+          <h2>File Information</h2>
+          <button class="overlay-close" aria-label="Close">Esc</button>
+        </div>
+        <div class="meta-section meta-section-recording">
+          <div class="meta-section-title">Recording</div>
+          <table class="metadata-table">
+            <tbody id="meta-recording-rows"></tbody>
+          </table>
+        </div>
+        <div class="meta-section meta-section-bids">
+          <div class="meta-section-title">BIDS Sidecars</div>
+          <div id="meta-bids-sources"></div>
+        </div>
+        <div class="meta-section meta-section-channels">
+          <div class="meta-section-title">Channels</div>
+          <table>
+            <tbody id="meta-channels-rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>Viewer.boot();</script>
