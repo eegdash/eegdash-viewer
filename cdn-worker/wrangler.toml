@@ -1,0 +1,16 @@
+name            = "eegdash-cdn"
+main            = "src/worker.js"
+compatibility_date = "2026-05-09"
+workers_dev     = true   # publishes at <name>.<account>.workers.dev for testing
+
+# ------------------------------------------------------------------
+# Custom domain / route (uncomment and fill in once you have a domain
+# pointed at Cloudflare's nameservers):
+#
+# routes = [
+#   { pattern = "eeg-cdn.example.com/*", zone_name = "example.com" }
+# ]
+#
+# Then add a CNAME at your DNS registrar:
+#   eeg-cdn  CNAME  eegdash-cdn.<account>.workers.dev
+# ------------------------------------------------------------------
