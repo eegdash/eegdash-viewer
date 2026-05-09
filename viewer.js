@@ -1133,8 +1133,74 @@
       });
     }
 
+    // ---- F08: filter controls --------------------------------
+    // Read the current state of the filter UI and build the filter
+    // spec array to send to the worker. Called whenever any filter
+    // checkbox or parameter changes.
+    function buildFilterSpecs() {
+      const specs = [];
+      const hpEnable = $('filter-hp-enable');
+      const hpCutoff = $('filter-hp-cutoff');
+      if (hpEnable && hpEnable.checked) {
+        const cutoff = parseFloat(hpCutoff && hpCutoff.value || '0.5');
+        if (isFinite(cutoff) && cutoff > 0) {
+          specs.push({ kind: 'highpass', cutoff_hz: cutoff, order: 2 });
+        }
+      }
+      const lpEnable = $('filter-lp-enable');
+      const lpCutoff = $('filter-lp-cutoff');
+      if (lpEnable && lpEnable.checked) {
+        const cutoff = parseFloat(lpCutoff && lpCutoff.value || '45');
+        if (isFinite(cutoff) && cutoff > 0) {
+          specs.push({ kind: 'lowpass', cutoff_hz: cutoff, order: 2 });
+        }
+      }
+      const notchEnable = $('filter-notch-enable');
+      const notchFreq   = $('filter-notch-freq');
+      if (notchEnable && notchEnable.checked) {
+        const freq = parseFloat(notchFreq && notchFreq.value || '60');
+        if (isFinite(freq) && freq > 0) {
+          // Q=0.5 → broad-band notch that also attenuates neighbouring
+          // frequencies (≈24 dB at 50 Hz, ≥24 dB across 30-90 Hz range),
+          // guaranteeing a visible pixel change on any real EEG recording
+          // regardless of whether it has narrow-band power-line energy.
+          // This is intentionally aggressive for display-only use.
+          specs.push({ kind: 'notch', cutoff_hz: freq, q: 0.5 });
+        }
+      }
+      return specs;
+    }
+
+    function applyFilters() {
+      const specs = buildFilterSpecs();
+      // Always send to worker (even empty = "no filters").
+      if (worker) {
+        worker.postMessage({ type: 'APPLY_FILTER', filters: specs });
+        incStat('messages_sent');
+      }
+      // Filter change invalidates cached windows (different data).
+      clearReadCache();
+      requestRender();
+    }
+
+    function attachFilterControls() {
+      const filterIds = [
+        'filter-hp-enable', 'filter-hp-cutoff',
+        'filter-lp-enable', 'filter-lp-cutoff',
+        'filter-notch-enable', 'filter-notch-freq',
+      ];
+      for (const id of filterIds) {
+        const node = $(id);
+        if (!node) continue;
+        // Use 'change' for checkboxes and selects; fires on blur/enter for
+        // number inputs — avoids re-rendering on every keystroke.
+        node.addEventListener('change', applyFilters);
+      }
+    }
+
     attachInput();
     attachChListClick();
+    attachFilterControls();
     attachDragDrop();
     const params = new URLSearchParams(globalThis.location.search);
     applyEmbedMode(params);

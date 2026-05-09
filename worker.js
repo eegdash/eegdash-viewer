@@ -3,7 +3,7 @@
    answers FETCH_WINDOW requests from the main thread off-thread
    so pan/zoom no longer jank during large range fetches.
 
-   Message protocol (see docs/eegdrop-features-spec.md § F07):
+   Message protocol (see docs/eegdrop-features-spec.md § F07/F08):
      main → worker:  { type: 'INIT' }
      worker → main:  { type: 'INIT_OK', formats: ['edf','bdf','set','vhdr'] }
      main → worker:  { type: 'LOAD_FILE', ext, eeg_url, sidecars }
@@ -11,7 +11,7 @@
                         duration_s, channel_labels, bytes_per_sample, n_samples }
      main → worker:  { type: 'FETCH_WINDOW', start_sample, n_samples, request_id }
      worker → main:  { type: 'WINDOW', request_id, channels: Float32Array[] }
-     main → worker:  { type: 'APPLY_FILTER', kind, cutoff_hz, order }  (F08)
+     main → worker:  { type: 'APPLY_FILTER', filters: [{kind, cutoff_hz, order?},...] }
      worker → main:  { type: 'FILTERED', filter_id }
      worker → main:  { type: 'ERROR', request_id?, message }
 
@@ -30,6 +30,7 @@ importScripts(
   'formats/eeglab.js',
   'formats/edf.js',
   'formats/brainvision.js',
+  'filters.js',
 );
 
 const READERS = {
@@ -40,6 +41,26 @@ const READERS = {
 };
 
 let reader = null;
+
+// F08: Active filter chain — array of biquad coefficient objects.
+// Each entry: { kind, cutoff_hz, coefs: {b, a} }
+// Updated on APPLY_FILTER messages; applied to each channel in FETCH_WINDOW.
+let activeFilterCoefs = [];
+
+// Build a biquad coef object from a filter spec descriptor.
+// Called when APPLY_FILTER arrives; fs comes from the current reader.
+function buildCoefs(spec, fs) {
+  switch (spec.kind) {
+    case 'highpass':
+      return globalThis.Filters.designHighpass(fs, spec.cutoff_hz, spec.order);
+    case 'lowpass':
+      return globalThis.Filters.designLowpass(fs, spec.cutoff_hz, spec.order);
+    case 'notch':
+      return globalThis.Filters.designNotch(fs, spec.cutoff_hz, spec.q);
+    default:
+      return null;
+  }
+}
 
 // bids-recording.js loads correctly in the worker (it only accesses
 // globalThis.HttpRange which is now available after the importScripts
@@ -75,6 +96,8 @@ self.onmessage = async function (evt) {
         // sidecars is the serialised meta object from BIDSRecording.loadRecordingMetadata
         // (already fetched on the main thread); pass it straight into open().
         reader = await readerModule.open(sidecars);
+        // Reset filter chain on new file load (fs may differ).
+        activeFilterCoefs = [];
         self.postMessage({
           type: 'HEADER',
           n_channels:          reader.n_channels,
@@ -101,6 +124,10 @@ self.onmessage = async function (evt) {
         // buffer in ChannelBuffers.alloc — we need to copy to owned
         // buffers so they can be transferred.
         const owned = channels.map(ch => {
+          // Apply active filter chain (filtfilt per stage) if any.
+          if (activeFilterCoefs.length > 0) {
+            return globalThis.Filters.applyChain(ch, activeFilterCoefs);
+          }
           const a = new Float32Array(ch.length);
           a.set(ch);
           return a;
@@ -112,9 +139,17 @@ self.onmessage = async function (evt) {
         break;
       }
 
-      // APPLY_FILTER is reserved for F08; acknowledge it for now.
+      // F08: install a new filter chain. Subsequent FETCH_WINDOW responses
+      // will apply the chain via Filters.applyChain (filtfilt per stage).
       case 'APPLY_FILTER': {
-        self.postMessage({ type: 'FILTERED', filter_id: msg.kind });
+        const specs = msg.filters || [];
+        const fs = reader ? reader.sampling_frequency : 250;
+        activeFilterCoefs = specs
+          .map(s => buildCoefs(s, fs))
+          .filter(Boolean);
+        // Acknowledge so the main thread knows the chain is installed.
+        // Subsequent WINDOWs will carry filtered data.
+        self.postMessage({ type: 'FILTERED', filter_id: specs.map(s => s.kind).join('+') });
         break;
       }
 
