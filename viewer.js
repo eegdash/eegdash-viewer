@@ -283,6 +283,13 @@
     // to the renderer for on-canvas event-onset markers (data-viz tier 1).
     let metaEvents = null;
 
+    // Read once: in ?embed=1 mode the canvas paints transparently so
+    // the host page (eegdash docs, sphinx-book-theme) bleeds through
+    // for both light + dark themes. Standalone mode keeps the cream
+    // paper background that matches the rest of the instrument.
+    const _isEmbedMode = typeof globalThis.location !== 'undefined' &&
+      new URLSearchParams(globalThis.location.search).has('embed');
+
     // Gain readout helper. Reads `lastSlotMicrovolts` from the renderer
     // (set on every draw based on the median std of visible channels)
     // so the user sees the absolute amplitude scale, not just the
@@ -712,6 +719,7 @@
         gain: view.gain,
         time_mode: view.time_mode,
         recording_start_iso: readerInfo ? (readerInfo.recording_start_iso ?? null) : null,
+        transparent: _isEmbedMode,
       };
     }
 
@@ -849,6 +857,7 @@
           gain: view.gain,
           time_mode: view.time_mode,
           recording_start_iso: readerInfo ? (readerInfo.recording_start_iso ?? null) : null,
+          transparent: _isEmbedMode,
         });
         updateGainReadout();
         // Cache for cursor readout.
@@ -1323,6 +1332,7 @@
                 gain: view.gain,
                 time_mode: view.time_mode,
                 recording_start_iso: readerInfo.recording_start_iso ?? null,
+                transparent: _isEmbedMode,
               });
               updateGainReadout();
             }

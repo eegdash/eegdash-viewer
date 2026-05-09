@@ -140,9 +140,16 @@
     return out;
   }
 
-  function clear(ctx, w, h) {
-    ctx.fillStyle = BG_COLOR;
-    ctx.fillRect(0, 0, w, h);
+  // When `transparent` is true, leave the canvas pixel buffer fully
+  // alpha-zero so the host page (or surrounding stage CSS in embed
+  // mode) bleeds through. Otherwise paint the cream paper BG that
+  // matches the rest of the instrument.
+  function clear(ctx, w, h, transparent) {
+    ctx.clearRect(0, 0, w, h);
+    if (!transparent) {
+      ctx.fillStyle = BG_COLOR;
+      ctx.fillRect(0, 0, w, h);
+    }
   }
 
   // Hairline divider between each channel slot. Subtle enough not to
@@ -456,7 +463,7 @@
       }
       // Fall through to normal draw but skip clear()
     } else {
-      clear(ctx, cssW, cssH);
+      clear(ctx, cssW, cssH, opts.transparent === true);
     }
 
     const allChannels = opts.channels;
