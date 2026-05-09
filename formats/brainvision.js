@@ -202,6 +202,7 @@
       channel_labels: channelLabels,
       bids_channels: meta.channels || null,
       readWindow: (start, n, opts) => readMultiplexedWindow(layout, start, n, opts),
+      readWindowStreaming: (start, n, opts) => streamMultiplexedWindow(layout, start, n, opts),
     };
   };
 
@@ -228,6 +229,65 @@
       }
     }
     return out;
+  }
+
+  // Streaming decode for BrainVision MULTIPLEXED format (same interleaved
+  // layout as EEGLAB .fdt but with per-channel scale). Yields chunks of
+  // complete frames as bytes arrive.
+  const STREAM_BATCH_FRAMES_BV = 512;
+
+  async function* streamMultiplexedWindow(layout, startSample, nWinReq, opts) {
+    const start = Math.max(0, startSample);
+    if (start >= layout.n_samples || nWinReq <= 0) return;
+    const end = Math.min(start + nWinReq, layout.n_samples);
+    const nWin = end - start;
+    const nCh = layout.n_channels;
+    const bps = layout.bytes_per_sample;
+    const frameSize = nCh * bps;
+
+    const byteStart = start * frameSize;
+    const expectedBytes = nWin * frameSize;
+
+    let leftover = new Uint8Array(0);
+    let outSamples = 0;
+    const scales = layout.scales;
+
+    for await (const { bytes } of HttpRange.rangeFetchStreaming(
+      layout.url, byteStart, byteStart + expectedBytes - 1, opts
+    )) {
+      const boundary = StreamingUtils.decodeChunkBoundary(leftover, bytes, frameSize);
+      leftover = boundary.leftover;
+      const completeBytes = boundary.completeRecordBytes;
+      const nFrames = Math.floor(completeBytes.length / frameSize);
+      if (nFrames === 0) continue;
+
+      let fOff = 0;
+      while (fOff < nFrames && outSamples < nWin) {
+        const batchFrames = Math.min(STREAM_BATCH_FRAMES_BV, nFrames - fOff, nWin - outSamples);
+        const batchU8 = completeBytes.subarray(fOff * frameSize, (fOff + batchFrames) * frameSize);
+        // Create typed-array view of correct type for this format
+        let interleaved;
+        if (bps === 2) {
+          interleaved = new layout.view_ctor(batchU8.buffer, batchU8.byteOffset, batchFrames * nCh);
+        } else if (bps === 4) {
+          interleaved = new layout.view_ctor(batchU8.buffer, batchU8.byteOffset, batchFrames * nCh);
+        } else {
+          interleaved = new layout.view_ctor(batchU8.buffer, batchU8.byteOffset, batchFrames * nCh);
+        }
+        const out = ChannelBuffers.alloc(nCh, batchFrames);
+        let i = 0;
+        for (let s = 0; s < batchFrames; s++) {
+          for (let c = 0; c < nCh; c++) {
+            out[c][s] = interleaved[i++] * scales[c];
+          }
+        }
+        const firstSampleIdx = start + outSamples;
+        const lastSampleIdx = firstSampleIdx + batchFrames - 1;
+        outSamples += batchFrames;
+        yield { firstSampleIdx, lastSampleIdx, channels: out };
+        fOff += batchFrames;
+      }
+    }
   }
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

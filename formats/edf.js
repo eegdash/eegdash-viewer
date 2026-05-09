@@ -395,6 +395,7 @@
       recording_start_iso,
       annotation_events,
       readWindow: (start, n, opts) => readerFn(layout, start, n, opts),
+      readWindowStreaming: (start, n, opts) => streamWindowEDF(layout, hdr.isBDF, start, n, opts),
     };
   };
 
@@ -480,6 +481,143 @@
       }
     }
     return out;
+  }
+
+  // Streaming decode: yields per-batch { firstSampleIdx, lastSampleIdx, channels }
+  // as EDF data-record bytes arrive. Emits every STREAM_BATCH_RECORDS records
+  // (or fewer at boundaries). Uses decodeChunkBoundary to handle chunk splits.
+  // Non-streaming-safe when opts.filtered — caller should collapse to single chunk.
+  const STREAM_BATCH_RECORDS = 8;
+
+  async function* streamWindowEDF(layout, isBDF, startSample, nWinReq, opts) {
+    const start = Math.max(0, startSample);
+    if (start >= layout.n_samples || nWinReq <= 0) return;
+    const end = Math.min(start + nWinReq, layout.n_samples);
+    const nWin = end - start;
+    const spr = layout.samples_per_record;
+    const nCh = layout.n_channels;
+    const firstRec = Math.floor(start / spr);
+    const lastRec = Math.ceil(end / spr);
+    const startOffsetInFirstRec = start - firstRec * spr;
+    const byteStart = layout.header_bytes + firstRec * layout.record_size_bytes;
+    const byteEnd = byteStart + (lastRec - firstRec) * layout.record_size_bytes - 1;
+
+    // Accumulators for the streaming decode
+    let leftover = new Uint8Array(0);
+    let recIdx = 0;                  // record index within the fetched range
+    const totalRecs = lastRec - firstRec;
+    const bytesPerSample = isBDF ? 3 : 2;
+
+    // Output buffer — grows batch by batch, reused across yields
+    let outSamples = 0;              // samples written so far across all batches
+    let batchBuf = null;             // Float32Array[] for current batch
+    let batchRecStart = 0;           // record index of current batch start
+    let batchSampleStart = 0;        // global first sample index of current batch
+
+    function flushBatch(isLast) {
+      if (!batchBuf || batchBuf[0].length === 0) return null;
+      const firstSampleIdx = start + batchSampleStart;
+      const lastSampleIdx = firstSampleIdx + batchBuf[0].length - 1;
+      return { firstSampleIdx, lastSampleIdx, channels: batchBuf };
+    }
+
+    // Decode N complete records from a flat Uint8Array, starting at recIdx.
+    // Returns samples decoded across all channels.
+    function decodeRecords(u8, nRecs, startingRecIdx) {
+      const halfRec = layout.record_size_bytes >> 1;
+      // How many output samples does this batch contribute?
+      let totalSamples = 0;
+      for (let r = 0; r < nRecs; r++) {
+        const globalRec = startingRecIdx + r;
+        const recStart = (globalRec === 0) ? startOffsetInFirstRec : 0;
+        const recEndLimit = (globalRec === totalRecs - 1)
+          ? Math.min(spr, recStart + (nWin - outSamples))
+          : spr;
+        totalSamples += recEndLimit - recStart;
+      }
+      if (totalSamples <= 0) return null;
+
+      const out = ChannelBuffers.alloc(nCh, totalSamples);
+      let outIdx = 0;
+
+      if (isBDF) {
+        const recSize = layout.record_size_bytes;
+        for (let r = 0; r < nRecs; r++) {
+          const globalRec = startingRecIdx + r;
+          const recStart = (globalRec === 0) ? startOffsetInFirstRec : 0;
+          const recEndLimit = (globalRec === totalRecs - 1)
+            ? Math.min(spr, recStart + (nWin - outSamples - outIdx))
+            : spr;
+          for (let c = 0; c < nCh; c++) {
+            const sigOff = layout.sigOffsetInRec[c];
+            const scale = layout.scales[c];
+            const offset = layout.offsets[c];
+            const ch = out[c];
+            const sigBase = r * recSize + sigOff;
+            for (let s = recStart; s < recEndLimit; s++) {
+              const o = sigBase + s * 3;
+              const raw = ((u8[o] | (u8[o + 1] << 8) | (u8[o + 2] << 16)) << 8) >> 8;
+              ch[outIdx + (s - recStart)] = raw * scale + offset;
+            }
+          }
+          outIdx += recEndLimit - recStart;
+        }
+      } else {
+        // EDF: int16 little-endian
+        const i16 = new Int16Array(u8.buffer, u8.byteOffset, u8.byteLength >> 1);
+        for (let r = 0; r < nRecs; r++) {
+          const globalRec = startingRecIdx + r;
+          const recStart = (globalRec === 0) ? startOffsetInFirstRec : 0;
+          const recEndLimit = (globalRec === totalRecs - 1)
+            ? Math.min(spr, recStart + (nWin - outSamples - outIdx))
+            : spr;
+          for (let c = 0; c < nCh; c++) {
+            const sigOffI16 = layout.sigOffsetInRec[c] >> 1;
+            const scale = layout.scales[c];
+            const offset = layout.offsets[c];
+            const ch = out[c];
+            const sigBase = r * halfRec + sigOffI16;
+            for (let s = recStart; s < recEndLimit; s++) {
+              ch[outIdx + (s - recStart)] = i16[sigBase + s] * scale + offset;
+            }
+          }
+          outIdx += recEndLimit - recStart;
+        }
+      }
+      return out;
+    }
+
+    const streamOpts = opts;
+    for await (const { bytes } of HttpRange.rangeFetchStreaming(
+      layout.url, byteStart, byteEnd, streamOpts
+    )) {
+      const boundary = StreamingUtils.decodeChunkBoundary(
+        leftover, bytes, layout.record_size_bytes
+      );
+      leftover = boundary.leftover;
+      const completeBytes = boundary.completeRecordBytes;
+      const nNewRecs = Math.floor(completeBytes.length / layout.record_size_bytes);
+      if (nNewRecs === 0) continue;
+
+      // Accumulate records into batch; emit when batch is full
+      let rOff = 0;
+      while (rOff < nNewRecs && outSamples < nWin) {
+        const recsThisBatch = Math.min(STREAM_BATCH_RECORDS, nNewRecs - rOff);
+        const batchU8 = completeBytes.subarray(
+          rOff * layout.record_size_bytes,
+          (rOff + recsThisBatch) * layout.record_size_bytes
+        );
+        const decoded = decodeRecords(batchU8, recsThisBatch, recIdx + rOff);
+        if (decoded && decoded[0].length > 0) {
+          const firstSampleIdx = start + outSamples;
+          const lastSampleIdx = firstSampleIdx + decoded[0].length - 1;
+          outSamples += decoded[0].length;
+          yield { firstSampleIdx, lastSampleIdx, channels: decoded };
+        }
+        rOff += recsThisBatch;
+      }
+      recIdx += nNewRecs;
+    }
   }
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
