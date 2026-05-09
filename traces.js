@@ -313,10 +313,15 @@
 
       const yCenter = plotY0 + (c + 0.5) * slotH;
       ctx.save();
-      // Clip to slot so spikes from over-driven gain don't bleed
-      // into adjacent channels.
+      // Outer clip: confine traces to the plot region (no leak into
+      // PAD_LEFT label gutter, time-axis area, or PAD_TOP). Inside the
+      // plot region, traces are NOT clipped to their per-channel slot
+      // — over-driven gain is allowed to bleed into adjacent slots so
+      // the user keeps seeing signal shape rather than a flat saturation
+      // line. Trade-off: at very high gain a noisy channel can briefly
+      // overlap its neighbours; that's preferable to losing detail.
       ctx.beginPath();
-      ctx.rect(plotX0, plotY0 + c * slotH, plotW, slotH);
+      ctx.rect(plotX0, plotY0, plotW, plotH);
       ctx.clip();
 
       // For bad channels, fill the slot with a muted grey background so
