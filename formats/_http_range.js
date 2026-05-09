@@ -61,16 +61,22 @@
   // total. Tiling above the threshold therefore gives a 4-5× wall-time
   // speedup on the same total bytes — see scripts/bench-fetch.mjs.
   //
-  // 4 MiB threshold landed empirically — see scripts/bench-fetch.mjs.
-  // Lowering it for the 5 kHz × 64 ch × 10 s case (6.4 MB pans) was
-  // tested via perf-trace.mjs and produced no clean wall-time win:
-  // single-fetch and tiled were within network noise on real S3,
-  // because the bottleneck for those recordings is per-pan latency
-  // (mostly bytes-on-the-wire), not parallelism. The fix for that
-  // is the read-ahead cache in viewer.js, not a tighter threshold.
-  const TILE_THRESHOLD_BYTES = 4 * 1024 * 1024;
-  const TILE_TARGET_BYTES    = 2 * 1024 * 1024;
-  const TILE_MAX_PARALLEL    = 8;
+  // 256 KiB threshold + 256 KiB tile size + 6 parallel fetches.
+  // Empirical: live-probing OpenNeuro S3 (us-east-1, raw bucket,
+  // HTTP/1.1 only — no HTTP/2 multiplexing) showed 8 × 128 KB
+  // parallel range fetches complete in 770 ms total vs 2557 ms for
+  // a single 1 MB fetch — 3.3× faster. The original 4 MiB threshold
+  // was right for the 38 MB benchmark it was tuned against (where
+  // tiling won 4-5×) but wrong for the typical sub-MB pan, where
+  // the per-TCP bandwidth cap (~0.4 MB/s) makes a single fetch the
+  // slow path even though the bytes are few.
+  //
+  // 6 parallel matches the browser's HTTP/1.1 connection-per-host
+  // cap (Chrome/Firefox default). Going higher is wasted: the 7th+
+  // fetch queues until a slot opens. See docs/streaming-and-cdn-study.md.
+  const TILE_THRESHOLD_BYTES = 256 * 1024;
+  const TILE_TARGET_BYTES    = 256 * 1024;
+  const TILE_MAX_PARALLEL    = 6;
 
   async function rangeFetch(url, byteStart, byteEndInclusive, expectedBytes, opts) {
     // Zero-length / inverted ranges short-circuit without hitting the

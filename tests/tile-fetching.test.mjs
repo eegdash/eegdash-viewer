@@ -47,14 +47,25 @@ function restoreStub() { globalThis.fetch = originalFetch; }
 beforeEach(installStub);
 afterEach(restoreStub);
 
-test('tile fetching: 1 MB read stays single-fetch (below threshold)', async () => {
-  const buf = await HttpRange.rangeFetch(TEST_URL, 0, 1_000_000 - 1, 1_000_000);
+test('tile fetching: small read (< 256 KiB) stays single-fetch', async () => {
+  const SZ = 200 * 1024;
+  const buf = await HttpRange.rangeFetch(TEST_URL, 0, SZ - 1, SZ);
   assert.equal(calls.length, 1);
+  assert.equal(buf.byteLength, SZ);
+});
+
+test('tile fetching: 1 MB tiles into multiple parallel fetches', async () => {
+  // After threshold lowered 4 MiB → 256 KiB (3.3× cold-pan speedup
+  // from real S3 probe, see docs/streaming-and-cdn-study.md), a 1 MB
+  // read should split into ~4 tiles capped at TILE_MAX_PARALLEL (6).
+  const buf = await HttpRange.rangeFetch(TEST_URL, 0, 1_000_000 - 1, 1_000_000);
+  assert.ok(calls.length >= 2 && calls.length <= 6,
+    `expected 2-6 tiles for 1 MB, got ${calls.length}`);
   assert.equal(buf.byteLength, 1_000_000);
 });
 
-test('tile fetching: just-under-threshold stays single-fetch', async () => {
-  const SZ = 4 * 1024 * 1024 - 1;
+test('tile fetching: just-under-threshold (255 KiB) stays single-fetch', async () => {
+  const SZ = 255 * 1024;
   await HttpRange.rangeFetch(TEST_URL, 0, SZ - 1, SZ);
   assert.equal(calls.length, 1);
 });
