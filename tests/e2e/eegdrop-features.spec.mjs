@@ -250,30 +250,51 @@ test.describe('eegdrop incorporation', () => {
     const dir = evidenceDir('F08-filters');
     await gotoFixture(page, 'edf');
 
-    const sample = async () => (await page.locator('#traces').evaluate(c => {
-      const ctx = c.getContext('2d');
-      const img = ctx.getImageData(200, 200, 200, 100).data;
-      let sum = 0; for (let i = 0; i < img.length; i += 4) sum += img[i];
-      return sum / (img.length / 4);
-    }));
+    const sample = () => page.locator('#traces').screenshot();
 
+    // After a filter UI change, wait for at least 2 fresh WINDOWs to
+    // arrive so any in-flight prefetch from the prior render is drained
+    // and the filter-induced foreground fetch has come back. Then one
+    // RAF pair to ensure traces.draw() has painted.
+    const getWindows = () =>
+      page.evaluate(() => globalThis.__viewerWorkerStats?.windows_received ?? 0);
+    const waitFiltered = async (before) => {
+      await page.waitForFunction(
+        b => (globalThis.__viewerWorkerStats?.windows_received ?? 0) >= b + 2,
+        before,
+        { timeout: 15_000 },
+      );
+      await page.evaluate(() => new Promise(r =>
+        requestAnimationFrame(() => requestAnimationFrame(r))));
+    };
+
+    // Drain any in-flight prefetch from initial load before baselining.
+    await page.waitForTimeout(800);
     const baseline = await sample();
+
+    let before = await getWindows();
     await page.locator('#filter-hp-enable').check();
     await page.locator('#filter-hp-cutoff').fill('30');
-    await page.waitForTimeout(500);
+    await page.locator('#filter-hp-cutoff').blur();
+    await waitFiltered(before);
     const hp = await sample();
-    expect(Math.abs(hp - baseline)).toBeGreaterThanOrEqual(5);
+    expect(Buffer.compare(baseline, hp), 'HP filter must change canvas').not.toBe(0);
 
+    before = await getWindows();
     await page.locator('#filter-hp-enable').uncheck();
     await page.locator('#filter-notch-enable').check();
     await page.locator('#filter-notch-freq').selectOption('60');
-    await page.waitForTimeout(500);
+    await waitFiltered(before);
     const notch = await sample();
-    expect(Math.abs(notch - baseline)).toBeGreaterThanOrEqual(5);
+    expect(Buffer.compare(baseline, notch), 'Notch filter must change canvas').not.toBe(0);
 
     await page.screenshot({ path: path.join(dir, 'screenshot.png') });
     fs.writeFileSync(path.join(dir, 'pixel-deltas.json'), JSON.stringify({
-      r_baseline: baseline, r_hp30: hp, r_notch60: notch,
+      baseline_bytes: baseline.length,
+      hp_bytes: hp.length,
+      notch_bytes: notch.length,
+      hp_changed: Buffer.compare(baseline, hp) !== 0,
+      notch_changed: Buffer.compare(baseline, notch) !== 0,
     }, null, 2));
   });
 

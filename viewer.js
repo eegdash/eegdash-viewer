@@ -380,6 +380,7 @@
             pendingRequests.delete(request_id);
             const rtt = performance.now() - entry.sentAt;
             setStat('last_round_trip_ms', rtt);
+            incStat('windows_received');
             entry.resolve(channels);
             break;
           }
