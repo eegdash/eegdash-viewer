@@ -296,6 +296,11 @@
     let typeColors = {};       // {TYPE → hexColor} — mutated by swatch clicks
     let pending = null;
     let inFlight = null;
+    // Most-recent pan direction (-1 = ←, 0 = none, +1 = →). Used by
+    // prefetchNeighbours to bias caching in the user's pan direction
+    // so 2-3 consecutive arrow presses still hit cache despite S3
+    // round-trip latency (~1-2 s per uncached window).
+    let lastPanDir = 0;
 
     // Cursor readout — last rendered window, updated after each draw.
     let lastChannels = null;
@@ -449,7 +454,9 @@
     // The bottleneck on 5 kHz BV recordings is bytes-on-the-wire
     // (perf-trace.mjs: 5 s read, 6 ms decode), so the highest-
     // leverage win is not to fetch the same window twice.
-    const READ_CACHE_MAX = 4;
+    const READ_CACHE_MAX = 8;                // bumped from 4 to fit the
+                                             // wider directional prefetch
+                                             // (3 windows ahead in pan dir)
     const readCache = new Map();             // "start-n" → Promise<channels>
     function clearReadCache() { readCache.clear(); }
 
@@ -493,12 +500,21 @@
       if (!readerInfo) return;
       const fs = readerInfo.sampling_frequency;
       const n = Math.round(view.window_sec * fs);
-      // Pre-fetch a half-window step in each direction — that's what
-      // ArrowLeft/ArrowRight produce; mouse drag pans usually land
-      // somewhere between, hitting partial-overlap browser HTTP cache.
-      const next = clampStartSamples(view.start_sec + view.window_sec / 2);
-      const prev = clampStartSamples(view.start_sec - view.window_sec / 2);
-      for (const s of [next, prev]) {
+      // Always: ±half-window — covers mouse-drag pans and the no-direction
+      // case (after fresh load).
+      // When panning: also fetch +1.0 and +1.5 windows ahead in lastPanDir
+      // so 2-3 rapid arrow presses keep hitting cache despite S3 round-
+      // trip latency (~1-2 s uncached).
+      const half = view.window_sec / 2;
+      const targets = [
+        clampStartSamples(view.start_sec + half),
+        clampStartSamples(view.start_sec - half),
+      ];
+      if (lastPanDir !== 0) {
+        targets.push(clampStartSamples(view.start_sec + lastPanDir * view.window_sec));
+        targets.push(clampStartSamples(view.start_sec + lastPanDir * 1.5 * view.window_sec));
+      }
+      for (const s of targets) {
         const key = `${s}-${n}`;
         if (readCache.has(key)) continue;
         // No abort signal: prefetch is best-effort.
@@ -848,8 +864,8 @@
           }
           return;
         }
-        if (e.key === 'ArrowLeft')  { view.start_sec = clampStart(view.start_sec - view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
-        if (e.key === 'ArrowRight') { view.start_sec = clampStart(view.start_sec + view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
+        if (e.key === 'ArrowLeft')  { lastPanDir = -1; view.start_sec = clampStart(view.start_sec - view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
+        if (e.key === 'ArrowRight') { lastPanDir = +1; view.start_sec = clampStart(view.start_sec + view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
       });
       window.addEventListener('resize', requestRender);
       $('window-sec').addEventListener('change', (e) => {
