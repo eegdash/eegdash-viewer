@@ -1,51 +1,18 @@
 {
   "url": "https://eegdash.github.io/eegdash-viewer/?dataset=ds002893&sub=001&task=AuditoryVisualShift&run=01&ext=set",
-  "timestamp": "2026-05-09T22:37:53.831Z",
+  "timestamp": "2026-05-09T22:41:53.441Z",
   "status_text": "sub-001_task-AuditoryVisualShift_run-01_eeg.set",
-  "stage_caption_visible": false,
-  "n_console_errors": 4,
-  "errors": [
-    "requestfailed: https://eegdash.github.io/eegdash-viewer/perf.js?v=1 net::ERR_ABORTED",
-    "requestfailed: https://eegdash.github.io/eegdash-viewer/filters.js?v=1 net::ERR_ABORTED",
-    "requestfailed: https://eegdash.github.io/eegdash-viewer/worker.js net::ERR_FAILED",
-    "console.error: viewer worker error: Event"
-  ],
-  "n_data_requests": 30,
+  "stage_caption_visible": true,
+  "n_console_errors": 0,
+  "errors": [],
+  "n_data_requests": 41,
   "requests": [
-    {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_eeg.json",
-      "status": 404
-    },
-    {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_channels.tsv",
-      "status": 404
-    },
-    {
-      "url": "/cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_channels.tsv",
-      "status": 200
-    },
     {
       "url": "ps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.json",
       "status": 200
     },
     {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_eeg.json",
-      "status": 404
-    },
-    {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_run-01_eeg.json",
-      "status": 404
-    },
-    {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_eeg.json",
-      "status": 404
-    },
-    {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_channels.tsv",
-      "status": 404
-    },
-    {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/channels.tsv",
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_coordsystem.json",
       "status": 404
     },
     {
@@ -53,11 +20,75 @@
       "status": 404
     },
     {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_run-01_channels.tsv",
+      "status": 404
+    },
+    {
+      "url": "ps://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_run-01_coordsystem.json",
+      "status": 404
+    },
+    {
       "url": "://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_events.tsv",
       "status": 200
     },
     {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/electrodes.tsv",
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/coordsystem.json",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_events.tsv",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_coordsystem.json",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_electrodes.tsv",
+      "status": 404
+    },
+    {
+      "url": "ttps://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_run-01_electrodes.tsv",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/channels.tsv",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_eeg.json",
+      "status": 404
+    },
+    {
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_electrodes.tsv",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_eeg.json",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_channels.tsv",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_run-01_eeg.json",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_eeg.json",
+      "status": 404
+    },
+    {
+      "url": "s://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_coordsystem.json",
+      "status": 404
+    },
+    {
+      "url": "dn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_electrodes.tsv",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/events.tsv",
       "status": 404
     },
     {
@@ -65,7 +96,23 @@
       "status": 404
     },
     {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_run-01_channels.tsv",
+      "url": "/cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_channels.tsv",
+      "status": 200
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_events.tsv",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_electrodes.tsv",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_channels.tsv",
+      "status": 404
+    },
+    {
+      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/electrodes.tsv",
       "status": 404
     },
     {
@@ -77,60 +124,52 @@
       "status": 404
     },
     {
-      "url": "dn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_electrodes.tsv",
-      "status": 200
-    },
-    {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_events.tsv",
-      "status": 404
-    },
-    {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_events.tsv",
-      "status": 404
-    },
-    {
-      "url": "ttps://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_run-01_electrodes.tsv",
-      "status": 404
-    },
-    {
       "url": ".eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_coordsystem.json",
       "status": 200
     },
     {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/events.tsv",
-      "status": 404
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 200
     },
     {
-      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_electrodes.tsv",
-      "status": 404
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
     },
     {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_electrodes.tsv",
-      "status": 404
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
     },
     {
-      "url": "s://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_coordsystem.json",
-      "status": 404
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
     },
     {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_coordsystem.json",
-      "status": 404
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
     },
     {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/coordsystem.json",
-      "status": 404
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
     },
     {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_coordsystem.json",
-      "status": 404
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
     },
     {
-      "url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_electrodes.tsv",
-      "status": 404
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
     },
     {
-      "url": "ps://cdn.eegdash.org/ds002893/sub-001/eeg/task-AuditoryVisualShift_run-01_coordsystem.json",
-      "status": 404
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
+    },
+    {
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
+    },
+    {
+      "url": "tps://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.fdt",
+      "status": 206
     }
   ]
 }

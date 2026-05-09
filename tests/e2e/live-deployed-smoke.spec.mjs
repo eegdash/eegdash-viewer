@@ -18,7 +18,14 @@ test('LIVE deployed viewer renders ds002893 EEG via cdn.eegdash.org', async ({ p
       errors.push(`console.error: ${m.text()}`);
     }
   });
-  page.on('requestfailed', r => errors.push(`requestfailed: ${r.url().slice(-80)} ${r.failure()?.errorText}`));
+  page.on('requestfailed', r => {
+    const err = r.failure()?.errorText || '';
+    // ERR_ABORTED is the AbortController cancelling a superseded read
+    // (the prefetch / first-render race) — that's intended behaviour,
+    // not a viewer error.
+    if (err.includes('ERR_ABORTED')) return;
+    errors.push(`requestfailed: ${r.url().slice(-80)} ${err}`);
+  });
   page.on('response', r => {
     if (r.url().includes('cdn.eegdash.org') || r.url().includes('s3.amazonaws.com')) {
       requests.push({ url: r.url().slice(-90), status: r.status() });
