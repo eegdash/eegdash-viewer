@@ -11,7 +11,7 @@ import path from 'node:path';
 
 const FIXTURES = {
   eeglab: 'https://s3.amazonaws.com/openneuro.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.set',
-  edf:    'https://s3.amazonaws.com/openneuro.org/ds002034/sub-001/eeg/sub-001_task-rest_eeg.edf',
+  edf:    'https://s3.amazonaws.com/openneuro.org/ds002034/sub-01/ses-01/eeg/sub-01_ses-01_task-offline_run-01_eeg.edf',
   bv:     'https://s3.amazonaws.com/openneuro.org/ds002336/sub-01/ses-01/eeg/sub-01_ses-01_task-rest_run-01_eeg.vhdr',
 };
 

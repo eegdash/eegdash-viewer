@@ -68,7 +68,7 @@ disagrees, that's a spec bug — report it and move on.
 
 When a feature requires an EDF/EDF+/BDF dataset instead of EEGLAB:
 
-- EDF: `https://s3.amazonaws.com/openneuro.org/ds002034/sub-001/eeg/sub-001_task-rest_eeg.edf`
+- EDF: `https://s3.amazonaws.com/openneuro.org/ds002034/sub-01/ses-01/eeg/sub-01_ses-01_task-offline_run-01_eeg.edf`
 - BrainVision: `https://s3.amazonaws.com/openneuro.org/ds002336/sub-01/ses-01/eeg/sub-01_ses-01_task-rest_run-01_eeg.vhdr`
 
 Each feature's FUNCTIONAL VALIDATION block names which fixture it uses.
