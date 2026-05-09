@@ -47,9 +47,20 @@
   //     → sub-01_ses-01_task-rest_run-01
   // Returns { dir, prefix, ext } where dir always ends with '/'.
   api.parseEegUrl = function (eegUrl) {
+    // Primary: BIDS canonical `<prefix>_eeg.<ext>` form.
     const m = /^(.*\/)([^/]+?)_eeg\.([A-Za-z0-9+]+)$/.exec(eegUrl);
-    if (!m) throw new Error(`URL is not a BIDS *_eeg.<ext> path: ${eegUrl}`);
-    return { dir: m[1], prefix: m[2], ext: m[3].toLowerCase() };
+    if (m) return { dir: m[1], prefix: m[2], ext: m[3].toLowerCase() };
+    // Fallback: a known EEG-format file that omits the BIDS `_eeg` suffix
+    // (e.g. local test fixtures and demo files). Sidecar inheritance will
+    // find nothing at these synthetic paths — the format reader extracts
+    // everything it needs from the binary header.
+    const KNOWN_EXT = /\.(edf|bdf|set|vhdr)$/i;
+    const m2 = /^(.*\/)([^/]+)$/.exec(eegUrl);
+    if (m2 && KNOWN_EXT.test(m2[2])) {
+      const dot = m2[2].lastIndexOf('.');
+      return { dir: m2[1], prefix: m2[2].slice(0, dot), ext: m2[2].slice(dot + 1).toLowerCase() };
+    }
+    throw new Error(`URL is not a BIDS *_eeg.<ext> path: ${eegUrl}`);
   };
 
   // BIDS path convention on OpenNeuro:

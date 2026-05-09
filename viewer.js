@@ -366,6 +366,16 @@
           throw new Error(`No reader for *_eeg.${meta.ext} (supported: ${Object.keys(READERS).join(', ')})`);
         }
         reader = await readerModule.open(meta);
+
+        // F09: merge EDF+ annotation-channel events when no _events.tsv
+        // was found. Priority: explicit sidecar events always win; only
+        // fall back to the embedded TAL events when the sidecar is absent
+        // or produced zero events.
+        if ((!meta.events || meta.events.length === 0) && reader.annotation_events?.length) {
+          meta.events = reader.annotation_events;
+        }
+        renderEvents(meta.events, $('ev-list'), $('event-count'));
+
         channelLabels = deriveChannelLabels(reader, meta.channels);
         channelBadMask = deriveBadMask(meta.channels, reader.n_channels);
 

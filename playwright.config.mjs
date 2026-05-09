@@ -16,7 +16,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [['list']],
   use: {
-    baseURL: 'http://localhost:8011',
+    baseURL: 'http://localhost:8109',
     headless: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
@@ -27,8 +27,8 @@ export default defineConfig({
   webServer: {
     // Stand up a Python static file server so the viewer loads via
     // http:// (CORS for OpenNeuro fetches works; file:// would 0-origin).
-    command: 'python3 -m http.server 8011',
-    url: 'http://localhost:8011/index.html',
+    command: 'node scripts/serve.mjs 8109',
+    url: 'http://localhost:8109/index.html',
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
     stderr: 'pipe',
