@@ -1394,15 +1394,16 @@
     }
 
     // ---- drag-drop fallback ---------------------------------
-    const EEG_FILENAME = new RegExp(`_eeg\\.(${Object.keys(READERS).join('|')})$`, 'i');
+    // Support _eeg, _ieeg, _emg, _meg, _nirs and other electrophysiology suffixes
+    const PHYSIO_FILENAME = new RegExp(`_(eeg|ieeg|emg|meg|nirs)\\.(${Object.keys(READERS).join('|')})$`, 'i');
 
     function registerDrop(files) {
-      let eegUrl = null;
+      let physioUrl = null;
       for (const file of files) {
         const url = HttpRange.registerLocal(file.name, file);
-        if (!eegUrl && EEG_FILENAME.test(file.name)) eegUrl = url;
+        if (!physioUrl && PHYSIO_FILENAME.test(file.name)) physioUrl = url;
       }
-      return eegUrl;
+      return physioUrl;
     }
 
     function attachDragDrop() {
@@ -1438,14 +1439,14 @@
         fallbackReader = null;
         clearReadCache();
         HttpRange.clearLocal();
-        const eegUrl = registerDrop(files);
-        if (!eegUrl) {
+        const physioUrl = registerDrop(files);
+        if (!physioUrl) {
           const supported = Object.keys(READERS).join(',');
           status.replaceChildren(el('span', 'err',
-            `Drop a *_eeg.{${supported}} file (got: ${[...files].map(f => f.name).join(', ')})`));
+            `Drop a *_{eeg,ieeg,emg,meg,nirs}.{${supported}} file (got: ${[...files].map(f => f.name).join(', ')})`));
           return;
         }
-        load(eegUrl);
+        load(physioUrl);
       });
     }
 

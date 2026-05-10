@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>EEG Trace Viewer</title>
+<title>Electrophysiology Trace Viewer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
@@ -38,8 +38,8 @@
           <path d="M2 11 Q4 11 5 8 T7 14 T9 8 T11 14 T13 9 T15 12 T17 11 L20 11" />
         </svg>
       </span>
-      <div class="brand-title"><span class="brand-title-display">EEG</span> Trace Viewer</div>
-      <div class="brand-sub">BIDS · OpenNeuro raw signal preview</div>
+      <div class="brand-title"><span class="brand-title-display">M/EEG</span> Trace Viewer</div>
+      <div class="brand-sub">BIDS · Electrophysiology signal preview (EEG, iEEG, EMG, MEG, fNIRS)</div>
     </div>
     <div class="header-right">
       <span class="pill" id="pill-format">—</span>
@@ -63,7 +63,7 @@
   <aside class="rail left">
     <section class="rail-section">
       <h3 class="rail-title"><span>Recording</span></h3>
-      <div id="status" class="status">Drop a BIDS recording or pass <code>?eeg=&lt;url&gt;</code>.</div>
+      <div id="status" class="status">Drop a BIDS recording or pass <code>?eeg=&lt;url&gt;</code>, <code>?ieeg=</code>, <code>?emg=</code>, etc.</div>
       <div id="provenance" class="provenance"></div>
     </section>
 
@@ -142,11 +142,11 @@
   <main class="stage" id="stage">
     <div id="stage-hint" class="stage-hint">
       <p>No recording loaded</p>
-      <p>Drop a <code>_eeg.*</code> file anywhere on this page,
-         or pass <code>?eeg=&lt;url&gt;</code> in the address bar.
+      <p>Drop a <code>*_{eeg,ieeg,emg}.*</code> file anywhere on this page,
+         or pass <code>?eeg=&lt;url&gt;</code>, <code>?ieeg=</code>, <code>?emg=</code> in the address bar.
          OpenNeuro datasets work with
-         <code>?dataset=ds00XXXX&amp;sub=01&amp;task=rest</code>.</p>
-      <p>Supported raw formats: <code>.set</code>+<code>.fdt</code> · <code>.edf</code> · <code>.bdf</code> · <code>.vhdr</code>+<code>.eeg</code></p>
+         <code>?dataset=ds00XXXX&amp;sub=01&amp;task=rest</code> or <code>?dataset=...&amp;suffix=ieeg</code>.</p>
+      <p>Supported raw formats: <code>.set</code>+<code>.fdt</code> · <code>.edf</code> · <code>.bdf</code> · <code>.vhdr</code>+<code>.eeg</code> (EEG/iEEG/EMG compatible)</p>
     </div>
     <canvas id="traces" class="traces" hidden></canvas>
     <!-- Cursor readout bar: time, channel label, amplitude on hover. -->

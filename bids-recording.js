@@ -41,26 +41,33 @@
   const fetchTextOrNull = HttpRange.fetchTextOrNull;
 
   // ---- URL plumbing -------------------------------------------
-  // Strip the trailing _eeg.<ext> off the filename so we get the
+  // Strip the trailing _{suffix}.<ext> off the filename so we get the
   // BIDS entity prefix the sidecars share, e.g.
   //   sub-01_ses-01_task-rest_run-01_eeg.set
   //     → sub-01_ses-01_task-rest_run-01
-  // Returns { dir, prefix, ext } where dir always ends with '/'.
-  api.parseEegUrl = function (eegUrl) {
-    // Primary: BIDS canonical `<prefix>_eeg.<ext>` form.
-    const m = /^(.*\/)([^/]+?)_eeg\.([A-Za-z0-9+]+)$/.exec(eegUrl);
-    if (m) return { dir: m[1], prefix: m[2], ext: m[3].toLowerCase() };
-    // Fallback: a known EEG-format file that omits the BIDS `_eeg` suffix
+  // Supports _eeg, _ieeg, _emg, and other electrophysiology suffixes.
+  // Returns { dir, prefix, ext, suffix } where dir always ends with '/'.
+  api.parsePhysioUrl = function (physioUrl) {
+    // Primary: BIDS canonical `<prefix>_{suffix}.<ext>` form.
+    // Matches any suffix (eeg, ieeg, emg, meg, nirs, etc.)
+    const m = /^(.*\/)([^/]+?)_(eeg|ieeg|emg|meg|nirs)\.([A-Za-z0-9+]+)$/.exec(physioUrl);
+    if (m) return { dir: m[1], prefix: m[2], suffix: m[3], ext: m[4].toLowerCase() };
+    // Fallback: a known format file that omits the BIDS suffix
     // (e.g. local test fixtures and demo files). Sidecar inheritance will
     // find nothing at these synthetic paths — the format reader extracts
     // everything it needs from the binary header.
-    const KNOWN_EXT = /\.(edf|bdf|set|vhdr)$/i;
-    const m2 = /^(.*\/)([^/]+)$/.exec(eegUrl);
+    const KNOWN_EXT = /\.(edf|bdf|set|vhdr|fif|fiff|snirf)$/i;
+    const m2 = /^(.*\/)([^/]+)$/.exec(physioUrl);
     if (m2 && KNOWN_EXT.test(m2[2])) {
       const dot = m2[2].lastIndexOf('.');
-      return { dir: m2[1], prefix: m2[2].slice(0, dot), ext: m2[2].slice(dot + 1).toLowerCase() };
+      return { dir: m2[1], prefix: m2[2].slice(0, dot), suffix: 'eeg', ext: m2[2].slice(dot + 1).toLowerCase() };
     }
-    throw new Error(`URL is not a BIDS *_eeg.<ext> path: ${eegUrl}`);
+    throw new Error(`URL is not a BIDS *_{suffix}.<ext> path: ${physioUrl}`);
+  };
+
+  // Backward compatibility: parseEegUrl now delegates to parsePhysioUrl
+  api.parseEegUrl = function (eegUrl) {
+    return api.parsePhysioUrl(eegUrl);
   };
 
   // Read once at module load — ?direct=1 is a startup flag, not a
@@ -69,31 +76,43 @@
     typeof globalThis.location !== 'undefined' &&
     new URLSearchParams(globalThis.location.search).has('direct');
 
-  // BIDS-relative path of an _eeg.<ext> recording. Same shape across
+  // BIDS-relative path of a _{suffix}.<ext> recording. Same shape across
   // OpenNeuro (gets a bucket prefixed) and NEMAR (used as the unique
   // bidspath filter against the eegdash records API). Lifted out so
   // both call sites stay in lockstep when BIDS path conventions evolve.
-  function buildBidsRelpath(params) {
+  // Suffix defaults to 'eeg' but supports 'ieeg', 'emg', 'meg', 'nirs', etc.
+  function buildBidsRelpath(params, suffix) {
     const ds   = required(params, 'dataset');
     const sub  = required(params, 'sub');
     const ses  = params.ses || null;
     const task = params.task || null;
     const run  = params.run || null;
     const ext  = (params.ext || 'set').toLowerCase();
+    const suf  = (suffix || 'eeg').toLowerCase();
+    // Map suffix to BIDS datatype directory
+    const datatypeMap = {
+      'eeg': 'eeg',
+      'ieeg': 'ieeg',
+      'emg': 'emg',
+      'meg': 'meg',
+      'nirs': 'nirs'
+    };
+    const datatype = datatypeMap[suf] || suf;
     const segs = [ds, `sub-${sub}`];
     if (ses) segs.push(`ses-${ses}`);
-    segs.push('eeg');
+    segs.push(datatype);
     let entities = `sub-${sub}`;
     if (ses)  entities += `_ses-${ses}`;
     if (task) entities += `_task-${task}`;
     if (run)  entities += `_run-${run}`;
-    return `${segs.join('/')}/${entities}_eeg.${ext}`;
+    return `${segs.join('/')}/${entities}_${suf}.${ext}`;
   }
 
   // BIDS path convention on OpenNeuro:
-  //   <bucket>/<dataset>/sub-<X>/[ses-<Y>/]<datatype>/<entities>_eeg.<ext>
+  //   <bucket>/<dataset>/sub-<X>/[ses-<Y>/]<datatype>/<entities>_{suffix}.<ext>
   // Used by ?dataset=&sub=&ses=&task=&run=&ext= form so eegdash dataset
   // pages can deep-link without spelling out the full S3 URL.
+  // Supports ?suffix= parameter for ieeg, emg, meg, nirs (defaults to eeg).
   //
   // Default: route through cdn.eegdash.org — Cloudflare Worker proxy
   // that caches OpenNeuro S3 byte-ranges at the global edge.
@@ -108,7 +127,8 @@
     const bucket = _DIRECT_S3
       ? 'https://s3.amazonaws.com/openneuro.org'
       : 'https://cdn.eegdash.org';
-    return `${bucket}/${buildBidsRelpath(params)}`;
+    const suffix = params.suffix || 'eeg';
+    return `${bucket}/${buildBidsRelpath(params, suffix)}`;
   };
 
   function required(params, key) {
@@ -665,8 +685,11 @@
   // Returns null when no params are present (cold viewer state).
   api.resolveTargets = function (urlSearchParams) {
     const p = urlSearchParams;
-    if (p.has('eeg')) {
-      return { kind: 'url', eeg_url: p.get('eeg') };
+    // Support ?eeg=, ?ieeg=, ?emg= parameters for direct URL loading
+    for (const suffix of ['eeg', 'ieeg', 'emg', 'meg', 'nirs']) {
+      if (p.has(suffix)) {
+        return { kind: 'url', eeg_url: p.get(suffix) };
+      }
     }
     if (p.has('dataset')) {
       const ds = p.get('dataset');
@@ -678,6 +701,9 @@
         run:     p.get('run'),
         ext:     p.get('ext'),
       };
+      // Determine suffix (default to 'eeg', can be overridden with ?suffix=)
+      const suffix = p.get('suffix') || 'eeg';
+      params.suffix = suffix;
       // NEMAR (nm-prefixed) datasets resolve via the eegdash records
       // API instead of a direct bucket URL — git-annex SHA addressing.
       if (api.isNemarDatasetId(ds)) {
