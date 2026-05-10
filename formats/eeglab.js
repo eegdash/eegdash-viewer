@@ -1,21 +1,27 @@
 /* ============================================================
-   formats/eeglab.js — read EEGLAB `.fdt` flat float32 matrices
-   over HTTP Range requests. We deliberately do NOT parse the
-   sibling `.set` MAT-file: BIDS sidecars (`_channels.tsv`,
-   `_eeg.json`) carry every field we need (channel count, sample
-   rate, channel names, units), and skipping the MAT parser
-   keeps this module under 200 LOC of vanilla JS.
+   formats/eeglab.js — read EEGLAB recordings in either layout:
 
-   Binary layout (continuous recordings):
-     little-endian float32, MATLAB column-major
-       data[chan, sample] @ byte (sample * n_channels + chan) * 4
-     i.e. samples are interleaved by channel — exactly the layout
-     that lets us range-fetch a time window of all channels in a
-     single contiguous HTTP request and then de-interleave once.
+   1. Split `.set` + `.fdt`: the .set is just a MATLAB header
+      (channel info, srate, etc.) and the data lives in a sibling
+      .fdt file as flat little-endian float32 in MATLAB column-
+      major order — `data[chan, sample] @ byte (sample*nCh+chan)*4`.
+      Range-friendly: we fetch only the needed window via HTTP
+      Range and de-interleave once.
 
-   Epoched (3-D) `.fdt` files [n_channels, n_pnts, n_trials] are
-   out of scope for v1; if the file size implies trials > 1 we
-   flag it in `open()` and the viewer treats samples as flat.
+   2. Inline-data `.set` (most modern EEGLAB / MNE-Python exports):
+      the .set is a MAT v5 file containing the data as a typed
+      array INSIDE itself. We download the whole .set, parse it
+      via _matv5.js, extract `EEG.data` (or top-level `data`),
+      and serve windows from the in-memory column-major array.
+
+   We skip BIDS sidecar `.set` parsing for the split-layout case
+   (channel count + sample rate come from `_channels.tsv` and
+   `_eeg.json`); the inline case has no choice but to parse the
+   MAT structure since that's where the data is.
+
+   Epoched (3-D) data `[n_channels, n_pnts, n_trials]` is treated
+   as continuous: we flatten the trial axis so the viewer's flat
+   time-axis pans across concatenated trials.
    ============================================================ */
 (function () {
   'use strict';
@@ -59,23 +65,26 @@
       throw new Error('EEGLAB .fdt reader needs SamplingFrequency in _eeg.json.');
     }
     const nChannels = meta.channels.length;
-    const fdtUrl = api.fdtUrlFor(meta.eeg_url);
-    let totalBytes;
-    try {
-      totalBytes = await HttpRange.probeLength(fdtUrl);
-    } catch (e) {
-      // The most common 404 here is that the recording embeds its data
-      // inside the .set MAT-file instead of in a sibling .fdt — EEGLAB
-      // supports both layouts but our v1 only reads the .fdt variant.
-      // Surface that explicitly so the user knows what's missing.
-      if (/HTTP 404/.test(e.message)) {
-        throw new Error(
-          `EEGLAB .fdt not found at ${fdtUrl}. This recording likely embeds ` +
-          `its data inside the .set MAT-file (no sibling .fdt). v1 only supports ` +
-          `the .set+.fdt split layout; inline-data .set parsing isn't implemented.`
-        );
+
+    // Resolve the .fdt sibling URL. For BIDS-pathed sources
+    // (OpenNeuro) we derive it by string-replace on .set; for SHA-
+    // keyed sources (NEMAR) we look it up in the pre-resolved map.
+    // A null result is a strong signal that this is an inline-data
+    // .set — we'll fall through to the MAT parser below.
+    const fdtUrl = resolveFdtUrl(meta);
+
+    // Probe the .fdt; on 404 (or NEMAR with no .fdt entry) switch to
+    // the inline-data .set path. Other errors propagate.
+    let totalBytes = null;
+    if (fdtUrl) {
+      try {
+        totalBytes = await HttpRange.probeLength(fdtUrl);
+      } catch (e) {
+        if (!/HTTP 404/.test(e.message)) throw e;
       }
-      throw e;
+    }
+    if (totalBytes == null) {
+      return openInlineSet(meta, nChannels, fs);
     }
 
     if (totalBytes % (nChannels * BYTES_PER_SAMPLE) !== 0) {
@@ -130,6 +139,110 @@
         streamInterleavedWindow(fdtUrl, nChannels, nSamples, startSample, nSamplesWindow, opts),
     };
   };
+
+  // BIDS-pathed sources string-derive .fdt; SHA-keyed sources look
+  // it up in the pre-resolved sibling map. Returns null when neither
+  // produces a candidate URL (used as the signal to try inline-data
+  // parsing instead).
+  function resolveFdtUrl(meta) {
+    if (meta.sibling_urls) {
+      return meta.sibling_urls[`${meta.prefix}_eeg.fdt`] || null;
+    }
+    return api.fdtUrlFor(meta.eeg_url);
+  }
+
+  // Inline-data .set: the EEG signal lives inside the MAT file
+  // itself (no sibling .fdt). We download the whole file once,
+  // parse it with the minimal MAT v5 reader, and serve windows
+  // from the in-memory column-major typed array.
+  //
+  // Memory cost: scales with file size (typical .set is 1-200 MB).
+  // For huge multi-hour recordings the upfront download will be
+  // perceptible; range-streaming inside a MAT structure is non-
+  // trivial (variable-length elements, optional zlib compression)
+  // and out of scope for v1.
+  async function openInlineSet(meta, nChannelsFromSidecar, fsFromSidecar) {
+    const setUrl = meta.eeg_url;
+    const totalBytes = await HttpRange.probeLength(setUrl);
+    const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
+
+    let vars;
+    try {
+      vars = await MatV5.parse(buf);
+    } catch (e) {
+      throw new Error(`EEGLAB inline .set parse failed at ${setUrl}: ${e.message}`);
+    }
+    const eeg = MatV5.extractEegInline(vars);
+
+    const nbchan = eeg.nbchan;
+    if (nbchan !== nChannelsFromSidecar) {
+      console.warn(
+        `EEGLAB inline .set: nbchan=${nbchan} disagrees with _channels.tsv ` +
+        `(${nChannelsFromSidecar}); trusting the .set.`
+      );
+    }
+    if (Math.abs(eeg.srate - fsFromSidecar) > 0.5) {
+      console.warn(
+        `EEGLAB inline .set: srate=${eeg.srate} Hz disagrees with _eeg.json ` +
+        `(${fsFromSidecar} Hz); trusting the .set.`
+      );
+    }
+    const fs = eeg.srate;
+
+    // Always served as Float32 to match the .fdt path (downstream
+    // renderer + filter code assumes float). Convert in-place when
+    // the .set stored int16 / int32 / double — one-shot, kept in
+    // memory for the lifetime of the recording.
+    const data32 = eeg.dataClass === 'single' ? eeg.data : Float32Array.from(eeg.data);
+    const nSamples = eeg.pnts * eeg.trials;
+    const expectedLen = nbchan * nSamples;
+    if (data32.length !== expectedLen) {
+      throw new Error(
+        `EEGLAB inline .set: data length ${data32.length} != nbchan(${nbchan}) × pnts(${eeg.pnts}) × trials(${eeg.trials})`
+      );
+    }
+    const trialsHint = eeg.trials > 1 ? eeg.trials : null;
+    if (trialsHint) {
+      console.warn(
+        `EEGLAB inline .set is epoched (${trialsHint} trials); v1 flattens to continuous.`
+      );
+    }
+    const duration_s = nSamples / fs;
+
+    return {
+      n_channels: nbchan,
+      n_samples: nSamples,
+      sampling_frequency: fs,
+      duration_s,
+      bytes_per_sample: 4,
+      trials_hint: trialsHint,
+      url: setUrl,
+      channel_labels: meta.channels ? meta.channels.map(c => c.name) : null,
+      bids_channels: meta.channels || null,
+      readWindow: async (startSample, nSamplesWindow) => {
+        const start = Math.max(0, startSample);
+        if (start >= nSamples || nSamplesWindow <= 0) {
+          return ChannelBuffers.empty(nbchan);
+        }
+        const end = Math.min(start + nSamplesWindow, nSamples);
+        return sliceColumnMajor(data32, nbchan, start, end - start);
+      },
+    };
+  }
+
+  // Slice an in-memory column-major (channels-major) Float32 array.
+  // Same memory layout as the de-interleaved .fdt path output: one
+  // Float32Array per channel, allocated through ChannelBuffers.
+  function sliceColumnMajor(flat, nChannels, startSample, nWin) {
+    const out = ChannelBuffers.alloc(nChannels, nWin);
+    for (let s = 0; s < nWin; s++) {
+      const base = (startSample + s) * nChannels;
+      for (let c = 0; c < nChannels; c++) {
+        out[c][s] = flat[base + c];
+      }
+    }
+    return out;
+  }
 
   // Returns one Float32Array per channel as views over a single
   // backing buffer — the renderer can subscript them at draw time

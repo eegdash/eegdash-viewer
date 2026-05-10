@@ -48,7 +48,11 @@
     ['samples_per_record',  8],
     ['reserved',           32],
   ];
+  // EDF+ "EDF Annotations" and BDF+ "BDF Annotations" are spec-defined
+  // labels for the same TAL events channel. Each is matched only for
+  // its own format so EDF-only behaviour stays bit-identical.
   const ANNOTATION_LABEL = /^EDF Annotations\b/i;
+  const BDF_ANNOTATION_LABEL = /^BDF Annotations\b/i;
 
   function ascii(view, offset, length) {
     let s = '';
@@ -70,6 +74,22 @@
     const n = parseFloat(s);
     if (!Number.isFinite(n)) throw new Error(`EDF header: ${label} not a float (${JSON.stringify(s)})`);
     return n;
+  }
+
+  // Most-frequent samples_per_record across `idx`s into `signals`.
+  // Tie-break: largest spr (favours real EEG over low-rate auxiliary
+  // markers when counts are equal). Exported for unit tests.
+  function pickModalSamplesPerRecord(idx, signals) {
+    const counts = new Map();
+    for (const i of idx) {
+      const spr = signals[i].samples_per_record;
+      counts.set(spr, (counts.get(spr) || 0) + 1);
+    }
+    let best = -1, bestCount = -1;
+    for (const [spr, n] of counts) {
+      if (n > bestCount || (n === bestCount && spr > best)) { best = spr; bestCount = n; }
+    }
+    return best;
   }
 
   api.parseHeader = function (arrayBuf) {
@@ -120,7 +140,8 @@
       if (dRange <= 0) throw new Error(`signal[${i}] has non-positive digital range (${s.digital_min}..${s.digital_max})`);
       s.scale  = (s.physical_max - s.physical_min) / dRange;
       s.offset = s.physical_min - s.digital_min * s.scale;
-      s.is_annotation = ANNOTATION_LABEL.test(s.label);
+      s.is_annotation = ANNOTATION_LABEL.test(s.label) ||
+                        (isBDF && BDF_ANNOTATION_LABEL.test(s.label));
     }
 
     return {
@@ -250,13 +271,29 @@
 
     // v1: require uniform sample rate across display signals so the
     // returned window is a clean (n_channels × n_samples) shape.
-    // Annotation channels are excluded from this check — they often
-    // carry a different sample count.
-    const displayIdx = [];
-    for (let i = 0; i < hdr.signals.length; i++) {
-      if (!hdr.signals[i].is_annotation) displayIdx.push(i);
-    }
+    // Annotation channels are excluded from this check.
+    let displayIdx = hdr.signals
+      .map((_, i) => i)
+      .filter(i => !hdr.signals[i].is_annotation);
     if (!displayIdx.length) throw new Error('EDF has no non-annotation signals');
+
+    // BDF-only: BIDS-converted BioSemi files often carry a marker /
+    // Status / TRIG channel at a much lower rate than the EEG block
+    // (and those don't always carry the "BDF Annotations" label, so
+    // the label-based filter above misses them). Drop signals whose
+    // samples_per_record disagrees with the modal rate of the rest;
+    // for uniform-rate files this is a no-op. Scoped to BDF so EDF/
+    // EDF+ behaviour stays bit-identical for OpenNeuro datasets.
+    if (hdr.isBDF && displayIdx.length > 1) {
+      const modalSpr = pickModalSamplesPerRecord(displayIdx, hdr.signals);
+      const filtered = displayIdx.filter(i => hdr.signals[i].samples_per_record === modalSpr);
+      if (filtered.length !== displayIdx.length) {
+        const dropped = displayIdx.filter(i => !filtered.includes(i));
+        const labels = dropped.map(i => `${hdr.signals[i].label}(${hdr.signals[i].samples_per_record})`).join(', ');
+        console.warn(`BDF: dropping ${dropped.length} auxiliary channel(s) at non-modal rate: ${labels}; keeping ${filtered.length} at samples_per_record=${modalSpr}.`);
+        displayIdx = filtered;
+      }
+    }
 
     const sprPerDisplay = displayIdx.map(i => hdr.signals[i].samples_per_record);
     const sprFirst = sprPerDisplay[0];
@@ -619,6 +656,8 @@
       recIdx += nNewRecs;
     }
   }
+
+  api._pickModalSamplesPerRecord = pickModalSamplesPerRecord;
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.EDFReader = api;

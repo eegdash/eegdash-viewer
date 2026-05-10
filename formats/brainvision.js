@@ -151,12 +151,16 @@
     const vhdrUrl = meta.eeg_url;
     const hdr = api.parseHeader(await HttpRange.fetchText(vhdrUrl));
 
-    // `new URL(relative, base)` already covers absolute URLs, relative
-    // sub-paths, and bare filenames against a base, including the
-    // trailing-slash edge cases we'd otherwise have to remember. For
-    // localdrop URLs we still get a localdrop URL back because both
-    // base and relative live on the same synthetic host.
-    const eegUrl = new URL(hdr.data_file, vhdrUrl).href;
+    // For BIDS-pathed sources (OpenNeuro, localdrop), the .eeg lives
+    // next to the .vhdr — `new URL(relative, base)` handles absolute,
+    // relative, and bare-filename forms uniformly.
+    //
+    // For SHA-keyed sources (NEMAR), the sibling URL doesn't share a
+    // path prefix with the .vhdr, so we look it up in the
+    // pre-computed map (keyed by the bare filename the .vhdr's
+    // DataFile field carries).
+    const eegUrl = meta.sibling_urls?.[hdr.data_file] ??
+                   new URL(hdr.data_file, vhdrUrl).href;
     const totalBytes = await HttpRange.probeLength(eegUrl);
     const recordBytes = hdr.n_channels * hdr.bytes_per_sample;
     if (recordBytes === 0) throw new Error('BrainVision: zero-byte sample (n_channels or bps is 0)');

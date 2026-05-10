@@ -16,10 +16,8 @@ const READERS = {
   vhdr: BrainVisionReader,
 };
 
-// Excludes inline-data .set datasets (ds003800/ds003061/ds004504) that
-// have no sibling .fdt — the EEGLAB reader surfaces a clear error for
-// those rather than supporting them, so testing them here would just
-// be testing the error path twice.
+// Mix of split (.set+.fdt) and inline-data (.set only) EEGLAB
+// recordings — the reader auto-detects which path to take.
 const MATRIX = [
   { fmt: 'set',  ds: 'ds002893', sub: '001',   task: 'AuditoryVisualShift', run: '01', expect: { fs: 250, n_channels: 36 } },
   { fmt: 'set',  ds: 'ds003478', sub: '001',   task: 'Rest',                run: '01', expect: { fs: 500, n_channels: 66 } },
@@ -178,3 +176,61 @@ test('stress: 30 sequential disjoint reads', async () => {
   const t = performance.now() - t0;
   console.log(`        ${N} reads · ${t.toFixed(0)}ms (${(t / N).toFixed(0)}ms/read)`);
 });
+
+// ----- 6. NEMAR ---------------------------------------------------
+// Different S3 resolution path: the eegdash records API yields the
+// metadata bundle (sidecars inline + binary URL via SHA git-annex
+// key) in one shot. Every test here exercises the live API at
+// data.eegdash.org plus the public nemar.s3.amazonaws.com bucket
+// in us-east-2.
+//
+// Coverage:
+//   - nm000148 (BDF, 32 ch, motor imagery, 512 Hz)  — biggest BDF
+//   - nm000121 (.set, 14 ch, ssvep, 128 Hz)         — inline-data .set
+//     (data lives inside the MAT file; no .fdt sibling needed)
+// .vhdr coverage is blocked by an S3 ACL gap on the only NEMAR
+// BrainVision dataset (nm000166); .edf coverage by the same on
+// nm000181.
+const NEMAR_MATRIX = [
+  { fmt: 'bdf', ds: 'nm000148', sub: '11', ses: '0',      task: 'imagery', run: '1' },
+  { fmt: 'set', ds: 'nm000121', sub: '6',  ses: '0',      task: 'ssvep',   run: '6' },
+];
+
+async function loadOneNemar(spec) {
+  const meta = await BIDSRecording.loadNemarRecording({
+    dataset: spec.ds, sub: spec.sub, ses: spec.ses,
+    task: spec.task, run: spec.run, ext: spec.fmt,
+  });
+  return { meta, reader: await READERS[meta.ext].open(meta) };
+}
+
+for (const spec of NEMAR_MATRIX) {
+  const tag = `${spec.ds}/${spec.task}${spec.run ? '/' + spec.run : ''}`;
+  test(`nemar: ${tag}`, async (t) => {
+    const { meta, reader } = await loadOneNemar(spec);
+    // Binary URL is the SHA-keyed git-annex form, routed through the
+    // cdn.eegdash.org Cloudflare Worker (NEMAR's own S3 lacks CORS).
+    // The "objects/" segment is the give-away — git-annex's content-
+    // addressed object store layout. Pass ?direct=1 in the URL to
+    // bypass the CDN and hit nemar.s3.amazonaws.com directly (only
+    // works outside a browser due to the missing CORS).
+    assert.match(meta.eeg_url, /^https:\/\/cdn\.eegdash\.org\/[^/]+\/objects\/(SHA256E|MD5E)-/);
+    assert.ok(meta.eeg_json.sampling_frequency > 0,
+      `sidecar SamplingFrequency missing for ${tag}`);
+    assert.ok(reader.n_channels > 0, `reader exposed n_channels for ${tag}`);
+    assert.ok(reader.duration_s > 0, `reader exposed duration_s for ${tag}`);
+
+    const N = 100;
+    const head = await reader.readWindow(0, N);
+    await t.test('head shape',  () => assert.equal(head[0].length, N));
+    await t.test('head finite', () => assert.ok(head.every(isAllFinite)));
+
+    const mid = await reader.readWindow(Math.floor(reader.n_samples / 2), N);
+    await t.test('mid != head',
+      () => assert.ok(head.some((h, c) => h.some((v, s) => v !== mid[c][s]))));
+
+    const past = await reader.readWindow(reader.n_samples + 1000, N);
+    await t.test('past-EOF: 0-length',
+      () => assert.ok(past.every(ch => ch.length === 0)));
+  });
+}

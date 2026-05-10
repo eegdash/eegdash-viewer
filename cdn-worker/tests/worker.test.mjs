@@ -237,4 +237,66 @@ describe('eegdash-cdn worker', async () => {
       restore();
     }
   });
+
+  // 11. NEMAR routing: SHA-keyed path → nemar.s3.amazonaws.com -------------
+  // The viewer's loadNemarRecording produces URLs of the form
+  //   https://cdn.eegdash.org/nm000148/objects/SHA256E-s.../...bdf
+  // The worker must rewrite to the NEMAR bucket (different host than
+  // OpenNeuro's path-style endpoint) and add CORS, since NEMAR's S3
+  // has no CORS configured itself.
+  it('proxies NEMAR /nmNNNNNN/objects/<sha> to nemar.s3.amazonaws.com', async () => {
+    let capturedUrl = null;
+    const restore = mockFetch((url) => {
+      capturedUrl = String(url);
+      return fakeOriginResponse({ status: 200, body: 'fake-bdf' });
+    });
+    try {
+      const path = '/nm000148/objects/SHA256E-s15851104--74283925ddb8087a9561e2be85ddadd0f44518c120287318c05662b0072b6b1b.bdf';
+      const req = makeRequest(path);
+      const res = await worker.fetch(req, {}, makeCtx());
+      assert.equal(res.status, 200);
+      assert.ok(
+        capturedUrl.startsWith('https://nemar.s3.amazonaws.com/nm000148/objects/SHA256E-'),
+        `expected NEMAR upstream, got ${capturedUrl}`
+      );
+      // CORS must be added — that's the whole point of the NEMAR proxy.
+      assert.equal(res.headers.get('access-control-allow-origin'), '*');
+    } finally {
+      restore();
+    }
+  });
+
+  // 12. NEMAR shape guard: paths that don't match /nmNNNNNN/objects/<sha>
+  // should 404, even if they start with /nm... (open-proxy guard for
+  // the new bucket).
+  it('rejects NEMAR-shaped path missing /objects/<sha>', async () => {
+    const req = makeRequest('/nm000148/sub-1/eeg/data.bdf');
+    const res = await worker.fetch(req, {}, makeCtx());
+    assert.equal(res.status, 404);
+  });
+
+  // 13. NEMAR Range request — same plumbing as OpenNeuro Range. Critical
+  // for tiled streaming; worker must forward Range and surface the
+  // 206 + Content-Range back to the viewer.
+  it('passes Range upstream for NEMAR objects too', async () => {
+    let capturedRange;
+    const restore = mockFetch((url, init) => {
+      capturedRange = init?.headers?.get?.('range') ?? new Headers(init?.headers).get('range');
+      return fakeOriginResponse({
+        status: 206,
+        body: 'x'.repeat(1024),
+        headers: { 'content-range': 'bytes 0-1023/15851104' },
+      });
+    });
+    try {
+      const path = '/nm000148/objects/SHA256E-s15851104--abc.bdf';
+      const req = makeRequest(path, { headers: { Range: 'bytes=0-1023' } });
+      const res = await worker.fetch(req, {}, makeCtx());
+      assert.equal(res.status, 206);
+      assert.equal(capturedRange, 'bytes=0-1023');
+      assert.equal(res.headers.get('content-range'), 'bytes 0-1023/15851104');
+    } finally {
+      restore();
+    }
+  });
 });

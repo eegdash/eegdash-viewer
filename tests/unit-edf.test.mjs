@@ -163,3 +163,39 @@ test('parseHeader: parsing junk integer fields throws clearly', () => {
     () => EDFReader.parseHeader(buildHeader({ signals: broken })),
     /digital_min not an integer/);
 });
+
+test('parseHeader: BDF "BDF Annotations" channel flagged (not EDF Annotations)', () => {
+  const sig = [
+    TWO_EEG[0],
+    { label: 'BDF Annotations', dim: '', pmin: -1, pmax: 1, dmin: -32768, dmax: 32767, spr: 30 },
+  ];
+  // BDF flag enables the BDF_ANNOTATION_LABEL match; on EDF the label
+  // would NOT be recognised (preserves bit-identical EDF behaviour).
+  const bdf = EDFReader.parseHeader(buildHeader({ isBDF: true, signals: sig }));
+  assert.equal(bdf.signals[1].is_annotation, true, 'BDF: matches BDF Annotations');
+  const edf = EDFReader.parseHeader(buildHeader({ isBDF: false, signals: sig }));
+  assert.equal(edf.signals[1].is_annotation, false, 'EDF: does NOT match BDF Annotations');
+});
+
+test('pickModalSamplesPerRecord: most-frequent rate wins', () => {
+  const signals = [
+    { samples_per_record: 512 },
+    { samples_per_record: 512 },
+    { samples_per_record: 512 },
+    { samples_per_record: 16 },
+  ];
+  assert.equal(EDFReader._pickModalSamplesPerRecord([0, 1, 2, 3], signals), 512);
+});
+
+test('pickModalSamplesPerRecord: ties resolved by largest spr (favours EEG over markers)', () => {
+  const signals = [
+    { samples_per_record: 100 },
+    { samples_per_record: 500 },
+  ];
+  assert.equal(EDFReader._pickModalSamplesPerRecord([0, 1], signals), 500);
+});
+
+test('pickModalSamplesPerRecord: single signal trivially wins', () => {
+  const signals = [{ samples_per_record: 250 }];
+  assert.equal(EDFReader._pickModalSamplesPerRecord([0], signals), 250);
+});

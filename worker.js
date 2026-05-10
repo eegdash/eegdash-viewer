@@ -27,6 +27,7 @@ importScripts(
   'formats/_http_range.js',
   'formats/_streaming.js',
   'formats/_sidecar.js',
+  'formats/_matv5.js',
   'bids-recording.js',
   'formats/eeglab.js',
   'formats/edf.js',

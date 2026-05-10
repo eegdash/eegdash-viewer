@@ -1,19 +1,34 @@
 /**
  * eegdash-cdn — Cloudflare Worker reverse proxy for OpenNeuro S3
+ * (and NEMAR S3, which has no CORS configuration of its own).
  *
  * Goal: drop cold-pan latency from ~700 ms (raw S3 us-east-1, HTTP/1.1)
- * to ~50 ms (edge POP, HTTP/3, multiplexed cache hit).
+ * to ~50 ms (edge POP, HTTP/3, multiplexed cache hit). For NEMAR the
+ * value is also CORS — direct browser fetches against
+ * nemar.s3.amazonaws.com fail (no Access-Control-Allow-Origin in the
+ * response, OPTIONS preflight returns 403). Proxying through this
+ * worker fixes that as a side effect of the existing CORS layer.
+ *
+ * URL grammar:
+ *   /dsNNNNNN/<bids-path>           → openneuro.org/dsNNNNNN/<bids-path>
+ *   /nmNNNNNN/objects/<sha-key>     → nemar/nmNNNNNN/objects/<sha-key>
  *
  * Security model:
  *  - Only GET/HEAD allowed (no mutation proxy)
- *  - Only paths matching /ds\d{6}/ are forwarded (no open-proxy risk)
+ *  - Path must match one of the two patterns above (no open-proxy risk)
  *  - Upstream status codes outside {200,206,304,404} → 502
  */
 
-const UPSTREAM_BASE = 'https://s3.amazonaws.com/openneuro.org';
+const UPSTREAM_OPENNEURO = 'https://s3.amazonaws.com/openneuro.org';
+// NEMAR S3 lives in us-east-2; the global virtual-hosted endpoint
+// auto-routes there transparently. The legacy path-style endpoint
+// would 301 to the regional URL on cold lookups.
+const UPSTREAM_NEMAR = 'https://nemar.s3.amazonaws.com';
 
-// Regex: must start with /dsNNNNNN/ (six digits, OpenNeuro convention)
-const VALID_PATH = /^\/ds\d{6}\//;
+// Two recognised path shapes. Anything else 404s — keeps the worker
+// scoped to the two buckets we're explicitly proxying for.
+const VALID_OPENNEURO = /^\/ds\d{6}\//;
+const VALID_NEMAR     = /^\/nm\d{6}\/objects\/[A-Za-z0-9._-]+$/;
 
 // Status codes we are willing to pass through to the client
 const ALLOWED_STATUS = new Set([200, 206, 304, 404]);
@@ -63,17 +78,28 @@ export default {
       });
     }
 
-    // --- Validate path (prevent open-proxy abuse) ------------------------
+    // --- Validate path + pick upstream bucket ----------------------------
+    // Two recognised shapes:
+    //   /dsNNNNNN/...                 → OpenNeuro (BIDS-pathed)
+    //   /nmNNNNNN/objects/<sha-key>   → NEMAR (git-annex SHA-keyed)
+    // Anything else → 404. This keeps the worker scoped to known
+    // buckets (no open-proxy risk) while transparently bridging
+    // NEMAR's missing CORS.
     const url = new URL(request.url);
-    if (!VALID_PATH.test(url.pathname)) {
-      return new Response('Not found — path must match /dsNNNNNN/...', {
-        status: 404,
-        headers: corsHeaders(),
-      });
+    let upstreamBase;
+    if (VALID_OPENNEURO.test(url.pathname)) {
+      upstreamBase = UPSTREAM_OPENNEURO;
+    } else if (VALID_NEMAR.test(url.pathname)) {
+      upstreamBase = UPSTREAM_NEMAR;
+    } else {
+      return new Response(
+        'Not found — path must match /dsNNNNNN/... or /nmNNNNNN/objects/<sha>',
+        { status: 404, headers: corsHeaders() }
+      );
     }
 
     // --- Build upstream request ------------------------------------------
-    const upstreamUrl = `${UPSTREAM_BASE}${url.pathname}`;
+    const upstreamUrl = `${upstreamBase}${url.pathname}`;
 
     const upstreamHeaders = new Headers();
     for (const h of FORWARD_REQUEST_HEADERS) {

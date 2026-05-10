@@ -379,7 +379,9 @@
     }
 
     if (typeof Worker !== 'undefined') {
-      worker = new Worker('worker.js');
+      // Bump the cache-busting suffix when worker.js's importScripts
+      // list changes (the worker is cached separately from the page).
+      worker = new Worker('worker.js?v=2');
       // Expose for F07 test assertion.
       if (typeof window !== 'undefined') {
         window.__viewerWorker = worker;
@@ -1188,12 +1190,35 @@
     }
 
     async function load(eegUrl) {
+      return loadFromMeta(
+        () => BIDSRecording.loadRecordingMetadata(eegUrl),
+        `Loading sidecars from ${eegUrl} …`,
+      );
+    }
+
+    // NEMAR fast path: one /api/eegdash/records call yields the binary
+    // S3 URL plus every sidecar inline, so we skip the inheritance walk.
+    // The rest of the pipeline (worker, format reader, render) is
+    // identical — meta carries the same shape as loadRecordingMetadata
+    // returns, plus a sibling_urls map the BrainVision/EEGLAB readers
+    // use to resolve .eeg/.fdt against SHA-keyed URLs.
+    async function loadNemar(params) {
+      const label = `${params.dataset}/sub-${params.sub}` +
+        (params.task ? ` task-${params.task}` : '') +
+        (params.run  ? ` run-${params.run}`   : '');
+      return loadFromMeta(
+        () => BIDSRecording.loadNemarRecording(params),
+        `Loading NEMAR record (${label}) …`,
+      );
+    }
+
+    async function loadFromMeta(metaFn, statusText) {
       // New recording → previous reader's sample-keyed cache is moot.
       clearReadCache();
-      status.replaceChildren(globalThis.document.createTextNode(`Loading sidecars from ${eegUrl} …`));
+      status.replaceChildren(globalThis.document.createTextNode(statusText));
       try {
         // BIDSRecording sidecar fetching stays on the main thread.
-        const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+        const meta = await metaFn();
         status.replaceChildren(el('strong', null, `${meta.prefix}_eeg.${meta.ext}`));
         setPill('pill-format', meta.ext.toUpperCase());
         setPill('pill-fs', (meta.eeg_json.sampling_frequency ?? '?') + ' Hz');
@@ -1520,6 +1545,12 @@
     const target = BIDSRecording.resolveTargets(params);
     if (target?.kind === 'url' || target?.kind === 'bids-path') {
       load(target.eeg_url);
+    } else if (target?.kind === 'nemar') {
+      // NEMAR: meta is fetched via the eegdash records API in one
+      // shot (sidecars come inline + binary URL is SHA-keyed S3).
+      // Reuse the same render path as load() but with a pre-resolved
+      // metadata bundle, so we skip the inheritance walk entirely.
+      loadNemar(target.nemar_params);
     } else if (target?.kind === 'demo') {
       status.textContent = `demo loader (${target.demo_id}) not wired yet`;
     }

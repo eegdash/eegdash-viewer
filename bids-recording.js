@@ -63,33 +63,24 @@
     throw new Error(`URL is not a BIDS *_eeg.<ext> path: ${eegUrl}`);
   };
 
-  // BIDS path convention on OpenNeuro:
-  //   <bucket>/<dataset>/sub-<X>/[ses-<Y>/]<datatype>/<entities>_eeg.<ext>
-  // Used by ?dataset=&sub=&ses=&task=&run=&ext= form so eegdash dataset
-  // pages can deep-link without spelling out the full S3 URL.
-  api.buildOpenNeuroEegUrl = function (params) {
+  // Read once at module load — ?direct=1 is a startup flag, not a
+  // hot-toggle. globalThis.location is undefined in worker / Node tests.
+  const _DIRECT_S3 =
+    typeof globalThis.location !== 'undefined' &&
+    new URLSearchParams(globalThis.location.search).has('direct');
+
+  // BIDS-relative path of an _eeg.<ext> recording. Same shape across
+  // OpenNeuro (gets a bucket prefixed) and NEMAR (used as the unique
+  // bidspath filter against the eegdash records API). Lifted out so
+  // both call sites stay in lockstep when BIDS path conventions evolve.
+  function buildBidsRelpath(params) {
     const ds   = required(params, 'dataset');
     const sub  = required(params, 'sub');
     const ses  = params.ses || null;
     const task = params.task || null;
     const run  = params.run || null;
     const ext  = (params.ext || 'set').toLowerCase();
-
-    // Default: route through cdn.eegdash.org — Cloudflare Worker proxy
-    // that caches OpenNeuro S3 byte-ranges at the global edge.
-    // Measured cold-cache vs raw S3 (see docs/streaming-and-cdn-study.md
-    // and cdn-worker/): TTFB 41-61 ms vs 333-460 ms (~10× faster), total
-    // 77-176 ms vs 946-2622 ms (~13× faster), throughput 6-14 MB/s vs
-    // 0.4-1.1 MB/s (~10× higher) for the same byte ranges.
-    //
-    // Override with ?direct=1 to force raw S3 (debugging, or in case of
-    // CDN outage / caching surprise).
-    const useDirect = typeof globalThis.location !== 'undefined' &&
-      new URLSearchParams(globalThis.location.search).has('direct');
-    const bucket = useDirect
-      ? 'https://s3.amazonaws.com/openneuro.org'
-      : 'https://cdn.eegdash.org';
-    const segs = [bucket, ds, `sub-${sub}`];
+    const segs = [ds, `sub-${sub}`];
     if (ses) segs.push(`ses-${ses}`);
     segs.push('eeg');
     let entities = `sub-${sub}`;
@@ -97,12 +88,198 @@
     if (task) entities += `_task-${task}`;
     if (run)  entities += `_run-${run}`;
     return `${segs.join('/')}/${entities}_eeg.${ext}`;
+  }
+
+  // BIDS path convention on OpenNeuro:
+  //   <bucket>/<dataset>/sub-<X>/[ses-<Y>/]<datatype>/<entities>_eeg.<ext>
+  // Used by ?dataset=&sub=&ses=&task=&run=&ext= form so eegdash dataset
+  // pages can deep-link without spelling out the full S3 URL.
+  //
+  // Default: route through cdn.eegdash.org — Cloudflare Worker proxy
+  // that caches OpenNeuro S3 byte-ranges at the global edge.
+  // Measured cold-cache vs raw S3 (see docs/streaming-and-cdn-study.md
+  // and cdn-worker/): TTFB 41-61 ms vs 333-460 ms (~10× faster), total
+  // 77-176 ms vs 946-2622 ms (~13× faster), throughput 6-14 MB/s vs
+  // 0.4-1.1 MB/s (~10× higher) for the same byte ranges.
+  //
+  // Override with ?direct=1 to force raw S3 (debugging, or in case of
+  // CDN outage / caching surprise).
+  api.buildOpenNeuroEegUrl = function (params) {
+    const bucket = _DIRECT_S3
+      ? 'https://s3.amazonaws.com/openneuro.org'
+      : 'https://cdn.eegdash.org';
+    return `${bucket}/${buildBidsRelpath(params)}`;
   };
 
   function required(params, key) {
     const v = params[key];
     if (v == null || v === '') throw new Error(`missing required URL param: ${key}`);
     return String(v);
+  }
+
+  // ---- NEMAR ---------------------------------------------------
+  // NEMAR (nm-prefixed datasets) hosts data on a public S3 bucket
+  // (nemar in us-east-2) but addresses files by SHA-256 git-annex
+  // keys, not BIDS paths. The {bidsRelpath → SHA-key} map and the
+  // text sidecars all live in the eegdash records API, so a single
+  // /api/eegdash/records?filter=… call gives us:
+  //   storage.annex_keys[bidsRelpath]   → SHA key (binary lookup)
+  //   storage.sidecar_inline[bidsRelpath] → UTF-8 sidecar text
+  // We synthesise the S3 URL ourselves rather than asking the API
+  // for it (the API doesn't currently expose a download endpoint;
+  // bucket rule verified empirically against the public bucket).
+
+  // Six-digit suffix matches the bucket's id convention and the
+  // cdn-worker's VALID_NEMAR regex — the two MUST stay in lockstep
+  // (a 5- or 7-digit id would be silently 404'd by the worker).
+  api.isNemarDatasetId = function (id) {
+    return typeof id === 'string' && /^nm\d{6}$/.test(id);
+  };
+
+  // Buckets the viewer is willing to construct S3 URLs for. Only the
+  // ones we've explicitly tested + (for `nemar`) proxied through the
+  // CDN. A storage.base pointing anywhere else is a trust-boundary
+  // red flag — refuse it loudly rather than synthesising surprise URLs.
+  const _NEMAR_BUCKET_ALLOWLIST = new Set(['nemar', 'nmdatasets']);
+
+  // SHA git-annex keys are restricted to [A-Za-z0-9._-]+ by the cdn-
+  // worker's VALID_NEMAR regex. Any value outside this charset would
+  // either path-traverse, query-inject, or fail the worker's guard —
+  // reject up-front so the symptom is a clear error, not a 404.
+  const _ANNEX_KEY_SHAPE = /^[A-Za-z0-9._-]+$/;
+
+  // Outside-the-CDN escape hatch (?direct=1). NEMAR's S3 has no CORS
+  // configured, so the direct path only works from non-browser
+  // contexts (Node tests, integration runners).
+  function s3UriToHttpsPrefix(s3Uri) {
+    const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(s3Uri || '');
+    if (!m) throw new Error(`expected s3://bucket/path URI, got: ${s3Uri}`);
+    const bucket = m[1];
+    const key = m[2];
+    if (!_NEMAR_BUCKET_ALLOWLIST.has(bucket)) {
+      throw new Error(`refusing to synthesise URL for unknown S3 bucket: ${bucket}`);
+    }
+    if (bucket === 'nemar' && !_DIRECT_S3) {
+      return `https://cdn.eegdash.org/${key}`;
+    }
+    return `https://${bucket}.s3.amazonaws.com/${key}`;
+  }
+
+  const _NEMAR_FETCH_TIMEOUT_MS = 15000;
+
+  // Single-shot loader for NEMAR recordings. Returns a metadata
+  // bundle in the same shape as loadRecordingMetadata (so the rest
+  // of the viewer is format-agnostic), with one NEMAR-specific
+  // addition: meta.sibling_urls (filename → URL) so format readers
+  // with split layouts (BrainVision .vhdr+.eeg) can resolve the
+  // sibling without doing path arithmetic against a SHA-keyed URL.
+  // postMessage-safe: only plain JSON, no functions or closures.
+  api.loadNemarRecording = async function (params) {
+    const bidspath = buildBidsRelpath(params);
+    const filter = encodeURIComponent(JSON.stringify({ bidspath }));
+    const url = `${EEGDASH_BASE}/api/eegdash/records?filter=${filter}&limit=1`;
+
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), _NEMAR_FETCH_TIMEOUT_MS);
+    let resp;
+    try {
+      resp = await fetch(url, { signal: ctrl.signal });
+    } catch (e) {
+      const reason = e.name === 'AbortError'
+        ? `timed out after ${_NEMAR_FETCH_TIMEOUT_MS}ms`
+        : e.message;
+      throw new Error(`NEMAR records API unreachable for ${bidspath}: ${reason}`);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!resp.ok) {
+      throw new Error(`NEMAR records API ${resp.status} for ${bidspath}`);
+    }
+    const json = await resp.json();
+    const rec = json.data && json.data[0];
+    if (!rec) {
+      throw new Error(
+        `NEMAR record not found in eegdash for ${bidspath}. ` +
+        `Check the dataset/sub/ses/task/run/ext URL params match an ingested recording.`
+      );
+    }
+    const storage = rec.storage || {};
+    const rawKey = storage.raw_key;
+    const annexKeys = storage.annex_keys || {};
+    const inline = storage.sidecar_inline || {};
+
+    if (!rawKey) {
+      throw new Error(`NEMAR record missing storage.raw_key for ${bidspath}`);
+    }
+
+    const httpsPrefix = s3UriToHttpsPrefix(storage.base);
+
+    const shaForRaw = annexKeys[rawKey];
+    if (!shaForRaw) {
+      throw new Error(
+        `NEMAR record for ${bidspath} has no annex_keys entry for the raw file. ` +
+        `The eegdash ingestion may not yet expose this recording's SHA mapping.`
+      );
+    }
+    if (!_ANNEX_KEY_SHAPE.test(shaForRaw)) {
+      throw new Error(`NEMAR annex_keys[${rawKey}] has unexpected charset: ${shaForRaw}`);
+    }
+    const eegUrl = `${httpsPrefix}/objects/${shaForRaw}`;
+
+    // Pre-resolve every sibling the API has a SHA key for, keyed by
+    // *filename* (not BIDS relpath) — that's what format readers see
+    // in their headers (BrainVision .vhdr's `DataFile` is a bare
+    // filename). One recording = one directory, so filename keys are
+    // unique within the map.
+    const sibling_urls = {};
+    for (const [siblingRelpath, sha] of Object.entries(annexKeys)) {
+      if (!_ANNEX_KEY_SHAPE.test(sha)) {
+        throw new Error(`NEMAR annex_keys[${siblingRelpath}] has unexpected charset: ${sha}`);
+      }
+      const siblingFilename = siblingRelpath.split('/').pop();
+      sibling_urls[siblingFilename] = `${httpsPrefix}/objects/${sha}`;
+    }
+
+    const ext = rawKey.slice(rawKey.lastIndexOf('.') + 1).toLowerCase() || (params.ext || '').toLowerCase();
+    const lastSlash = rawKey.lastIndexOf('/');
+    const dir = lastSlash >= 0 ? rawKey.slice(0, lastSlash + 1) : '';
+    const basename = lastSlash >= 0 ? rawKey.slice(lastSlash + 1) : rawKey;
+    const prefixMatch = /^(.+?)_eeg\.[^.]+$/.exec(basename);
+    const prefix = prefixMatch ? prefixMatch[1] : basename.replace(/\.[^.]+$/, '');
+
+    // Inline sidecars come from a hash, not the network — wrap each
+    // hit as { text, url } so assembleRecordingMetadata sees the same
+    // shape as the OpenNeuro path. The `inline:` URL prefix is what
+    // renderProvenance shows in the UI.
+    const inlineHit = (suffix) => {
+      const text = pickInlineSidecar(inline, dir, prefix, suffix);
+      return text != null ? { text, url: `inline:${rawKey}` } : null;
+    };
+    const hits = {
+      eeg_json:    inlineHit('_eeg.json'),
+      channels:    inlineHit('_channels.tsv'),
+      events:      inlineHit('_events.tsv'),
+      electrodes:  inlineHit('_electrodes.tsv'),
+      coordsystem: inlineHit('_coordsystem.json'),
+    };
+
+    const meta = assembleRecordingMetadata({ eeg_url: eegUrl, ext, dir, prefix, hits });
+    meta.sibling_urls = sibling_urls;
+    return meta;
+  };
+
+  // Lookup of an inline sidecar by walking the same BIDS-inheritance
+  // shape `fetchInheritedSidecar` walks. The eegdash server already
+  // collapses overrides per-recording, so in practice the deepest
+  // (per-recording) key is what's present — this loop is what
+  // tolerates the 5% of datasets where overrides live shallower.
+  function pickInlineSidecar(inline, dir, prefix, suffix) {
+    for (const { paths } of eachInheritanceLevel(dir, prefix, suffix)) {
+      for (const p of paths) {
+        if (inline[p] != null) return inline[p];
+      }
+    }
+    return null;
   }
 
   // ---- BIDS inheritance walk ----------------------------------
@@ -159,35 +336,42 @@
     return tokens;
   }
 
-  // Walk up to 4 directory levels (run dir → ses → sub → root); at
-  // each level try every entity variant + the bare suffix in parallel
-  // and take the first non-null hit. Priority order is preserved:
-  // fan-out is independent fetches, but the result-walk is ordered.
-  async function fetchInheritedSidecar(dir, prefix, suffix) {
+  // Generates the BIDS-inheritance probe order — for each directory
+  // level (run dir → ses → sub → root), the candidate paths in
+  // priority order (most-specific entity-stripped variants first,
+  // then the bare suffix). Shared by the network-fetching walker
+  // (fetchInheritedSidecar) and the inline-map walker NEMAR uses
+  // (pickInlineSidecar) so both honour the same shape.
+  function* eachInheritanceLevel(dir, prefix, suffix) {
     const variants = entityVariants(prefix);
     const bare = suffix.startsWith('_') ? suffix.substring(1) : suffix;
     let here = dir;
     for (let level = 0; level < 4; level++) {
-      const hit = await tryLevel(here, variants, suffix, bare);
-      if (hit) return hit;
+      const paths = variants.map(v => `${here}${v}${suffix}`);
+      paths.push(`${here}${bare}`);
+      yield { here, paths, variants, bare };
       const parent = here.replace(/[^/]+\/$/, '');
       if (!parent || parent === here) break;
       here = parent;
     }
+  }
+
+  // At each directory level, fan out independent network probes
+  // across all candidate paths and take the first non-null hit
+  // (priority order preserved by walking results in the same order).
+  async function fetchInheritedSidecar(dir, prefix, suffix) {
+    let lastVariants, lastBare;
+    for (const { paths, variants, bare } of eachInheritanceLevel(dir, prefix, suffix)) {
+      lastVariants = variants; lastBare = bare;
+      const results = await Promise.all(paths.map(fetchTextOrNull));
+      for (let i = 0; i < results.length; i++) {
+        if (results[i] != null) return { text: results[i], url: paths[i] };
+      }
+    }
     // Last resort: ask the eegdash backend for the dataset's known
     // sidecar inventory. Catches paths our entity-variant generator
     // didn't predict (acquisition-level files, dataset-specific naming).
-    return eegdashFallback(dir, prefix, suffix, variants, bare);
-  }
-
-  async function tryLevel(dir, variants, suffix, bare) {
-    const urls = variants.map(v => `${dir}${v}${suffix}`);
-    urls.push(`${dir}${bare}`);
-    const results = await Promise.all(urls.map(fetchTextOrNull));
-    for (let i = 0; i < results.length; i++) {
-      if (results[i] != null) return { text: results[i], url: urls[i] };
-    }
-    return null;
+    return eegdashFallback(dir, prefix, suffix, lastVariants, lastBare);
   }
 
   // ---- eegdash fallback ---------------------------------------
@@ -394,7 +578,7 @@
     // independently, so a missing run-level file falls through to the
     // dataset root (BIDS principle). Fetches are tiny; the CORS
     // round-trip dominates so parallel is the right call.
-    const [eegJsonHit, channelsHit, eventsHit, electrodesHit, coordSysHit] =
+    const [eeg_json, channels, events, electrodes, coordsystem] =
       await Promise.all([
         fetchInheritedSidecar(dir, prefix, '_eeg.json'),
         fetchInheritedSidecar(dir, prefix, '_channels.tsv'),
@@ -402,14 +586,29 @@
         fetchInheritedSidecar(dir, prefix, '_electrodes.tsv'),
         fetchInheritedSidecar(dir, prefix, '_coordsystem.json'),
       ]);
-
-    if (eegJsonHit == null) {
+    if (eeg_json == null) {
       // Soft-required: format-specific readers (BrainVision .vhdr,
       // EDF header, EEGLAB .set) carry SamplingFrequency and channel
       // counts inline, so the binary reader can fill these in. We
       // pass a stub through and let the reader override.
       console.warn(`No _eeg.json found via BIDS inheritance for ${eegUrl}; deferring to format header.`);
     }
+    return assembleRecordingMetadata({
+      eeg_url: eegUrl, ext, dir, prefix,
+      hits: { eeg_json, channels, events, electrodes, coordsystem },
+    });
+  };
+
+  // Parses the five canonical BIDS sidecars from already-fetched
+  // {text, url} hits (any may be null) into the metadata bundle the
+  // viewer + format readers consume. Shared between the OpenNeuro
+  // network walker (loadRecordingMetadata) and the NEMAR inline-map
+  // walker (loadNemarRecording) — the only thing that varies between
+  // them is *how* hits get materialised, not how they're parsed.
+  function assembleRecordingMetadata({ eeg_url, ext, dir, prefix, hits }) {
+    const { eeg_json: eegJsonHit, channels: channelsHit, events: eventsHit,
+            electrodes: electrodesHit, coordsystem: coordSysHit } = hits;
+
     let eegJson;
     if (eegJsonHit) {
       try {
@@ -422,34 +621,26 @@
                   power_line_frequency: null, software_filters: null, manufacturer: null, raw: {} };
     }
 
-    let channels = null;
-    if (channelsHit != null) channels = api.parseChannelsTsv(channelsHit.text);
-
-    const events = eventsHit != null ? api.parseEventsTsv(eventsHit.text) : [];
+    const channels = channelsHit ? api.parseChannelsTsv(channelsHit.text) : null;
+    const events = eventsHit ? api.parseEventsTsv(eventsHit.text) : [];
 
     let electrodes = null, coordsystem = null;
-    if (electrodesHit != null && typeof BIDSLoader !== 'undefined') {
+    if (electrodesHit && typeof BIDSLoader !== 'undefined') {
       try { electrodes = BIDSLoader.parseElectrodesTSV(electrodesHit.text); }
       catch (e) { console.warn(`electrodes.tsv unparseable, skipping: ${e.message}`); }
     }
-    if (coordSysHit != null && typeof BIDSLoader !== 'undefined') {
+    if (coordSysHit && typeof BIDSLoader !== 'undefined') {
       try { coordsystem = BIDSLoader.parseCoordsystem(coordSysHit.text); }
       catch (e) { console.warn(`coordsystem.json unparseable, skipping: ${e.message}`); }
     }
 
     return {
-      eeg_url: eegUrl,
-      ext,                           // 'set' | 'edf' | 'bdf' | 'vhdr'
-      dir,
-      prefix,
+      eeg_url, ext, dir, prefix,
       eeg_json: eegJson,
-      channels,
-      events,
-      electrodes,
-      coordsystem,
-      // Provenance: which level the inheritance walk found each
-      // sidecar at, useful both for the user-facing status line and
-      // for diagnosing "I expected this dataset's events to load".
+      channels, events, electrodes, coordsystem,
+      // Provenance: which key the walker found each sidecar at —
+      // a real https URL for OpenNeuro, an `inline:<rawKey>` tag for
+      // NEMAR. renderProvenance treats both as opaque labels.
       sidecar_sources: {
         eeg_json:    eegJsonHit?.url   ?? null,
         channels:    channelsHit?.url  ?? null,
@@ -458,7 +649,7 @@
         coordsystem: coordSysHit?.url  ?? null,
       },
     };
-  };
+  }
 
   // ---- internal helpers exposed for unit testing --------------
   // Underscore-prefixed: stable contract for the test suite, no
@@ -478,16 +669,23 @@
       return { kind: 'url', eeg_url: p.get('eeg') };
     }
     if (p.has('dataset')) {
+      const ds = p.get('dataset');
+      const params = {
+        dataset: ds,
+        sub:     p.get('sub'),
+        ses:     p.get('ses'),
+        task:    p.get('task'),
+        run:     p.get('run'),
+        ext:     p.get('ext'),
+      };
+      // NEMAR (nm-prefixed) datasets resolve via the eegdash records
+      // API instead of a direct bucket URL — git-annex SHA addressing.
+      if (api.isNemarDatasetId(ds)) {
+        return { kind: 'nemar', nemar_params: params };
+      }
       return {
         kind: 'bids-path',
-        eeg_url: api.buildOpenNeuroEegUrl({
-          dataset: p.get('dataset'),
-          sub:     p.get('sub'),
-          ses:     p.get('ses'),
-          task:    p.get('task'),
-          run:     p.get('run'),
-          ext:     p.get('ext'),
-        }),
+        eeg_url: api.buildOpenNeuroEegUrl(params),
       };
     }
     if (p.has('demo')) {
