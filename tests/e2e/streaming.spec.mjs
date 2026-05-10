@@ -1,8 +1,29 @@
-// E2E tests for feature 1C: progressive streaming decode.
-// These tests verify TTFP, abort-during-stream, and filter+streaming interaction.
-//
-// DO NOT modify this file's name or the eegdrop-features.spec.mjs file.
-// These are additional tests in a separate spec file.
+/**
+ * E2E tests for feature 1C: progressive streaming decode.
+ * These tests verify TTFP, abort-during-stream, and filter+streaming interaction.
+ *
+ * DO NOT modify this file's name or the eegdrop-features.spec.mjs file.
+ * These are additional tests in a separate spec file.
+ *
+ * TIMEOUT BUDGET
+ *   Global test timeout : 90 s (playwright.config.mjs)
+ *   Global expect.timeout: 30 s
+ *   Per-test overrides:
+ *     waitForLoad : 90 s — cold S3 on first load (matches global)
+ *     stabilization loop: 30×200 ms = 6 s max (streaming settle)
+ *     double-pan wait   : 8 s  — both pans must complete / abort
+ *     filter wait       : 10 s — filter+streaming path re-fetch
+ *
+ * waitForTimeout usage rationale:
+ *   100 ms — early canvas sample: must capture before full window arrives
+ *            (intentional timing; can't use waitForFunction here)
+ *   50 ms  — gap between rapid pans to allow first message to send
+ *   200 ms — stabilization polling interval (intentional polling loop)
+ *   2000 ms — pan settle before filter (let prefetch drain)
+ *
+ * These are not arbitrary sleeps — they are intrinsic to the streaming
+ * timing assertions. Do not remove them without verifying the intent.
+ */
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import fs from 'node:fs';
@@ -150,8 +171,19 @@ test('STREAMING-E2E-2: rapid double-pan aborts first stream cleanly', async ({ p
   await page.waitForTimeout(50);
   await page.keyboard.press('ArrowRight');
 
-  // Wait for stabilization (both pans finish or are aborted)
-  await page.waitForTimeout(8000);
+  // Wait for stabilization: poll until the canvas pixel count is stable
+  // for 3 consecutive 500 ms samples. This is more reliable than a fixed
+  // 8 s sleep and reacts faster on fast networks.
+  {
+    let prev = await countNonBgPixels(page);
+    let stableRuns = 0;
+    for (let i = 0; i < 20 && stableRuns < 3; i++) {
+      await page.waitForTimeout(400);
+      const curr = await countNonBgPixels(page);
+      stableRuns = Math.abs(curr - prev) < 50 ? stableRuns + 1 : 0;
+      prev = curr;
+    }
+  }
 
   const finalPixels = await countNonBgPixels(page);
   await page.screenshot({ path: path.join(dir, 'after-double-pan.png') });
@@ -203,8 +235,22 @@ test('STREAMING-E2E-3: filter toggle after streaming renders filtered result', a
   }
 
   await hpCheckbox.check();
-  // Wait for re-render with filter applied
-  await page.waitForTimeout(10_000);
+  // Wait for the filter to trigger a new WINDOW from the worker, then
+  // for the rAF draw to complete. Poll until pixel count stabilises
+  // rather than sleeping a fixed 10 s.
+  {
+    const beforePx = await countNonBgPixels(page);
+    await expect.poll(async () => {
+      const px = await countNonBgPixels(page);
+      return px;
+    }, {
+      timeout: 15_000,
+      intervals: [500, 1000, 2000],
+      message: 'canvas must show non-zero pixels after filter is applied',
+    }).toBeGreaterThan(0);
+    // One extra rAF flush to ensure the draw is complete
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  }
 
   const pixelsAfterFilter = await countNonBgPixels(page);
   await page.screenshot({ path: path.join(dir, 'after-filter.png') });
