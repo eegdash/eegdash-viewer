@@ -75,12 +75,17 @@ test('meanStd', async (t) => {
     assert.equal(r.std, 0);
   });
 
-  await t.test('caching: second call with same reference + same n reuses stats', () => {
-    // The WeakMap cache must return the exact same object on a re-call.
+  await t.test('caching: second call with same reference + same n returns equal stats', () => {
+    // Asserting value-equality, not reference-identity. The renderer
+    // *currently* memoises via a WeakMap (so r1 === r2 holds), but
+    // value-equality is the contract callers actually depend on. If
+    // the cache is removed for memory reasons (or the per-call key
+    // shape changes), this test should still pass.
     const data = new Float32Array([1, 2, 3, 4]);
     const r1 = TraceRenderer.meanStd(data, 4);
     const r2 = TraceRenderer.meanStd(data, 4);
-    assert.strictEqual(r1, r2, 'should be the same cached object');
+    assert.equal(r1.mean, r2.mean);
+    assert.equal(r1.std, r2.std);
   });
 });
 

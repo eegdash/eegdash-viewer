@@ -64,6 +64,22 @@ async function countNonBgPixels(page) {
 }
 
 /**
+ * "Stable" = consecutive pixel-count samples differ by less than 1% of
+ * the larger of the two. Anchors the threshold to the actual signal
+ * size — sparse EEG would have its frame-to-frame variation drown out
+ * a fixed threshold like 50, while dense rendering would tolerate a
+ * smaller fixed threshold than is realistic. Min absolute floor of 5
+ * pixels to avoid div-by-zero / boot-time false positives on a
+ * not-yet-painted canvas.
+ */
+function pixelCountsStable(prev, curr) {
+  const denom = Math.max(prev, curr, 1);
+  const absFloor = 5;
+  return Math.abs(curr - prev) < Math.max(absFloor, denom * 0.01);
+}
+}
+
+/**
  * STREAMING-E2E-1: Progressive paint TTFP test.
  *
  * After ArrowRight pan on a cache miss, the canvas should show non-background
@@ -113,7 +129,7 @@ test('STREAMING-E2E-1: streaming pan paints non-blank pixels before full window'
   for (let i = 0; i < 30; i++) {
     await page.waitForTimeout(200);
     const px = await countNonBgPixels(page);
-    if (Math.abs(px - prevPixels) < 100) {
+    if (pixelCountsStable(prevPixels, px)) {
       stableCount++;
       if (stableCount >= 3) break;
     } else {
@@ -180,7 +196,7 @@ test('STREAMING-E2E-2: rapid double-pan aborts first stream cleanly', async ({ p
     for (let i = 0; i < 20 && stableRuns < 3; i++) {
       await page.waitForTimeout(400);
       const curr = await countNonBgPixels(page);
-      stableRuns = Math.abs(curr - prev) < 50 ? stableRuns + 1 : 0;
+      stableRuns = pixelCountsStable(prev, curr) ? stableRuns + 1 : 0;
       prev = curr;
     }
   }

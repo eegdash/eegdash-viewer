@@ -45,6 +45,96 @@ test('M3 sentinel: rawCachePut eviction condition uses > not < in worker.js', ()
     'rawCachePut must use rawCache.size > RAW_CACHE_MAX (catches M3: negating to <)');
 });
 
+// ---- LRU semantics sentinel ---------------------------------------------
+// Without an explicit promote-on-hit, a Map-backed cache evicts in
+// insertion order — i.e., FIFO, not LRU. The fix: a `rawCacheGet`
+// helper that does delete+set on hit so the entry moves to the MRU
+// tail. This sentinel guards against either (a) someone silently
+// removing the helper and reverting to `rawCache.get`, or (b)
+// someone removing the delete-then-set inside the helper.
+test('rawCacheGet must delete+set to promote on hit (catches LRU→FIFO regression)', () => {
+  // The helper must exist…
+  assert.ok(/function\s+rawCacheGet\s*\(/.test(workerSrc),
+    'rawCacheGet helper must be defined in worker.js');
+  // …and it must contain the promote-on-hit pattern (delete then set).
+  const helperBody = workerSrc.match(/function\s+rawCacheGet\s*\([^)]*\)\s*\{[\s\S]*?\n\}/);
+  assert.ok(helperBody, 'could not isolate rawCacheGet body');
+  const body = helperBody[0];
+  assert.ok(/rawCache\.delete\(\s*key\s*\)/.test(body),
+    'rawCacheGet must delete the key before re-inserting (promote step)');
+  assert.ok(/rawCache\.set\(\s*key\s*,/.test(body),
+    'rawCacheGet must re-insert after delete to promote to MRU');
+});
+
+// And the consumers in FETCH_WINDOW / FETCH_WINDOW_STREAM paths
+// must call rawCacheGet (not rawCache.get directly) — otherwise the
+// promote step is silently skipped on the hot path.
+test('FETCH_WINDOW paths must consult rawCacheGet, not rawCache.get directly', () => {
+  // After the helper definition, no remaining call to rawCache.get(
+  // is allowed (we ignore the call inside rawCacheGet itself).
+  const afterHelper = workerSrc.split(/function\s+rawCacheGet[\s\S]*?^\}/m)[1] || '';
+  const directCalls = afterHelper.match(/rawCache\.get\s*\(/g) || [];
+  assert.equal(directCalls.length, 0,
+    `worker.js still has ${directCalls.length} direct rawCache.get(...) calls outside the helper — replace with rawCacheGet to keep LRU semantics`);
+});
+
+// ---- Concurrent-request dedup sentinels ---------------------------------
+// Two FETCH_WINDOW(_STREAM) for the same (start, n) should not pay the
+// upstream cost twice. The fix uses an inflightRawFetches Map keyed by
+// cacheKey: the first caller registers a Promise, concurrent callers
+// await it. Sentinels:
+//   - the Map exists and is cleared on file load
+//   - awaitInflight helper exists with the dedup pattern
+//   - both FETCH_WINDOW non-streaming paths consult inflightRawFetches
+//     (via awaitInflight) when the cache is cold
+
+test('inflightRawFetches dedup map exists and is cleared on file load', () => {
+  assert.ok(/const\s+inflightRawFetches\s*=\s*new\s+Map\(/.test(workerSrc),
+    'inflightRawFetches Map must be declared in worker.js');
+  // Must be cleared together with rawCache when a new file loads.
+  assert.ok(/inflightRawFetches\.clear\(\)/.test(workerSrc),
+    'inflightRawFetches.clear() must run on LOAD_FILE');
+});
+
+test('awaitInflight helper dedupes concurrent fetches via the Map', () => {
+  const m = workerSrc.match(/function\s+awaitInflight\s*\([^)]*\)\s*\{[\s\S]*?\n\}/);
+  assert.ok(m, 'awaitInflight helper must exist');
+  const body = m[0];
+  // The pattern: check the Map, return the existing promise if present.
+  assert.ok(/inflightRawFetches\.get\(/.test(body),
+    'awaitInflight must check inflightRawFetches before issuing a new fetch');
+  assert.ok(/inflightRawFetches\.set\(/.test(body),
+    'awaitInflight must register the new fetch promise in the Map');
+  assert.ok(/inflightRawFetches\.delete\(/.test(body),
+    'awaitInflight must clean up the Map entry once the fetch settles');
+});
+
+test('FETCH_WINDOW path uses awaitInflight to dedupe concurrent misses', () => {
+  // Both non-streaming branches (FETCH_WINDOW and the
+  // streaming-fallback branch) should use awaitInflight when missing
+  // the cache.
+  const calls = workerSrc.match(/awaitInflight\s*\(/g) || [];
+  // Two non-streaming call sites (FETCH_WINDOW + the fallback in
+  // FETCH_WINDOW_STREAM when reader has no streaming method) plus
+  // the helper definition itself.
+  assert.ok(calls.length >= 2,
+    `expected at least 2 awaitInflight call sites; found ${calls.length}`);
+});
+
+test('FETCH_WINDOW_STREAM dedupes against in-flight streaming requests', () => {
+  // The streaming branch must check inflightRawFetches before starting
+  // its own stream — that's what saves the duplicate S3 cost when two
+  // callers ask for the same window concurrently.
+  // We assert on the source text rather than the runtime because the
+  // worker can't be exercised in node:test without a real Worker.
+  assert.ok(/const\s+inflight\s*=\s*inflightRawFetches\.get\(cacheKey\)/.test(workerSrc),
+    'streaming branch must consult inflightRawFetches before starting its own stream');
+  // Concurrent caller falls back to the same single-chunk reply path
+  // as the cache-hit branch (sendFinalFromRaw).
+  assert.ok(/sendFinalFromRaw\s*\(\s*rawChannels\s*\)/.test(workerSrc),
+    'concurrent caller in streaming branch must reuse sendFinalFromRaw');
+});
+
 // ----------------------------------------------------------------
 // Local replica of the rawCache implementation from worker.js.
 // This replica is the ONLY source of truth for what the tests verify;

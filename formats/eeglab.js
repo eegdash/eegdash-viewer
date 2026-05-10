@@ -189,10 +189,12 @@
     }
     const fs = eeg.srate;
 
-    // Always served as Float32 to match the .fdt path (downstream
-    // renderer + filter code assumes float). Convert in-place when
-    // the .set stored int16 / int32 / double — one-shot, kept in
-    // memory for the lifetime of the recording.
+    // Convert non-Float32 inputs (int16 / int32 / double) up-front so
+    // the source typed array can be GC'd. sliceColumnMajor would
+    // promote to Float32 implicitly at element-assignment anyway, but
+    // that path keeps both the source AND the destination buffers in
+    // memory simultaneously during the slice; converting now bounds
+    // peak memory to the destination size only.
     const data32 = eeg.dataClass === 'single' ? eeg.data : Float32Array.from(eeg.data);
     const nSamples = eeg.pnts * eeg.trials;
     const expectedLen = nbchan * nSamples;

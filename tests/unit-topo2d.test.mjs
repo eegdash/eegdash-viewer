@@ -48,6 +48,7 @@ class StubEl {
 
   appendChild(child) {
     this.children.push(child);
+    child.parentNode = this;
     // keep firstChild / removeChild chain working
     this._rebuildFirstChild();
     return child;
@@ -56,6 +57,7 @@ class StubEl {
   removeChild(child) {
     const idx = this.children.indexOf(child);
     if (idx !== -1) this.children.splice(idx, 1);
+    if (child.parentNode === this) child.parentNode = null;
     this._rebuildFirstChild();
     return child;
   }
@@ -67,6 +69,13 @@ class StubEl {
   addEventListener(type, fn) {
     if (!this._listeners[type]) this._listeners[type] = [];
     this._listeners[type].push(fn);
+  }
+
+  removeEventListener(type, fn) {
+    const arr = this._listeners[type];
+    if (!arr) return;
+    const i = arr.indexOf(fn);
+    if (i >= 0) arr.splice(i, 1);
   }
 
   // Dispatch a fake event to registered listeners.
@@ -174,6 +183,48 @@ describe('isReady() lifecycle', () => {
     api.init(makeContainer());
     api.setMontage('test', STD_MONTAGE);
     assert.equal(api.isReady(), true);
+  });
+
+  // destroy() reverses init(): SVG removed, listeners detached,
+  // module state reset. After destroy() the module can be reinit'd
+  // into a different container without leaking.
+  test('isReady() returns false after destroy()', () => {
+    const api = loadFreshTopo2D();
+    api.init(makeContainer());
+    api.setMontage('test', STD_MONTAGE);
+    api.destroy();
+    assert.equal(api.isReady(), false);
+  });
+
+  test('destroy() removes the SVG from the container', () => {
+    const api = loadFreshTopo2D();
+    const container = makeContainer();
+    api.init(container);
+    assert.equal(container.children.length, 1, 'SVG present after init');
+    api.destroy();
+    assert.equal(container.children.length, 0, 'SVG removed after destroy');
+  });
+
+  test('init() then destroy() then init() into a different container works (no listener leak)', () => {
+    const api = loadFreshTopo2D();
+    const c1 = makeContainer();
+    const c2 = makeContainer();
+    api.init(c1);
+    api.setMontage('test', STD_MONTAGE);
+    api.destroy();
+    // Second mount into a fresh container.
+    api.init(c2);
+    api.setMontage('test', STD_MONTAGE);
+    assert.equal(api.isReady(), true);
+    assert.equal(c1.children.length, 0, 'old container empty');
+    assert.equal(c2.children.length, 1, 'new container holds the SVG');
+  });
+
+  test('destroy() before init() is a safe no-op', () => {
+    const api = loadFreshTopo2D();
+    // No error.
+    api.destroy();
+    assert.equal(api.isReady(), false);
   });
 });
 

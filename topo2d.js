@@ -459,8 +459,16 @@
   }
 
   // --- Event wiring -------------------------------------------
+  // Track each (target, eventName, handler) so destroy() can remove
+  // them deterministically — without this, re-mounting Topo2D into a
+  // different container leaks listeners + closure state.
+  let installedListeners = [];
+  function on(target, evtName, handler) {
+    target.addEventListener(evtName, handler);
+    installedListeners.push({ target, evtName, handler });
+  }
   function installEvents() {
-    gElectrodes.addEventListener('mousemove', e => {
+    on(gElectrodes, 'mousemove', e => {
       const tgt = e.target.closest('.topo-dot');
       if (!tgt) return onHover(null);
       const name = tgt.getAttribute('data-name');
@@ -473,9 +481,9 @@
         clientX: e.clientX, clientY: e.clientY,
       });
     });
-    gElectrodes.addEventListener('mouseleave', () => onHover(null));
+    on(gElectrodes, 'mouseleave', () => onHover(null));
 
-    gElectrodes.addEventListener('click', e => {
+    on(gElectrodes, 'click', e => {
       const tgt = e.target.closest('.topo-dot');
       if (!tgt) {
         emit('click', null);
@@ -574,6 +582,27 @@
   };
 
   api.isReady = function () { return svg !== null; };
+
+  // Tear down: remove every event listener, detach the SVG from the
+  // container, reset module-scope state. After destroy() the module
+  // can be init()'ed again into a different container without
+  // leaking listeners or carrying state from the previous mount.
+  api.destroy = function () {
+    for (const { target, evtName, handler } of installedListeners) {
+      target.removeEventListener(evtName, handler);
+    }
+    installedListeners = [];
+    if (svg && svg.parentNode) svg.parentNode.removeChild(svg);
+    svg = null;
+    container = null;
+    gOutline = gLandmarks = gElectrodes = gLabels = null;
+    electrodes = [];
+    selected = new Set();
+    filtered = null;
+    dimmedRegions = new Set();
+    hovered = null;
+    listeners = {};
+  };
 
   window.EEGTopo2D = api;
 })();

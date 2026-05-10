@@ -1,0 +1,61 @@
+# Visual regression — runs on PRs that touch the canvas renderer or
+# the visual-regression spec itself, and on a weekly schedule to catch
+# Chromium-rendering drift over time.
+#
+# Why a Docker image: the committed PNG baselines under
+# tests/e2e/__snapshots__/ are macOS Chromium renders. Linux Skia +
+# FreeType produces ~5-pixel diffs on antialiased polylines even at
+# identical viewport / DPR. To avoid storing both *-darwin.png AND
+# *-linux.png copies (and the merge-conflict hell that follows), we
+# pin the official Playwright Docker image — that's the same Linux
+# rendering surface every contributor would see locally if they ran
+# the documented Docker regen workflow.
+#
+# Baselines are STILL committed (in tests/e2e/__snapshots__/) — they
+# get *generated* by this workflow on the very first run after this
+# file lands. After that, contributors regenerate via:
+#
+#     docker run --rm -v $(pwd):/work -w /work \
+#       mcr.microsoft.com/playwright:v1.59.1-noble \
+#       npx playwright test tests/e2e/visual-regression.spec.mjs --update-snapshots
+#
+# (See tests/e2e/visual-regression.spec.mjs header for the long form.)
+
+name: visual-regression
+
+on:
+  pull_request:
+    paths:
+      - 'traces.js'
+      - 'styles.css'
+      - 'tests/e2e/visual-regression.spec.mjs'
+      - 'tests/e2e/__snapshots__/**'
+      - '.github/workflows/visual-regression.yml'
+  schedule:
+    # Sunday at 04:17 UTC — drift detector. Off PRs to avoid noise.
+    - cron: '17 4 * * 0'
+  workflow_dispatch: {}
+
+jobs:
+  visual:
+    runs-on: ubuntu-24.04
+    # Pin the Playwright image to the version in package.json so a
+    # Chromium auto-bump there forces a baseline review here.
+    container:
+      image: mcr.microsoft.com/playwright:v1.59.1-noble
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: npm ci || npm install
+      - name: Run visual-regression spec
+        run: npx playwright test tests/e2e/visual-regression.spec.mjs --project=chromium
+      - name: Upload diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diffs
+          path: |
+            test-results/
+            tests/e2e/__snapshots__/
+          retention-days: 7

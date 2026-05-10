@@ -675,6 +675,12 @@ code {
   touch-action: none;
 }
 .traces:active { cursor: grabbing; }
+/* Honour the HTML `hidden` attribute. Without this, the explicit
+   `display: block` above would mask `hidden=""` and the canvas would
+   stay visible — Playwright's CSS-based `toBeHidden()` would then
+   silently return "visible" while the JS code thinks it hid the
+   canvas. Keeps the attribute and the visual state in sync. */
+.traces[hidden] { display: none; }
 
 /* Engraved instrument legend in the stage's bottom-left corner.
    Mirrors the sister explorer's `.stage-caption` treatment so both

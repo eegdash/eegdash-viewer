@@ -51,6 +51,11 @@ const BENCH_FILES = [
     network: false,
   },
   {
+    file:    path.join(__dirname, 'worker-cache.bench.mjs'),
+    label:   'Worker cache (LRU + dedup)',
+    network: false,
+  },
+  {
     file:    path.join(__dirname, 'readwindow.bench.mjs'),
     label:   'readWindow',
     network: true,

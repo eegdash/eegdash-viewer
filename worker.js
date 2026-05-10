@@ -59,6 +59,8 @@ let activeFilterCoefs = [];
 //
 // Bounded LRU; size matches the viewer's cache (READ_CACHE_MAX = 6) so
 // no extra retention beyond what the viewer is already asking for.
+// MRU-on-hit is enforced via rawCacheGet (Map.get alone preserves
+// insertion order — without the explicit promote, eviction is FIFO).
 const RAW_CACHE_MAX = 6;
 const rawCache = new Map();   // "start-n" → Float32Array[] (one per channel)
 function rawCachePut(key, channels) {
@@ -69,10 +71,42 @@ function rawCachePut(key, channels) {
     a.set(ch);
     return a;
   });
+  // delete-then-set so an existing key is bumped to the MRU end.
+  rawCache.delete(key);
   rawCache.set(key, owned);
   while (rawCache.size > RAW_CACHE_MAX) {
     rawCache.delete(rawCache.keys().next().value);
   }
+}
+function rawCacheGet(key) {
+  const v = rawCache.get(key);
+  if (v === undefined) return undefined;
+  // Promote to MRU: re-insert so insertion-order-based eviction picks
+  // the genuinely-oldest key, not the oldest-loaded-but-recently-used.
+  rawCache.delete(key);
+  rawCache.set(key, v);
+  return v;
+}
+
+// In-flight dedup. Two concurrent FETCH_WINDOW(_STREAM) for the same
+// cacheKey would otherwise each pay the full S3 round-trip and race
+// to write the cache. Cache the promise; the second caller awaits it
+// and gets the same buffers. Cleared on file load.
+const inflightRawFetches = new Map();   // cacheKey → Promise<channels[]>
+function awaitInflight(cacheKey, fetchFn) {
+  let p = inflightRawFetches.get(cacheKey);
+  if (p) return p;
+  p = (async () => {
+    try {
+      const fresh = await fetchFn();
+      rawCachePut(cacheKey, fresh);
+      return rawCacheGet(cacheKey);
+    } finally {
+      inflightRawFetches.delete(cacheKey);
+    }
+  })();
+  inflightRawFetches.set(cacheKey, p);
+  return p;
 }
 
 // Build a biquad coef object from a filter spec descriptor.
@@ -127,6 +161,7 @@ self.onmessage = async function (evt) {
         // Reset filter chain + raw cache on new file load (fs may differ).
         activeFilterCoefs = [];
         rawCache.clear();
+        inflightRawFetches.clear();
         self.postMessage({
           type: 'HEADER',
           n_channels:          reader.n_channels,
@@ -148,15 +183,11 @@ self.onmessage = async function (evt) {
           return;
         }
         const cacheKey = `${start_sample}-${n_samples}`;
-        let rawChannels = rawCache.get(cacheKey);
-        if (!rawChannels) {
-          // Cache miss — pay the S3 round-trip, then store the raw
-          // (unfiltered) buffers so subsequent filter changes can
-          // re-filter without re-fetching.
-          const fresh = await reader.readWindow(start_sample, n_samples);
-          rawCachePut(cacheKey, fresh);
-          rawChannels = rawCache.get(cacheKey);
-        }
+        // awaitInflight handles cache hit, dedupes concurrent misses,
+        // and on miss pays the S3 round-trip + populates the cache.
+        const rawChannels = rawCacheGet(cacheKey)
+          ?? await awaitInflight(cacheKey,
+                                  () => reader.readWindow(start_sample, n_samples));
         // Apply current filter chain to a fresh OUTPUT buffer per
         // channel — never mutate the cached raw. Each output buffer
         // is owned + transferable.
@@ -204,12 +235,9 @@ self.onmessage = async function (evt) {
         // If no streaming method available, fall back to non-streaming
         if (!reader.readWindowStreaming) {
           const cacheKey = `${start_sample}-${n_samples}`;
-          let rawChannels = rawCache.get(cacheKey);
-          if (!rawChannels) {
-            const fresh = await reader.readWindow(start_sample, n_samples);
-            rawCachePut(cacheKey, fresh);
-            rawChannels = rawCache.get(cacheKey);
-          }
+          const rawChannels = rawCacheGet(cacheKey)
+            ?? await awaitInflight(cacheKey,
+                                    () => reader.readWindow(start_sample, n_samples));
           const owned = rawChannels.map(rawCh => {
             if (activeFilterCoefs.length > 0) {
               return globalThis.Filters.applyChain(rawCh, activeFilterCoefs);
@@ -229,10 +257,12 @@ self.onmessage = async function (evt) {
 
         const cacheKey = `${start_sample}-${n_samples}`;
 
-        // Check rawCache — if already populated, no streaming needed
-        const cachedRaw = rawCache.get(cacheKey);
-        if (cachedRaw) {
-          const owned = cachedRaw.map(rawCh => {
+        // Helper: send a single non-streaming reply from cached raw,
+        // applying any active filters first. Used by both the cache-
+        // hit branch and the dedup branch (when another concurrent
+        // request is already streaming this window).
+        const sendFinalFromRaw = (raw) => {
+          const owned = raw.map(rawCh => {
             if (activeFilterCoefs.length > 0) {
               return globalThis.Filters.applyChain(rawCh, activeFilterCoefs);
             }
@@ -246,94 +276,128 @@ self.onmessage = async function (evt) {
               channels: owned },
             owned.map(a => a.buffer),
           );
+        };
+
+        // Cache hit — no streaming needed.
+        const cachedRaw = rawCacheGet(cacheKey);
+        if (cachedRaw) { sendFinalFromRaw(cachedRaw); return; }
+
+        // Dedup: if another concurrent request is already streaming
+        // this same window, await its assembled buffers and send a
+        // single non-streaming reply. We forfeit incremental partials
+        // for the duplicate caller, but skip the duplicate S3 cost.
+        const inflight = inflightRawFetches.get(cacheKey);
+        if (inflight) {
+          const rawChannels = await inflight;
+          sendFinalFromRaw(rawChannels);
           return;
         }
 
         const hasFilter = activeFilterCoefs.length > 0;
 
-        if (hasFilter) {
-          // Filter is active: collect all chunks, then apply filter and send single final chunk.
-          // rawCache assembly: accumulate into a single buffer per channel.
-          let assembledChannels = null;
-          let totalSamples = 0;
-          for await (const chunk of reader.readWindowStreaming(start_sample, n_samples)) {
-            if (!assembledChannels) {
-              assembledChannels = chunk.channels.map(ch => {
-                const a = new Float32Array(n_samples);
-                a.set(ch, 0);
-                return a;
-              });
-              totalSamples = chunk.channels[0].length;
-            } else {
-              for (let c = 0; c < assembledChannels.length; c++) {
-                assembledChannels[c].set(chunk.channels[c], totalSamples);
-              }
-              totalSamples += chunk.channels[0].length;
-            }
-          }
-          if (!assembledChannels) return;
-          // Trim to actual samples received
-          const trimmed = assembledChannels.map(ch => ch.subarray(0, totalSamples));
-          rawCachePut(cacheKey, trimmed);
-          const filtered = trimmed.map(rawCh => globalThis.Filters.applyChain(rawCh, activeFilterCoefs));
-          const ownedFiltered = filtered.map(ch => {
-            const a = new Float32Array(ch.length);
-            a.set(ch);
-            return a;
-          });
-          self.postMessage(
-            { type: 'WINDOW_CHUNK', request_id, partial: false,
-              sample_start: start_sample, sample_end: start_sample + ownedFiltered[0].length - 1,
-              channels: ownedFiltered },
-            ownedFiltered.map(a => a.buffer),
-          );
-        } else {
-          // No filter: stream chunks as they arrive, each as partial:true WINDOW_CHUNK.
-          // Assemble into rawCache simultaneously (deep copy each chunk).
-          let assembledChannels = null;
-          let totalSamples = 0;
-          for await (const chunk of reader.readWindowStreaming(start_sample, n_samples)) {
-            const chunkLen = chunk.channels[0].length;
-            if (!assembledChannels) {
-              assembledChannels = chunk.channels.map(() => new Float32Array(n_samples));
-            }
-            for (let c = 0; c < assembledChannels.length; c++) {
-              assembledChannels[c].set(chunk.channels[c], totalSamples);
-            }
-            totalSamples += chunkLen;
+        // Register the in-flight assembly promise so concurrent
+        // FETCH_WINDOW(_STREAM) for the same key dedup against us.
+        // The promise resolves with the cached raw channels once
+        // assembly completes; cleanup happens in finally.
+        let resolveInflight, rejectInflight;
+        const inflightP = new Promise((res, rej) => {
+          resolveInflight = res;
+          rejectInflight = rej;
+        });
+        inflightRawFetches.set(cacheKey, inflightP);
 
-            // Send partial chunk (transferable — transfer ownership; assembledChannels
-            // keeps its own copy so we can't transfer from that; must copy for transfer)
-            const transferable = chunk.channels.map(ch => {
+        try {
+          if (hasFilter) {
+            // Filter is active: collect all chunks, then apply filter and send single final chunk.
+            // rawCache assembly: accumulate into a single buffer per channel.
+            let assembledChannels = null;
+            let totalSamples = 0;
+            for await (const chunk of reader.readWindowStreaming(start_sample, n_samples)) {
+              if (!assembledChannels) {
+                assembledChannels = chunk.channels.map(ch => {
+                  const a = new Float32Array(n_samples);
+                  a.set(ch, 0);
+                  return a;
+                });
+                totalSamples = chunk.channels[0].length;
+              } else {
+                for (let c = 0; c < assembledChannels.length; c++) {
+                  assembledChannels[c].set(chunk.channels[c], totalSamples);
+                }
+                totalSamples += chunk.channels[0].length;
+              }
+            }
+            if (!assembledChannels) { resolveInflight(null); return; }
+            // Trim to actual samples received
+            const trimmed = assembledChannels.map(ch => ch.subarray(0, totalSamples));
+            rawCachePut(cacheKey, trimmed);
+            resolveInflight(rawCacheGet(cacheKey));
+            const filtered = trimmed.map(rawCh => globalThis.Filters.applyChain(rawCh, activeFilterCoefs));
+            const ownedFiltered = filtered.map(ch => {
               const a = new Float32Array(ch.length);
               a.set(ch);
               return a;
             });
             self.postMessage(
-              { type: 'WINDOW_CHUNK', request_id, partial: true,
-                sample_start: chunk.firstSampleIdx, sample_end: chunk.lastSampleIdx,
-                channels: transferable },
-              transferable.map(a => a.buffer),
+              { type: 'WINDOW_CHUNK', request_id, partial: false,
+                sample_start: start_sample, sample_end: start_sample + ownedFiltered[0].length - 1,
+                channels: ownedFiltered },
+              ownedFiltered.map(a => a.buffer),
+            );
+          } else {
+            // No filter: stream chunks as they arrive, each as partial:true WINDOW_CHUNK.
+            // Assemble into rawCache simultaneously (deep copy each chunk).
+            let assembledChannels = null;
+            let totalSamples = 0;
+            for await (const chunk of reader.readWindowStreaming(start_sample, n_samples)) {
+              const chunkLen = chunk.channels[0].length;
+              if (!assembledChannels) {
+                assembledChannels = chunk.channels.map(() => new Float32Array(n_samples));
+              }
+              for (let c = 0; c < assembledChannels.length; c++) {
+                assembledChannels[c].set(chunk.channels[c], totalSamples);
+              }
+              totalSamples += chunkLen;
+
+              // Send partial chunk (transferable — transfer ownership; assembledChannels
+              // keeps its own copy so we can't transfer from that; must copy for transfer)
+              const transferable = chunk.channels.map(ch => {
+                const a = new Float32Array(ch.length);
+                a.set(ch);
+                return a;
+              });
+              self.postMessage(
+                { type: 'WINDOW_CHUNK', request_id, partial: true,
+                  sample_start: chunk.firstSampleIdx, sample_end: chunk.lastSampleIdx,
+                  channels: transferable },
+                transferable.map(a => a.buffer),
+              );
+            }
+
+            if (!assembledChannels) { resolveInflight(null); return; }
+            // Populate rawCache with complete assembled buffer
+            const trimmed = assembledChannels.map(ch => ch.subarray(0, totalSamples));
+            rawCachePut(cacheKey, trimmed);
+            resolveInflight(rawCacheGet(cacheKey));
+
+            // Send final chunk (assembled full window, no filter)
+            const ownedFinal = trimmed.map(ch => {
+              const a = new Float32Array(ch.length);
+              a.set(ch);
+              return a;
+            });
+            self.postMessage(
+              { type: 'WINDOW_CHUNK', request_id, partial: false,
+                sample_start: start_sample, sample_end: start_sample + ownedFinal[0].length - 1,
+                channels: ownedFinal },
+              ownedFinal.map(a => a.buffer),
             );
           }
-
-          if (!assembledChannels) return;
-          // Populate rawCache with complete assembled buffer
-          const trimmed = assembledChannels.map(ch => ch.subarray(0, totalSamples));
-          rawCachePut(cacheKey, trimmed);
-
-          // Send final chunk (assembled full window, no filter)
-          const ownedFinal = trimmed.map(ch => {
-            const a = new Float32Array(ch.length);
-            a.set(ch);
-            return a;
-          });
-          self.postMessage(
-            { type: 'WINDOW_CHUNK', request_id, partial: false,
-              sample_start: start_sample, sample_end: start_sample + ownedFinal[0].length - 1,
-              channels: ownedFinal },
-            ownedFinal.map(a => a.buffer),
-          );
+        } catch (e) {
+          rejectInflight(e);
+          throw e;
+        } finally {
+          inflightRawFetches.delete(cacheKey);
         }
         break;
       }
