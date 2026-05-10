@@ -52,21 +52,13 @@
     TYPE_INT64: 11,
   };
 
-  // Channel types
-  const CH_TYPES = {
-    'MEG': 1,
-    'EEG': 2,
-    'STIMULUS': 3,
-    'EOG': 4,
-    'EMG': 5,
-    'REF_MEG': 101,
-    'REF_EEG': 102,
-    'STIM': 3,
-    'IAS': 27,
-  };
-
   // ---- FIFF file reading ----
+  const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10 MB safety limit
   api.read = function (buf) {
+    if (buf.byteLength < 12) {
+      throw new Error('FIFF file too small');
+    }
+
     const view = new DataView(buf);
     let pos = 0;
 
@@ -80,9 +72,9 @@
     // Skip endian marker and node ID (8 bytes)
     pos += 8;
 
-    // Read directory: array of tag records
+    // Read directory: array of tag records (16 bytes each)
     const dir = [];
-    while (pos < view.byteLength) {
+    while (pos + 16 <= view.byteLength) {
       const tag = readTag(view, pos);
       if (!tag) break;
       dir.push(tag);
@@ -161,15 +153,23 @@
   }
 
   function parseChannelInfo(view, tag) {
-    // ch_info structure (code 30): name, kind, cal, range, unit, coil_type, loc, kind
-    // Minimal parsing: extract name and kind
+    // ch_info structure: name (16 bytes), kind, cal, range
     const offset = tag.next;
     if (offset < 0 || offset + 80 > view.byteLength) return null;
 
-    // Ch_info has name at start (16 bytes max)
+    // Extract name (null-terminated string, max 16 bytes)
     const nameBytes = new Uint8Array(view.buffer, offset, 16);
     const nameEnd = nameBytes.indexOf(0);
-    const name = new TextDecoder().decode(nameBytes.slice(0, nameEnd));
+
+    // Handle missing null terminator
+    const nameLen = nameEnd === -1 ? 16 : nameEnd;
+    let name = '';
+    try {
+      name = new TextDecoder('utf-8', {fatal: true})
+        .decode(nameBytes.slice(0, nameLen));
+    } catch {
+      return null; // Skip malformed channel name
+    }
 
     // Kind at offset 16 (int32)
     const kind = view.getInt32(offset + 16, true);
@@ -179,8 +179,8 @@
     return {
       name,
       kind,
-      cal: cal || 1.0,
-      range: range || 1.0,
+      cal: Number.isFinite(cal) ? cal : 1.0,
+      range: Number.isFinite(range) ? range : 1.0,
     };
   }
 
@@ -190,7 +190,10 @@
       nsamp: 0,
     };
 
-    if (!sfreq || !nchan) return data;
+    // Validate critical metadata
+    if (!Number.isFinite(sfreq) || sfreq <= 0 || !Number.isInteger(nchan) || nchan <= 0) {
+      return data;
+    }
 
     for (let i = startIdx; i < dir.length; i++) {
       const tag = dir[i];
@@ -215,31 +218,54 @@
   function extractDataBuffer(view, tag, nchan) {
     const dataType = tag.type;
     const offset = tag.next;
+    const byteSize = tag.size;
 
-    if (offset < 0 || offset >= view.byteLength) {
+    // Validate offset and size
+    if (offset < 0 || byteSize <= 0 || byteSize > MAX_BUFFER_SIZE) {
       return { data: null, nsamp: 0 };
     }
 
-    const byteSize = tag.size;
-    const data = new Uint8Array(view.buffer, offset, Math.min(byteSize, view.byteLength - offset));
+    const endOffset = offset + byteSize;
+    if (endOffset < 0 || endOffset > view.byteLength) {
+      return { data: null, nsamp: 0 };
+    }
 
+    const data = new Uint8Array(view.buffer, offset, byteSize);
     let nsamp = 0;
     let converted = null;
 
-    // Convert based on data type
+    // Convert based on data type with alignment checks
     switch (dataType) {
-      case FIFF.TYPE_INT16:
-        converted = new Int16Array(data.buffer, data.byteOffset, Math.floor(data.byteLength / 2));
-        nsamp = converted.length / (nchan || 1);
+      case FIFF.TYPE_INT16: {
+        const alignment = 2;
+        if (data.byteOffset % alignment !== 0) {
+          return { data: null, nsamp: 0 };
+        }
+        const elemCount = Math.floor(data.byteLength / alignment);
+        converted = new Int16Array(data.buffer, data.byteOffset, elemCount);
+        nsamp = Math.floor(elemCount / nchan);
         break;
-      case FIFF.TYPE_INT32:
-        converted = new Int32Array(data.buffer, data.byteOffset, Math.floor(data.byteLength / 4));
-        nsamp = converted.length / (nchan || 1);
+      }
+      case FIFF.TYPE_INT32: {
+        const alignment = 4;
+        if (data.byteOffset % alignment !== 0) {
+          return { data: null, nsamp: 0 };
+        }
+        const elemCount = Math.floor(data.byteLength / alignment);
+        converted = new Int32Array(data.buffer, data.byteOffset, elemCount);
+        nsamp = Math.floor(elemCount / nchan);
         break;
-      case FIFF.TYPE_FLOAT:
-        converted = new Float32Array(data.buffer, data.byteOffset, Math.floor(data.byteLength / 4));
-        nsamp = converted.length / (nchan || 1);
+      }
+      case FIFF.TYPE_FLOAT: {
+        const alignment = 4;
+        if (data.byteOffset % alignment !== 0) {
+          return { data: null, nsamp: 0 };
+        }
+        const elemCount = Math.floor(data.byteLength / alignment);
+        converted = new Float32Array(data.buffer, data.byteOffset, elemCount);
+        nsamp = Math.floor(elemCount / nchan);
         break;
+      }
     }
 
     return { data: converted, nsamp };
@@ -256,9 +282,16 @@
         return view.getFloat32(offset, true);
       case FIFF.TYPE_DOUBLE:
         return view.getFloat64(offset, true);
-      case FIFF.TYPE_STRING:
-        const len = Math.min(tag.size, 256);
-        return new TextDecoder().decode(new Uint8Array(view.buffer, offset, len)).split('\0')[0];
+      case FIFF.TYPE_STRING: {
+        try {
+          const len = Math.min(tag.size, 256);
+          return new TextDecoder('utf-8', {fatal: true})
+            .decode(new Uint8Array(view.buffer, offset, len))
+            .split('\0')[0];
+        } catch {
+          return null;
+        }
+      }
       default:
         return null;
     }
