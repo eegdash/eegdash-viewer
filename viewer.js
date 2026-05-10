@@ -266,6 +266,8 @@
       edf:  globalThis.EDFReader,
       bdf:  globalThis.EDFReader,
       vhdr: globalThis.BrainVisionReader,
+      fif:  globalThis.FiffReader,
+      fiff: globalThis.FiffReader,
     };
   }
 
