@@ -1,10 +1,28 @@
-// Playwright tests for the eegdrop-incorporation features defined in
-// docs/eegdrop-features-spec.md. Each test is named with the F-XX:
-// prefix the validator runbook greps for. Tests are written for the
-// post-implementation state — today they are filtered out by the
-// validator's PRE-IMPLEMENTATION CHECK (a grep over the source) and
-// never get invoked. Once a feature lands, the same test starts
-// passing without spec changes.
+/**
+ * Playwright tests for the eegdrop-incorporation features defined in
+ * docs/eegdrop-features-spec.md. Each test is named with the F-XX:
+ * prefix the validator runbook greps for. Tests are written for the
+ * post-implementation state — today they are filtered out by the
+ * validator's PRE-IMPLEMENTATION CHECK (a grep over the source) and
+ * never get invoked. Once a feature lands, the same test starts
+ * passing without spec changes.
+ *
+ * TIMEOUT BUDGET
+ *   Global test timeout : 90 s (playwright.config.mjs)
+ *   Global expect.timeout: 30 s
+ *   Per-assertion overrides:
+ *     stage-caption visible: 60 s — cold S3 can take 20–40 s
+ *     worker message wait  : 30 s — worker.js must respond within one RAF cycle
+ *     filter re-render     : 15 s — filter + re-fetch + draw
+ *
+ * waitForTimeout usage in this file:
+ *   150 ms — rAF flush after a click (canvas.screenshot() requires the
+ *             frame to complete; using waitForFunction is heavier here).
+ *   200 ms — cursor hover settle (mousemove events are asynchronous).
+ *   800 ms — drain in-flight prefetch before baselining (intentional).
+ *   These are the minimum necessary to avoid spurious pixel comparisons;
+ *   they are NOT arbitrary sleeps masking timing bugs.
+ */
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';

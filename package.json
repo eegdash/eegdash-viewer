@@ -9,6 +9,8 @@
     "test:e2e": "playwright test",
     "test:visual": "playwright test tests/e2e/visual-regression.spec.mjs",
     "test:visual:update": "playwright test tests/e2e/visual-regression.spec.mjs --update-snapshots",
+    "test:smoke": "playwright test tests/e2e/smoke.spec.mjs --project=chromium",
+    "test:acceptance": "playwright test tests/e2e/acceptance/ --project=chromium",
     "test:perf": "node bench/check-regression.mjs",
     "bench": "node scripts/bench-fetch.mjs"
   },

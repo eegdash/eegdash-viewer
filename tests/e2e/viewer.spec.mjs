@@ -1,8 +1,18 @@
-// Real-browser e2e for the page bootstrap. The Node test suite
-// covers everything below the page (readers, sidecar walks, render
-// math, viewer-helper DOM construction); this is what catches the
-// "the page actually paints something" case + the ResizeObserver
-// branch + the canvas-state effects of TraceRenderer.draw.
+/**
+ * Real-browser e2e for the page bootstrap.
+ *
+ * TIMEOUT BUDGET
+ *   Global test timeout : 90 s (playwright.config.mjs)
+ *   Global expect.timeout: 30 s
+ *   Per-assertion overrides:
+ *     stage-caption visible: 60 s — cold S3 + CDN can take 20–40 s on first load
+ *     canvas resize reflow : 5 s  — purely local DOM event, should be instant
+ *
+ * Node test suite covers everything below the page (readers, sidecar walks,
+ * render math, viewer-helper DOM construction); this is what catches the
+ * "the page actually paints something" case + the ResizeObserver branch +
+ * the canvas-state effects of TraceRenderer.draw.
+ */
 import { test, expect } from '@playwright/test';
 
 // Use the shortest dataset we have on hand: ds002893 .set+.fdt is
@@ -64,23 +74,29 @@ test.describe('viewer end-to-end', () => {
 
   test('canvas paints non-blank pixels (the renderer ran)', async ({ page }) => {
     await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
+    // Wait for the concrete signal that the first window has been decoded and drawn.
+    // Using waitForFunction (vs waitForTimeout) means we react as soon as the
+    // condition is met, rather than waiting an arbitrary fixed interval.
     await expect(page.locator('#stage-caption')).toBeVisible({ timeout: 60_000 });
 
-    // Sample a small region of canvas pixels and assert at least one
-    // non-background (non-cream) pixel exists. The renderer's BG_COLOR
-    // is #fbfaf6 = (251, 250, 246); any other value means we drew.
-    const sawNonBg = await page.locator('#traces').evaluate((c) => {
-      const ctx = c.getContext('2d');
-      const img = ctx.getImageData(0, 0, c.width, c.height);
-      const data = img.data;
-      // Sample every 200th pixel for speed (640×480 → ~1500 samples).
-      for (let i = 0; i < data.length; i += 800) {
-        const r = data[i], g = data[i + 1], b = data[i + 2];
-        if (r < 240 || g < 240 || b < 240) return true;
-      }
-      return false;
-    });
-    expect(sawNonBg).toBe(true);
+    // Poll until the canvas actually has non-background pixels.
+    // The renderer draws asynchronously after the stage-caption is shown, so
+    // using expect.poll here is more reliable than a fixed waitForTimeout.
+    await expect.poll(async () => {
+      return page.locator('#traces').evaluate((c) => {
+        if (!c.width || !c.height) return 0;
+        const ctx = c.getContext('2d');
+        const img = ctx.getImageData(0, 0, c.width, c.height);
+        const data = img.data;
+        // Sample every 200th pixel for speed (640×480 → ~1500 samples).
+        let nonBg = 0;
+        for (let i = 0; i < data.length; i += 800) {
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          if (r < 240 || g < 240 || b < 240) nonBg++;
+        }
+        return nonBg;
+      });
+    }, { timeout: 10_000, intervals: [200, 500, 1000] }).toBeGreaterThan(0);
   });
 
   test('embed mode collapses to a thin header with eegdash brand', async ({ page }) => {

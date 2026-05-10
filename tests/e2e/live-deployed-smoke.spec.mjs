@@ -1,6 +1,15 @@
-// Smoke test that hits the LIVE DEPLOYED viewer at github.io.
-// (Local e2e tests use localhost:8011; this one bypasses the local
-// server entirely and proves the deployed bundle works end-to-end.)
+/**
+ * Smoke test that hits the LIVE DEPLOYED viewer at github.io.
+ * (Local e2e tests use localhost:8011; this one bypasses the local
+ * server entirely and proves the deployed bundle works end-to-end.)
+ *
+ * TIMEOUT BUDGET
+ *   Global test timeout : 90 s
+ *   page.goto timeout   : 60 s (deployed page may be cold)
+ *   stage-caption       : 30 s (expect global)
+ *   Pre-assert wait     : replaced by waitForFunction on concrete element
+ *                         to avoid 20 s arbitrary sleep (was flaky on fast CI)
+ */
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -34,8 +43,22 @@ test('LIVE deployed viewer renders ds002893 EEG via cdn.eegdash.org', async ({ p
 
   await page.goto(LIVE_URL, { timeout: 60_000 });
 
-  // Even if rendering fails, capture state for diagnostics first
-  await page.waitForTimeout(20_000);
+  // Wait for a concrete signal that the viewer has settled: either the
+  // stage-caption appears (success path) or the status div changes from
+  // the default text (error path). Using waitForFunction here replaces
+  // the prior 20 s arbitrary sleep — we react as soon as the DOM is ready.
+  await page.waitForFunction(() => {
+    const caption = document.getElementById('stage-caption');
+    const status = document.getElementById('status');
+    if (caption && !caption.hidden && caption.textContent?.trim()) return true;
+    const defaultStatus = 'Drop a BIDS recording or pass';
+    if (status && status.textContent && !status.textContent.includes(defaultStatus)) return true;
+    return false;
+  }, null, { timeout: 45_000 }).catch(() => {
+    // If neither condition fires within 45 s, proceed to capture diagnostics
+    // anyway so the failure is informative rather than a cold timeout.
+  });
+
   const status_text = (await page.locator('#status').textContent())?.trim();
   fs.writeFileSync(path.join(EVID, 'pre-assert-state.json'), JSON.stringify({
     url: LIVE_URL,

@@ -1,15 +1,25 @@
-// NEMAR-only smoke test: loads one NEMAR-hosted recording end-to-end
-// and asserts canvas paints. Kept separate from the OpenNeuro
-// multi-record smoke spec because the resolution path is entirely
-// different:
-//   1. Viewer detects nm-prefixed dataset_id
-//   2. Calls data.eegdash.org/api/eegdash/records?filter={"bidspath":...}
-//   3. Reads sidecars from storage.sidecar_inline (no extra fetches)
-//   4. Builds binary URL from storage.annex_keys via the cdn.eegdash.org
-//      Cloudflare Worker (NEMAR's S3 has no CORS, the worker adds it)
-//
-// Coverage today is BDF only — see docs/build_traces_recordings.py
-// for the upstream gaps blocking other formats.
+/**
+ * NEMAR-only smoke test: loads one NEMAR-hosted recording end-to-end
+ * and asserts canvas paints. Kept separate from the OpenNeuro
+ * multi-record smoke spec because the resolution path is entirely
+ * different:
+ *
+ * TIMEOUT BUDGET
+ *   Global test timeout : 90 s (playwright.config.mjs)
+ *   Global expect.timeout: 30 s
+ *   Per-assertion overrides:
+ *     stage-caption visible: 60 s — NEMAR API + cdn worker + S3 fetch
+ *
+ * Resolution path:
+ *   1. Viewer detects nm-prefixed dataset_id
+ *   2. Calls data.eegdash.org/api/eegdash/records?filter={"bidspath":...}
+ *   3. Reads sidecars from storage.sidecar_inline (no extra fetches)
+ *   4. Builds binary URL from storage.annex_keys via the cdn.eegdash.org
+ *      Cloudflare Worker (NEMAR's S3 has no CORS, the worker adds it)
+ *
+ * Coverage today is BDF only — see docs/build_traces_recordings.py
+ * for the upstream gaps blocking other formats.
+ */
 
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';

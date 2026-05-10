@@ -1,12 +1,18 @@
-// Multi-record smoke test: loads three OpenNeuro recordings (EEGLAB,
-// EDF, BrainVision) end-to-end through the live cdn.eegdash.org
-// Cloudflare proxy and asserts each renders. One screenshot + one
-// status JSON per record under tests/evidence/multi-record/<format>/.
-//
-// This is the explicit "viewer works for multiple records" evidence
-// the user asked for after the CDN cutover. NEMAR has its own spec
-// (nemar-smoke.spec.mjs) because the resolution path and upstream
-// constraints are different — kept separate by request.
+/**
+ * Multi-record smoke test: loads three OpenNeuro recordings (EEGLAB,
+ * EDF, BrainVision) end-to-end through the live cdn.eegdash.org
+ * Cloudflare proxy and asserts each renders. One screenshot + one
+ * status JSON per record under tests/evidence/multi-record/<format>/.
+ *
+ * TIMEOUT BUDGET
+ *   Global test timeout : 90 s (playwright.config.mjs)
+ *   Global expect.timeout: 30 s
+ *   Per-assertion overrides:
+ *     stage-caption visible: 60 s — CDN cold-start + S3 fetch for first window
+ *
+ * NEMAR has its own spec (nemar-smoke.spec.mjs) because the resolution
+ * path and upstream constraints are different — kept separate by request.
+ */
 
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
