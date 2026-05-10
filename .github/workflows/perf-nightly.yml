@@ -1,0 +1,73 @@
+name: Perf nightly
+
+# Runs the performance regression harness once a day.
+#
+# Design notes:
+#   - This workflow is NIGHTLY ONLY — it does NOT block PRs.
+#     Network-bound readWindow benchmarks are noisy on shared runners
+#     (CDN cold-cache, per-connection S3 throttling) so gating PRs on
+#     them would produce false positives and erode trust in CI.
+#   - The filter + MatV5 benchmarks are CPU-bound and deterministic
+#     enough for nightly regression tracking.
+#   - If a metric consistently regresses over several nightly runs, that
+#     is the signal to update the code and then run:
+#       node bench/check-regression.mjs --update-baseline
+#     and commit the updated bench/baseline.json.
+#
+# To run manually:  Actions → "Perf nightly" → Run workflow
+
+on:
+  schedule:
+    - cron: '42 3 * * *'   # 03:42 UTC, off-peak (avoids OpenNeuro S3 peak hours)
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  perf:
+    name: Performance regression check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Run the full harness (filter + matv5 + readwindow over network).
+      # The step always completes (exit 0/1); the result is surfaced in
+      # the step summary so the nightly diff is visible without opening logs.
+      - name: Run performance harness
+        id: perf
+        run: |
+          npm run test:perf 2>&1 | tee /tmp/perf-output.txt
+          EXIT=${PIPESTATUS[0]}
+          echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
+          exit $EXIT
+
+      # Post the summary table to the GitHub Actions step summary so it's
+      # visible on the workflow run page without downloading logs.
+      - name: Post summary
+        if: always()
+        run: |
+          echo '## Performance Regression Report' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/perf-output.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      # Upload the full output as an artifact so historical runs can be
+      # diffed even after the job expires from the summary view.
+      - name: Upload perf output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report-${{ github.run_id }}
+          path: /tmp/perf-output.txt
+          retention-days: 30
