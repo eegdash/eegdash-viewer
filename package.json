@@ -7,8 +7,10 @@
     "test:net": "node --test --test-reporter=spec --test-concurrency=1 tests/sidecars.test.mjs tests/eeglab.test.mjs tests/edf.test.mjs tests/brainvision.test.mjs tests/bdf.test.mjs",
     "test:integration": "node --test --test-reporter=spec --test-concurrency=1 tests/integration.test.mjs",
     "test:e2e": "playwright test",
-    "bench": "node scripts/bench-fetch.mjs",
-    "test:perf": "node bench/check-regression.mjs"
+    "test:visual": "playwright test tests/e2e/visual-regression.spec.mjs",
+    "test:visual:update": "playwright test tests/e2e/visual-regression.spec.mjs --update-snapshots",
+    "test:perf": "node bench/check-regression.mjs",
+    "bench": "node scripts/bench-fetch.mjs"
   },
   "engines": {
     "node": ">=20"
