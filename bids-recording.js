@@ -786,6 +786,10 @@
         task:    p.get('task'),
         run:     p.get('run'),
         ext:     p.get('ext'),
+        // NEMAR only: pin a specific manifest version. The loader
+        // defaults to 'latest' when undefined and validates the
+        // shape (latest|vN.N.N) before constructing the manifest URL.
+        version: p.get('version') || undefined,
       };
       // Determine suffix (default to 'eeg', can be overridden with ?suffix=)
       const suffix = p.get('suffix') || 'eeg';
