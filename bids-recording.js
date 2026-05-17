@@ -138,67 +138,183 @@
   }
 
   // ---- NEMAR ---------------------------------------------------
-  // NEMAR (nm-prefixed datasets) hosts data on a public S3 bucket
-  // (nemar in us-east-2) but addresses files by SHA-256 git-annex
-  // keys, not BIDS paths. The {bidsRelpath → SHA-key} map and the
-  // text sidecars all live in the eegdash records API, so a single
-  // /api/eegdash/records?filter=… call gives us:
-  //   storage.annex_keys[bidsRelpath]   → SHA key (binary lookup)
-  //   storage.sidecar_inline[bidsRelpath] → UTF-8 sidecar text
-  // We synthesise the S3 URL ourselves rather than asking the API
-  // for it (the API doesn't currently expose a download endpoint;
-  // bucket rule verified empirically against the public bucket).
+  // NEMAR datasets (nm/on/xx prefixes) are addressed by data.nemar.org,
+  // the public BIDS-shaped HTTPS API the nemar-cli backend exposes for
+  // every *published* dataset. One fetch of the per-version
+  //   /<id>/<version>/manifest.json
+  // gives us every file in the dataset as
+  //   { path, size, checksum, checksum_algorithm, url }
+  // — a flat enumeration covering both git-annex bytes (large EDF/BDF/
+  // .set/.vhdr+.eeg/...) and inline-git sidecars (small JSON/TSV).
+  //
+  // Two URL shapes appear in the manifest:
+  //   - git-tree:  https://raw.githubusercontent.com/nemarDatasets/<id>/<tag>/<bidsPath>
+  //                Has CORS — fetched as-is.
+  //   - annex S3:  https://nemar.s3.<region>.amazonaws.com/<id>/objects/<sha>?<presign>
+  //                No CORS on bare S3 → routed through the cdn-worker's
+  //                existing /<id>/objects/<sha> proxy. That URL is
+  //                content-addressed so it's infinitely cacheable; we
+  //                drop the per-request presigned query string entirely.
+  //
+  // The data.nemar.org route itself also lacks Access-Control-Allow-
+  // Origin (verified May 2026), so manifest.json is also fetched
+  // through the cdn-worker (/data/<id>/<ver>/manifest.json proxy).
+  //
+  // Pre-data.nemar.org we used the eegdash records API + git-annex SHA
+  // lookups; that path required eegdash to have ingested every record
+  // and never worked for on*/xx* mirrors. The manifest-driven path
+  // unifies the three dataset families.
 
-  // Six-digit suffix matches the bucket's id convention and the
-  // cdn-worker's VALID_NEMAR regex — the two MUST stay in lockstep
-  // (a 5- or 7-digit id would be silently 404'd by the worker).
+  // Lockstep with cdn-worker's VALID_NEMAR (objects/) and
+  // VALID_NEMAR_API (/data/) regexes — a 5- or 7-digit id, or any
+  // prefix outside {nm,on,xx}, would 404 against the worker.
+  //   nm = native NEMAR ingest
+  //   on = OpenNeuro mirror (added in nemar-cli sprint #514 May 2026
+  //        once #516 unblocked their D1 metadata + LLM enrichment)
+  //   xx = sandbox (used by the nemar-cli test suite)
   api.isNemarDatasetId = function (id) {
-    return typeof id === 'string' && /^nm\d{6}$/.test(id);
+    return typeof id === 'string' && /^(?:nm|on|xx)\d{6}$/.test(id);
   };
 
-  // Buckets the viewer is willing to construct S3 URLs for. Only the
-  // ones we've explicitly tested + (for `nemar`) proxied through the
-  // CDN. A storage.base pointing anywhere else is a trust-boundary
-  // red flag — refuse it loudly rather than synthesising surprise URLs.
-  const _NEMAR_BUCKET_ALLOWLIST = new Set(['nemar', 'nmdatasets']);
+  const _NEMAR_FETCH_TIMEOUT_MS = 15000;
+  // Reject manifests larger than this — typical real manifests are
+  // ~100KB-2MB; anything orders of magnitude bigger is corrupt or
+  // hostile and would OOM the browser tab if parsed.
+  const _NEMAR_MANIFEST_MAX_BYTES = 32 * 1024 * 1024;
+  // Hosts the viewer is willing to fetch NEMAR bytes from. Centralised
+  // so a host change is a single-line edit and the worker / loader
+  // can't drift out of lockstep.
+  const _CDN_BASE = 'https://cdn.eegdash.org';
+  const _NEMAR_DATA_BASE = 'https://data.nemar.org';
+  const _NEMAR_GITHUB_ORG = 'nemarDatasets';
+  // Versions accepted by data.nemar.org: 'latest' or 'vMAJOR.MINOR.PATCH'.
+  // Lockstep with the cdn-worker's VALID_NEMAR_API version segment so
+  // a value rejected here would also be rejected at the proxy.
+  const _NEMAR_VERSION_SHAPE = /^(?:latest|v\d+\.\d+\.\d+)$/;
 
-  // SHA git-annex keys are restricted to [A-Za-z0-9._-]+ by the cdn-
-  // worker's VALID_NEMAR regex. Any value outside this charset would
-  // either path-traverse, query-inject, or fail the worker's guard —
-  // reject up-front so the symptom is a clear error, not a 404.
-  const _ANNEX_KEY_SHAPE = /^[A-Za-z0-9._-]+$/;
+  // Manifest-listed `url` values must match one of these two shapes
+  // AND name the requested dataset — anything else is a trust-boundary
+  // failure (the manifest is server-provided; we refuse to fetch from
+  // arbitrary hosts OR from a different dataset's storage). Both
+  // regexes capture the dsId so the caller can cross-check.
+  //   git-tree: $1 = repo-name (== dsId for native NEMAR repos)
+  //   annex S3: $1 = bucket-key dataset id, $2 = SHA-key
+  const _GIT_TREE_URL = /^https:\/\/raw\.githubusercontent\.com\/nemarDatasets\/([^/]+)\/[^/]+\//;
+  const _ANNEX_S3_URL = /^https:\/\/nemar\.s3(?:\.[a-z0-9-]+)?\.amazonaws\.com\/([^/]+)\/objects\/([A-Za-z0-9._-]+)(?:\?|$)/;
 
-  // Outside-the-CDN escape hatch (?direct=1). NEMAR's S3 has no CORS
-  // configured, so the direct path only works from non-browser
-  // contexts (Node tests, integration runners).
-  function s3UriToHttpsPrefix(s3Uri) {
-    const m = /^s3:\/\/([^/]+)\/(.+)$/.exec(s3Uri || '');
-    if (!m) throw new Error(`expected s3://bucket/path URI, got: ${s3Uri}`);
-    const bucket = m[1];
-    const key = m[2];
-    if (!_NEMAR_BUCKET_ALLOWLIST.has(bucket)) {
-      throw new Error(`refusing to synthesise URL for unknown S3 bucket: ${bucket}`);
+  // Transform a manifest entry's `url` into one the viewer can fetch
+  // cross-origin. Returns null when the URL fails the trust-boundary
+  // check (caller surfaces a clear error with context).
+  function transformManifestUrl(entryUrl, dsId) {
+    if (typeof entryUrl !== 'string' || !entryUrl) return null;
+    const git = _GIT_TREE_URL.exec(entryUrl);
+    if (git && git[1] === dsId) return entryUrl;
+    const annex = _ANNEX_S3_URL.exec(entryUrl);
+    if (annex && annex[1] === dsId) {
+      // ?direct=1 keeps the presigned URL intact for Node tests, where
+      // CORS doesn't apply and we want to bypass the cdn-worker entirely.
+      if (_DIRECT_S3) return entryUrl;
+      return `${_CDN_BASE}/${dsId}/objects/${annex[2]}`;
     }
-    if (bucket === 'nemar' && !_DIRECT_S3) {
-      return `https://cdn.eegdash.org/${key}`;
-    }
-    return `https://${bucket}.s3.amazonaws.com/${key}`;
+    return null;
   }
 
-  const _NEMAR_FETCH_TIMEOUT_MS = 15000;
+  function nemarManifestUrl(dsId, version) {
+    const ver = version || 'latest';
+    if (!_NEMAR_VERSION_SHAPE.test(ver)) {
+      throw new Error(
+        `NEMAR version param "${ver}" is invalid — expected "latest" or "vMAJOR.MINOR.PATCH".`
+      );
+    }
+    if (_DIRECT_S3) return `${_NEMAR_DATA_BASE}/${dsId}/${ver}/manifest.json`;
+    return `${_CDN_BASE}/data/${dsId}/${ver}/manifest.json`;
+  }
 
   // Single-shot loader for NEMAR recordings. Returns a metadata
   // bundle in the same shape as loadRecordingMetadata (so the rest
   // of the viewer is format-agnostic), with one NEMAR-specific
   // addition: meta.sibling_urls (filename → URL) so format readers
-  // with split layouts (BrainVision .vhdr+.eeg) can resolve the
-  // sibling without doing path arithmetic against a SHA-keyed URL.
+  // with split layouts (BrainVision .vhdr+.eeg, EEGLAB .set+.fdt)
+  // can resolve the sibling without doing path arithmetic against
+  // a SHA-keyed URL.
   // postMessage-safe: only plain JSON, no functions or closures.
   api.loadNemarRecording = async function (params) {
+    const ds = required(params, 'dataset');
+    if (!api.isNemarDatasetId(ds)) {
+      throw new Error(`not a NEMAR-style dataset id: ${ds}`);
+    }
     const bidspath = buildBidsRelpath(params);
-    const filter = encodeURIComponent(JSON.stringify({ bidspath }));
-    const url = `${EEGDASH_BASE}/api/eegdash/records?filter=${filter}&limit=1`;
+    // Manifest paths are dataset-relative — strip the leading <id>/.
+    const innerPath = bidspath.startsWith(`${ds}/`)
+      ? bidspath.slice(ds.length + 1)
+      : bidspath;
 
+    const manifest = await fetchNemarManifest(ds, params.version);
+
+    const lastSlash = innerPath.lastIndexOf('/');
+    const dir = lastSlash >= 0 ? innerPath.slice(0, lastSlash + 1) : '';
+    const basename = lastSlash >= 0 ? innerPath.slice(lastSlash + 1) : innerPath;
+    const prefixMatch = /^(.+?)_(?:eeg|ieeg|emg|meg|nirs)\.[^.]+$/.exec(basename);
+    const prefix = prefixMatch ? prefixMatch[1] : basename.replace(/\.[^.]+$/, '');
+    const ext = (basename.slice(basename.lastIndexOf('.') + 1) ||
+                 params.ext || 'set').toLowerCase();
+
+    // Single pass over the manifest: build the path index AND collect
+    // same-directory siblings. sibling_urls feeds BrainVision .vhdr
+    // (which references .eeg by bare filename) and EEGLAB .set+.fdt;
+    // restricting to the recording's exact dir prevents cross-subject
+    // basename collisions that wider scopes would cause.
+    const byPath = new Map();
+    const sibling_urls = {};
+    for (const e of manifest) {
+      if (!e || typeof e.path !== 'string') continue;
+      byPath.set(e.path, e);
+      if (!e.path.startsWith(dir)) continue;
+      const rest = e.path.slice(dir.length);
+      if (!rest || rest.includes('/')) continue;
+      const u = transformManifestUrl(e.url, ds);
+      if (u) sibling_urls[rest] = u;
+    }
+
+    const rawEntry = byPath.get(innerPath);
+    if (!rawEntry) {
+      throw new Error(
+        `NEMAR manifest has no entry for ${innerPath}. ` +
+        `Check dataset/sub/ses/task/run/ext URL params match a published recording, ` +
+        `or pin a specific version with ?version=vX.Y.Z.`
+      );
+    }
+    const eegUrl = transformManifestUrl(rawEntry.url, ds);
+    if (!eegUrl) {
+      throw new Error(`NEMAR manifest url has unrecognised shape: ${rawEntry.url}`);
+    }
+
+    // Sidecars: BIDS-inheritance walk against the manifest (deepest →
+    // root, entity-stripped variants), then a network fetch of the
+    // first hit's text. The provenance label in sidecar_sources keeps
+    // the per-entry URL so renderProvenance shows where the value
+    // came from (raw.githubusercontent.com for git-tree, cdn.eegdash
+    // .org for annex). assembleRecordingMetadata is shared with the
+    // OpenNeuro path so the bundle's downstream shape stays uniform.
+    const sidecarPlan = [
+      ['eeg_json',    '_eeg.json'],
+      ['channels',    '_channels.tsv'],
+      ['events',      '_events.tsv'],
+      ['electrodes',  '_electrodes.tsv'],
+      ['coordsystem', '_coordsystem.json'],
+    ];
+    const results = await Promise.all(sidecarPlan.map(
+      ([, suffix]) => fetchManifestSidecar(byPath, dir, prefix, suffix, ds)
+    ));
+    const hits = Object.fromEntries(sidecarPlan.map(([k], i) => [k, results[i]]));
+
+    const meta = assembleRecordingMetadata({ eeg_url: eegUrl, ext, dir, prefix, hits });
+    meta.sibling_urls = sibling_urls;
+    return meta;
+  };
+
+  async function fetchNemarManifest(ds, version) {
+    const url = nemarManifestUrl(ds, version);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), _NEMAR_FETCH_TIMEOUT_MS);
     let resp;
@@ -208,95 +324,65 @@
       const reason = e.name === 'AbortError'
         ? `timed out after ${_NEMAR_FETCH_TIMEOUT_MS}ms`
         : e.message;
-      throw new Error(`NEMAR records API unreachable for ${bidspath}: ${reason}`);
+      throw new Error(`NEMAR manifest unreachable for ${ds}: ${reason}`);
     } finally {
       clearTimeout(timer);
     }
+    if (resp.status === 404) {
+      throw new Error(
+        `NEMAR manifest 404 for ${ds}: dataset is unpublished, private, ` +
+        `or has no minted version yet.`
+      );
+    }
     if (!resp.ok) {
-      throw new Error(`NEMAR records API ${resp.status} for ${bidspath}`);
+      throw new Error(`NEMAR manifest HTTP ${resp.status} for ${ds}`);
     }
-    const json = await resp.json();
-    const rec = json.data && json.data[0];
-    if (!rec) {
+    // Guard against runaway manifest bodies (corrupt/hostile) — the
+    // browser would otherwise OOM on resp.json(). Real manifests cap
+    // out in single-digit MB even for 500+ recording datasets.
+    const lenHeader = resp.headers && resp.headers.get && resp.headers.get('content-length');
+    const declaredLen = lenHeader ? Number(lenHeader) : NaN;
+    if (Number.isFinite(declaredLen) && declaredLen > _NEMAR_MANIFEST_MAX_BYTES) {
       throw new Error(
-        `NEMAR record not found in eegdash for ${bidspath}. ` +
-        `Check the dataset/sub/ses/task/run/ext URL params match an ingested recording.`
+        `NEMAR manifest for ${ds} is ${declaredLen} bytes — refusing to parse ` +
+        `(cap is ${_NEMAR_MANIFEST_MAX_BYTES} bytes; likely corrupt upstream).`
       );
     }
-    const storage = rec.storage || {};
-    const rawKey = storage.raw_key;
-    const annexKeys = storage.annex_keys || {};
-    const inline = storage.sidecar_inline || {};
-
-    if (!rawKey) {
-      throw new Error(`NEMAR record missing storage.raw_key for ${bidspath}`);
-    }
-
-    const httpsPrefix = s3UriToHttpsPrefix(storage.base);
-
-    const shaForRaw = annexKeys[rawKey];
-    if (!shaForRaw) {
+    let manifest;
+    try {
+      manifest = await resp.json();
+    } catch (e) {
       throw new Error(
-        `NEMAR record for ${bidspath} has no annex_keys entry for the raw file. ` +
-        `The eegdash ingestion may not yet expose this recording's SHA mapping.`
+        `NEMAR manifest for ${ds} is not valid JSON (${e.message}). ` +
+        `Upstream may be misconfigured.`
       );
     }
-    if (!_ANNEX_KEY_SHAPE.test(shaForRaw)) {
-      throw new Error(`NEMAR annex_keys[${rawKey}] has unexpected charset: ${shaForRaw}`);
+    if (!Array.isArray(manifest)) {
+      throw new Error(`NEMAR manifest for ${ds} is not a JSON array`);
     }
-    const eegUrl = `${httpsPrefix}/objects/${shaForRaw}`;
+    return manifest;
+  }
 
-    // Pre-resolve every sibling the API has a SHA key for, keyed by
-    // *filename* (not BIDS relpath) — that's what format readers see
-    // in their headers (BrainVision .vhdr's `DataFile` is a bare
-    // filename). One recording = one directory, so filename keys are
-    // unique within the map.
-    const sibling_urls = {};
-    for (const [siblingRelpath, sha] of Object.entries(annexKeys)) {
-      if (!_ANNEX_KEY_SHAPE.test(sha)) {
-        throw new Error(`NEMAR annex_keys[${siblingRelpath}] has unexpected charset: ${sha}`);
-      }
-      const siblingFilename = siblingRelpath.split('/').pop();
-      sibling_urls[siblingFilename] = `${httpsPrefix}/objects/${sha}`;
-    }
-
-    const ext = rawKey.slice(rawKey.lastIndexOf('.') + 1).toLowerCase() || (params.ext || '').toLowerCase();
-    const lastSlash = rawKey.lastIndexOf('/');
-    const dir = lastSlash >= 0 ? rawKey.slice(0, lastSlash + 1) : '';
-    const basename = lastSlash >= 0 ? rawKey.slice(lastSlash + 1) : rawKey;
-    const prefixMatch = /^(.+?)_eeg\.[^.]+$/.exec(basename);
-    const prefix = prefixMatch ? prefixMatch[1] : basename.replace(/\.[^.]+$/, '');
-
-    // Inline sidecars come from a hash, not the network — wrap each
-    // hit as { text, url } so assembleRecordingMetadata sees the same
-    // shape as the OpenNeuro path. The `inline:` URL prefix is what
-    // renderProvenance shows in the UI.
-    const inlineHit = (suffix) => {
-      const text = pickInlineSidecar(inline, dir, prefix, suffix);
-      return text != null ? { text, url: `inline:${rawKey}` } : null;
-    };
-    const hits = {
-      eeg_json:    inlineHit('_eeg.json'),
-      channels:    inlineHit('_channels.tsv'),
-      events:      inlineHit('_events.tsv'),
-      electrodes:  inlineHit('_electrodes.tsv'),
-      coordsystem: inlineHit('_coordsystem.json'),
-    };
-
-    const meta = assembleRecordingMetadata({ eeg_url: eegUrl, ext, dir, prefix, hits });
-    meta.sibling_urls = sibling_urls;
-    return meta;
-  };
-
-  // Lookup of an inline sidecar by walking the same BIDS-inheritance
-  // shape `fetchInheritedSidecar` walks. The eegdash server already
-  // collapses overrides per-recording, so in practice the deepest
-  // (per-recording) key is what's present — this loop is what
-  // tolerates the 5% of datasets where overrides live shallower.
-  function pickInlineSidecar(inline, dir, prefix, suffix) {
+  // Walk the BIDS inheritance shape against the manifest (no extra
+  // network probes — the manifest is the authoritative file index for
+  // the version), then fetch the matching entry's text once. Returns
+  // null when nothing matches OR when the matching entry's text fetch
+  // fails — assembleRecordingMetadata tolerates nulls (warns + falls
+  // back to format-header values).
+  async function fetchManifestSidecar(byPath, dir, prefix, suffix, ds) {
     for (const { paths } of eachInheritanceLevel(dir, prefix, suffix)) {
       for (const p of paths) {
-        if (inline[p] != null) return inline[p];
+        const entry = byPath.get(p);
+        if (!entry) continue;
+        const u = transformManifestUrl(entry.url, ds);
+        if (!u) continue;
+        try {
+          const text = await HttpRange.fetchText(u);
+          return { text, url: u };
+        } catch (e) {
+          console.warn(`NEMAR sidecar fetch failed for ${ds}/${p}: ${e.message}`);
+          return null;
+        }
       }
     }
     return null;

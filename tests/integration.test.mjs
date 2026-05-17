@@ -178,11 +178,12 @@ test('stress: 30 sequential disjoint reads', async () => {
 });
 
 // ----- 6. NEMAR ---------------------------------------------------
-// Different S3 resolution path: the eegdash records API yields the
-// metadata bundle (sidecars inline + binary URL via SHA git-annex
-// key) in one shot. Every test here exercises the live API at
-// data.eegdash.org plus the public nemar.s3.amazonaws.com bucket
-// in us-east-2.
+// Manifest-driven resolution: the loader fetches
+//   data.nemar.org/<id>/latest/manifest.json
+// (through the cdn-worker /data/ proxy because data.nemar.org omits
+// Access-Control-Allow-Origin), then walks the flat file list to
+// resolve the raw binary + sidecars by BIDS path. Bytes still come
+// from the existing /<id>/objects/<sha> cdn-worker path.
 //
 // Coverage:
 //   - nm000148 (BDF, 32 ch, motor imagery, 512 Hz)  — biggest BDF
@@ -190,7 +191,9 @@ test('stress: 30 sequential disjoint reads', async () => {
 //     (data lives inside the MAT file; no .fdt sibling needed)
 // .vhdr coverage is blocked by an S3 ACL gap on the only NEMAR
 // BrainVision dataset (nm000166); .edf coverage by the same on
-// nm000181.
+// nm000181. Live tests require the cdn-worker's /data/ proxy route
+// to be deployed — if these regress with "manifest 404" or CORS,
+// check `wrangler tail` on the eegdash-cdn worker first.
 const NEMAR_MATRIX = [
   { fmt: 'bdf', ds: 'nm000148', sub: '11', ses: '0',      task: 'imagery', run: '1' },
   { fmt: 'set', ds: 'nm000121', sub: '6',  ses: '0',      task: 'ssvep',   run: '6' },
@@ -211,9 +214,9 @@ for (const spec of NEMAR_MATRIX) {
     // Binary URL is the SHA-keyed git-annex form, routed through the
     // cdn.eegdash.org Cloudflare Worker (NEMAR's own S3 lacks CORS).
     // The "objects/" segment is the give-away — git-annex's content-
-    // addressed object store layout. Pass ?direct=1 in the URL to
-    // bypass the CDN and hit nemar.s3.amazonaws.com directly (only
-    // works outside a browser due to the missing CORS).
+    // addressed object store layout. The presigned query string that
+    // data.nemar.org's manifest returns is stripped during URL rewrite
+    // since the cdn proxy is anonymous + content-addressed.
     assert.match(meta.eeg_url, /^https:\/\/cdn\.eegdash\.org\/[^/]+\/objects\/(SHA256E|MD5E)-/);
     assert.ok(meta.eeg_json.sampling_frequency > 0,
       `sidecar SamplingFrequency missing for ${tag}`);

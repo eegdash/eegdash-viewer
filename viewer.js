@@ -1198,12 +1198,15 @@
       );
     }
 
-    // NEMAR fast path: one /api/eegdash/records call yields the binary
-    // S3 URL plus every sidecar inline, so we skip the inheritance walk.
-    // The rest of the pipeline (worker, format reader, render) is
-    // identical — meta carries the same shape as loadRecordingMetadata
-    // returns, plus a sibling_urls map the BrainVision/EEGLAB readers
-    // use to resolve .eeg/.fdt against SHA-keyed URLs.
+    // NEMAR path: one data.nemar.org manifest.json fetch (via cdn-worker
+    // for CORS) yields every file URL in the dataset; the loader picks
+    // out the raw binary, walks the manifest for sidecars by BIDS
+    // inheritance, and builds a same-dir sibling_urls map for split-file
+    // formats (.vhdr+.eeg, .set+.fdt). Covers nm/on/xx datasets — the
+    // OpenNeuro-mirror (on*) and sandbox (xx*) prefixes resolve through
+    // the same backend. Downstream pipeline (worker, format reader,
+    // render) is identical: meta carries the same shape as
+    // loadRecordingMetadata returns.
     async function loadNemar(params) {
       const label = `${params.dataset}/sub-${params.sub}` +
         (params.task ? ` task-${params.task}` : '') +
@@ -1549,10 +1552,9 @@
     if (target?.kind === 'url' || target?.kind === 'bids-path') {
       load(target.eeg_url);
     } else if (target?.kind === 'nemar') {
-      // NEMAR: meta is fetched via the eegdash records API in one
-      // shot (sidecars come inline + binary URL is SHA-keyed S3).
-      // Reuse the same render path as load() but with a pre-resolved
-      // metadata bundle, so we skip the inheritance walk entirely.
+      // NEMAR (nm/on/xx prefixes): meta is built from the per-version
+      // data.nemar.org manifest.json fetched through the cdn-worker
+      // CORS proxy. Same render path as load(), pre-resolved bundle.
       loadNemar(target.nemar_params);
     } else if (target?.kind === 'demo') {
       status.textContent = `demo loader (${target.demo_id}) not wired yet`;

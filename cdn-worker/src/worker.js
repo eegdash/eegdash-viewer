@@ -1,21 +1,27 @@
 /**
- * eegdash-cdn — Cloudflare Worker reverse proxy for OpenNeuro S3
- * (and NEMAR S3, which has no CORS configuration of its own).
+ * eegdash-cdn — Cloudflare Worker reverse proxy for OpenNeuro S3,
+ * NEMAR S3, and the data.nemar.org metadata API (none of which
+ * advertise CORS to browser clients).
  *
  * Goal: drop cold-pan latency from ~700 ms (raw S3 us-east-1, HTTP/1.1)
  * to ~50 ms (edge POP, HTTP/3, multiplexed cache hit). For NEMAR the
  * value is also CORS — direct browser fetches against
- * nemar.s3.amazonaws.com fail (no Access-Control-Allow-Origin in the
- * response, OPTIONS preflight returns 403). Proxying through this
- * worker fixes that as a side effect of the existing CORS layer.
+ * nemar.s3.amazonaws.com or data.nemar.org fail (the former has no
+ * Access-Control-Allow-Origin at all, the latter sets every CORS
+ * header *except* Allow-Origin). Proxying through this worker fixes
+ * both as a side effect of the existing CORS layer.
  *
  * URL grammar:
- *   /dsNNNNNN/<bids-path>           → openneuro.org/dsNNNNNN/<bids-path>
- *   /nmNNNNNN/objects/<sha-key>     → nemar/nmNNNNNN/objects/<sha-key>
+ *   /dsNNNNNN/<bids-path>                                      → openneuro.org/dsNNNNNN/<bids-path>
+ *   /(nm|on|xx)NNNNNN/objects/<sha-key>                        → nemar/<id>/objects/<sha-key>
+ *   /data/(nm|on|xx)NNNNNN/(latest|vN.N.N)/(manifest|metadata) → data.nemar.org/<id>/<ver>/<file>.json
  *
  * Security model:
  *  - Only GET/HEAD allowed (no mutation proxy)
- *  - Path must match one of the two patterns above (no open-proxy risk)
+ *  - Path must match one of the three patterns above (no open-proxy risk)
+ *  - The /data/ proxy is scoped to manifest.json + metadata.json only
+ *    (no path wildcard) so it can't be abused as a generic data.nemar.org
+ *    relay
  *  - Upstream status codes outside {200,206,304,404} → 502
  */
 
@@ -23,12 +29,19 @@ const UPSTREAM_OPENNEURO = 'https://s3.amazonaws.com/openneuro.org';
 // NEMAR S3 lives in us-east-2; the global virtual-hosted endpoint
 // auto-routes there transparently. The legacy path-style endpoint
 // would 301 to the regional URL on cold lookups.
-const UPSTREAM_NEMAR = 'https://nemar.s3.amazonaws.com';
+const UPSTREAM_NEMAR     = 'https://nemar.s3.amazonaws.com';
+const UPSTREAM_NEMAR_API = 'https://data.nemar.org';
 
-// Two recognised path shapes. Anything else 404s — keeps the worker
-// scoped to the two buckets we're explicitly proxying for.
+// Three recognised path shapes. Anything else 404s — keeps the worker
+// scoped to the buckets/APIs we're explicitly proxying for.
 const VALID_OPENNEURO = /^\/ds\d{6}\//;
-const VALID_NEMAR     = /^\/nm\d{6}\/objects\/[A-Za-z0-9._-]+$/;
+// (nm|on|xx) covers native NEMAR, OpenNeuro mirrors, and sandbox.
+// Lockstep with bids-recording.js:isNemarDatasetId.
+const VALID_NEMAR     = /^\/(?:nm|on|xx)\d{6}\/objects\/[A-Za-z0-9._-]+$/;
+// data.nemar.org metadata endpoints. <version> is `latest` or a
+// `vX.Y.Z` tag. <file> is one of two whitelisted names.
+const NEMAR_API_PREFIX = '/data';
+const VALID_NEMAR_API = /^\/data\/(?:nm|on|xx)\d{6}\/(?:latest|v\d+\.\d+\.\d+)\/(?:manifest|metadata)\.json$/;
 
 // Status codes we are willing to pass through to the client
 const ALLOWED_STATUS = new Set([200, 206, 304, 404]);
@@ -50,6 +63,9 @@ const FORWARD_REQUEST_HEADERS = [
   'if-none-match',
   'if-modified-since',
   'if-range',
+  // data.nemar.org content-negotiates HTML vs JSON on /<id>/ — for the
+  // /data/ proxy we only forward `accept` to disambiguate. S3 ignores it.
+  'accept',
 ];
 
 export default {
@@ -79,27 +95,32 @@ export default {
     }
 
     // --- Validate path + pick upstream bucket ----------------------------
-    // Two recognised shapes:
-    //   /dsNNNNNN/...                 → OpenNeuro (BIDS-pathed)
-    //   /nmNNNNNN/objects/<sha-key>   → NEMAR (git-annex SHA-keyed)
-    // Anything else → 404. This keeps the worker scoped to known
-    // buckets (no open-proxy risk) while transparently bridging
-    // NEMAR's missing CORS.
+    // Three recognised shapes (see top-of-file URL grammar). Anything
+    // else → 404. The /data/ shape strips its `/data` prefix before
+    // forwarding so the upstream sees data.nemar.org/<id>/<ver>/<file>.
     const url = new URL(request.url);
     let upstreamBase;
+    let upstreamPath = url.pathname;
+    let isNemarApi = false;
     if (VALID_OPENNEURO.test(url.pathname)) {
       upstreamBase = UPSTREAM_OPENNEURO;
     } else if (VALID_NEMAR.test(url.pathname)) {
       upstreamBase = UPSTREAM_NEMAR;
+    } else if (VALID_NEMAR_API.test(url.pathname)) {
+      upstreamBase = UPSTREAM_NEMAR_API;
+      upstreamPath = url.pathname.slice(NEMAR_API_PREFIX.length);
+      isNemarApi = true;
     } else {
       return new Response(
-        'Not found — path must match /dsNNNNNN/... or /nmNNNNNN/objects/<sha>',
+        'Not found — path must match /dsNNNNNN/..., ' +
+        '/(nm|on|xx)NNNNNN/objects/<sha>, or ' +
+        '/data/(nm|on|xx)NNNNNN/(latest|vN.N.N)/(manifest|metadata).json',
         { status: 404, headers: corsHeaders() }
       );
     }
 
     // --- Build upstream request ------------------------------------------
-    const upstreamUrl = `${upstreamBase}${url.pathname}`;
+    const upstreamUrl = `${upstreamBase}${upstreamPath}`;
 
     const upstreamHeaders = new Headers();
     for (const h of FORWARD_REQUEST_HEADERS) {
@@ -107,7 +128,15 @@ export default {
       if (v) upstreamHeaders.set(h, v);
     }
 
-    // --- Fetch from S3 via Cloudflare Cache API --------------------------
+    // --- Fetch from origin via Cloudflare Cache API ----------------------
+    // Cache TTL split:
+    //  - object bytes (OpenNeuro / NEMAR S3): 1 year (immutable, content-
+    //    addressed for NEMAR; published-immutable for OpenNeuro)
+    //  - data.nemar.org metadata: 5 minutes. manifest.json carries
+    //    1-hour presigned URLs; capping at 5 min leaves a 55 min margin
+    //    before any cached URL expires. metadata.json catalog data
+    //    changes on reindex, so a short TTL is also appropriate there.
+    const cacheTtl = isNemarApi ? 300 : 31536000;
     let originResponse;
     let cacheStatus = 'origin'; // will be overridden if CF cache info available
     try {
@@ -115,8 +144,7 @@ export default {
         method,
         headers: upstreamHeaders,
         cf: {
-          // Cache for 1 year — OpenNeuro datasets are published immutable
-          cacheTtl: 31536000,
+          cacheTtl,
           cacheEverything: true,
           // Use the full upstream URL as cache key so Range sub-requests
           // each get their own slot while the full object is also cacheable
@@ -154,9 +182,18 @@ export default {
     // Instrument cache hit rate — the viewer (or devtools) can read this
     responseHeaders.set('x-eegdash-cdn', cacheStatus);
 
-    // Ensure downstream browsers can also cache immutable responses
+    // Ensure downstream browsers can also cache immutable responses.
+    // S3 object bytes are content-addressed → safe to mark immutable.
+    // data.nemar.org metadata is mutable on reindex → short TTL, no
+    // immutable flag, and we prefer the upstream's own cache-control
+    // (which already sets 60s/300s) when it provides one.
     if (!responseHeaders.has('cache-control')) {
-      responseHeaders.set('cache-control', 'public, max-age=31536000, immutable');
+      responseHeaders.set(
+        'cache-control',
+        isNemarApi
+          ? 'public, max-age=300'
+          : 'public, max-age=31536000, immutable'
+      );
     }
 
     return new Response(originResponse.body, {

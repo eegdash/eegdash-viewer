@@ -299,4 +299,139 @@ describe('eegdash-cdn worker', async () => {
       restore();
     }
   });
+
+  // 14. NEMAR objects/ accepts on*/xx* prefixes too (OpenNeuro mirrors,
+  // sandbox) — same bucket layout, same SHA-keyed addressing.
+  it('proxies on* and xx* dataset ids to nemar.s3 with the same shape', async () => {
+    for (const id of ['on005262', 'xx000001']) {
+      let capturedUrl = null;
+      const restore = mockFetch((url) => {
+        capturedUrl = String(url);
+        return fakeOriginResponse({ status: 200 });
+      });
+      try {
+        const path = `/${id}/objects/SHA256E-s100--abc.edf`;
+        const req = makeRequest(path);
+        const res = await worker.fetch(req, {}, makeCtx());
+        assert.equal(res.status, 200, `expected 200 for ${id}`);
+        assert.ok(
+          capturedUrl.startsWith(`https://nemar.s3.amazonaws.com/${id}/objects/SHA256E-`),
+          `expected nemar.s3 upstream for ${id}, got ${capturedUrl}`
+        );
+      } finally {
+        restore();
+      }
+    }
+  });
+
+  // 15. data.nemar.org metadata proxy: manifest.json. The whole point is
+  // CORS — data.nemar.org sets every CORS header except Allow-Origin,
+  // which the browser requires. The worker is the bridge.
+  it('proxies /data/<id>/<version>/manifest.json to data.nemar.org with CORS', async () => {
+    let capturedUrl = null;
+    const restore = mockFetch((url) => {
+      capturedUrl = String(url);
+      return fakeOriginResponse({
+        status: 200,
+        body: '[{"path":"dataset_description.json","size":480,"checksum_algorithm":"git","checksum":"abc","url":"https://raw.githubusercontent.com/..."}]',
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    try {
+      const req = makeRequest('/data/nm000148/latest/manifest.json');
+      const res = await worker.fetch(req, {}, makeCtx());
+      assert.equal(res.status, 200);
+      assert.equal(
+        capturedUrl,
+        'https://data.nemar.org/nm000148/latest/manifest.json',
+        '/data prefix must be stripped before forwarding'
+      );
+      assert.equal(res.headers.get('access-control-allow-origin'), '*',
+        'CORS allow-origin must be * (that is the whole point of this proxy)');
+    } finally {
+      restore();
+    }
+  });
+
+  // 16. metadata.json passes through too, and accepts on*/xx* prefixes.
+  it('proxies /data/<id>/<version>/metadata.json for nm/on/xx', async () => {
+    for (const id of ['nm000148', 'on005262', 'xx000001']) {
+      let capturedUrl = null;
+      const restore = mockFetch((url) => {
+        capturedUrl = String(url);
+        return fakeOriginResponse({
+          status: 200,
+          body: '{"schema_version":"0.3.0"}',
+          headers: { 'content-type': 'application/json' },
+        });
+      });
+      try {
+        const req = makeRequest(`/data/${id}/latest/metadata.json`);
+        const res = await worker.fetch(req, {}, makeCtx());
+        assert.equal(res.status, 200, `expected 200 for ${id}`);
+        assert.equal(capturedUrl, `https://data.nemar.org/${id}/latest/metadata.json`);
+      } finally {
+        restore();
+      }
+    }
+  });
+
+  // 17. Versioned access: /data/<id>/vX.Y.Z/... must also pass the regex.
+  it('proxies pinned-version /data/<id>/vX.Y.Z/manifest.json', async () => {
+    let capturedUrl = null;
+    const restore = mockFetch((url) => {
+      capturedUrl = String(url);
+      return fakeOriginResponse({ status: 200, body: '[]', headers: { 'content-type': 'application/json' } });
+    });
+    try {
+      const req = makeRequest('/data/nm000148/v1.0.0/manifest.json');
+      const res = await worker.fetch(req, {}, makeCtx());
+      assert.equal(res.status, 200);
+      assert.equal(capturedUrl, 'https://data.nemar.org/nm000148/v1.0.0/manifest.json');
+    } finally {
+      restore();
+    }
+  });
+
+  // 18. Open-proxy guard: only manifest.json and metadata.json are
+  // allowed under /data/. A bare BIDS path or anything else 404s, so
+  // this route can't be used as a generic data.nemar.org relay.
+  it('rejects /data/<id>/<version>/<arbitrary-path>', async () => {
+    const cases = [
+      '/data/nm000148/latest/sub-1/eeg/foo.edf',
+      '/data/nm000148/latest/',
+      '/data/nm000148/latest/index.html',
+      '/data/nm000148/v1.0/manifest.json',          // version must be vX.Y.Z
+      '/data/nm000148/latest/qa/dataqual.json',     // QA out of scope here
+      '/data/ds002893/latest/manifest.json',        // ds is OpenNeuro, not NEMAR
+    ];
+    for (const p of cases) {
+      const req = makeRequest(p);
+      const res = await worker.fetch(req, {}, makeCtx());
+      assert.equal(res.status, 404, `expected 404 for ${p}`);
+    }
+  });
+
+  // 19. Manifest carries 1-hour presigned URLs. We cap CF cache at 5 min
+  // so any served-from-cache manifest still has 55 min of presign margin.
+  it('caps cache TTL at 300s for /data/ responses', async () => {
+    let capturedCf = null;
+    const restore = mockFetch((url, init) => {
+      capturedCf = init?.cf;
+      return fakeOriginResponse({ status: 200, body: '[]', headers: { 'content-type': 'application/json' } });
+    });
+    try {
+      const req = makeRequest('/data/nm000148/latest/manifest.json');
+      const res = await worker.fetch(req, {}, makeCtx());
+      assert.equal(res.status, 200);
+      assert.equal(capturedCf?.cacheTtl, 300, 'cacheTtl must be 300s for metadata');
+      // And the cache-control we hand back to the browser must reflect that.
+      const cc = res.headers.get('cache-control') || '';
+      assert.ok(/max-age=(60|300)/.test(cc), `cache-control should be short for metadata, got ${cc}`);
+      assert.ok(!cc.includes('immutable'),
+        'manifest URLs expire — must not be marked immutable');
+    } finally {
+      restore();
+    }
+  });
 });
