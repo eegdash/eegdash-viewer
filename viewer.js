@@ -650,11 +650,7 @@
     function readCachedWindow(start, n, signal) {
       const key = `${start}-${n}`;
       const hit = readCache.get(key);
-      if (hit) {
-        if (globalThis.__perf) globalThis.__perf.cacheHits++;
-        return hit;
-      }
-      if (globalThis.__perf) globalThis.__perf.cacheMisses++;
+      if (hit) return hit;
 
       let p;
       if (worker) {
@@ -1634,18 +1630,17 @@
   }
 
   // Public surface — pure helpers exposed for tests + the boot
-  // hook the page calls.
+  // hook the page calls. setPill/renderChannelColors/buildTypeColors/
+  // OKABE_ITO/ELECTRODE_EXPLORER were previously re-exported but had
+  // zero external consumers (verified by grep across tests/, index.html,
+  // and the rest of *.js). Trimmed to keep window.Viewer tight.
   const api = {
     boot,
-    el, setChildren, setPill,
+    el, setChildren,
     renderProvenance, renderChannels, renderEvents,
-    renderChannelColors,
     updateElectrodeLink, renderStageCaption,
     clampStart, deriveChannelLabels, deriveBadMask,
     pickDefaultWindowSec,
-    buildTypeColors,
-    OKABE_ITO,
-    ELECTRODE_EXPLORER,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.Viewer = api;

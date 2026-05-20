@@ -154,7 +154,6 @@
     designHighpass,
     designLowpass,
     designNotch,
-    apply,
     filtfilt,
     applyChain,
   };
