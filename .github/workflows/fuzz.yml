@@ -1,0 +1,52 @@
+name: Fuzz testing (nightly)
+
+# High-iteration fuzz testing for the four binary format parsers
+# (EDF/BDF, BrainVision, EEGLAB, FIFF). 10,000 rounds per target on
+# corpus-seeded mutations of real fixture files — too slow for per-PR
+# gating, so it runs once per night.
+#
+# Per-PR confidence comes from `tests/prop-*.test.mjs` (100 runs each,
+# part of the normal `npm test` suite). Nightly fuzz extends that
+# depth by ~100× to surface rare crashes the small property tests
+# can't reach.
+#
+# Workflow:
+#   - Scheduled at 04:00 UTC (after mutation job at 03:00, so they
+#     don't compete for the same shared runner pool)
+#   - Manual trigger via Actions → "Fuzz testing (nightly)" → Run
+#   - Evidence artifacts uploaded on every run; the `tests/evidence/
+#     fuzz/` directory may be empty when no finding has landed yet —
+#     that's fine, the upload step degrades to a no-op.
+#
+# When a fuzz target finds a crash, the runbook is documented in
+# docs/qa-strategy.md § Fuzz Testing.
+
+on:
+  schedule:
+    - cron: '0 4 * * *'  # 04:00 UTC nightly
+  workflow_dispatch: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run fuzz suite
+        run: npm run test:fuzz
+      - name: Upload fuzz evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-evidence
+          path: tests/evidence/fuzz/
+          retention-days: 14
+          if-no-files-found: ignore
