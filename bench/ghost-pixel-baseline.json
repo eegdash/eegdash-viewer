@@ -1,12 +1,49 @@
 {
-  "reference_size": {
+  "verdict": "PASS",
+  "captured_mid_stream": false,
+  "canvas_size": {
     "w": 960,
     "h": 668
   },
-  "diff": {
-    "nonZero": 0,
-    "total": 641280,
-    "rms": 0
-  },
-  "diff_ratio": 0
+  "expected_front_css": 890,
+  "samples_count": 171,
+  "max_front_css": 889,
+  "max_front_sample_idx": 0,
+  "overshoot_css": -1,
+  "regressions": 0,
+  "worst_regression_px": 0,
+  "samples_head": [
+    {
+      "maxX": 889
+    },
+    {
+      "maxX": 889
+    },
+    {
+      "maxX": 889
+    },
+    {
+      "maxX": 889
+    },
+    {
+      "maxX": 889
+    }
+  ],
+  "samples_tail": [
+    {
+      "maxX": 889
+    },
+    {
+      "maxX": 889
+    },
+    {
+      "maxX": 889
+    },
+    {
+      "maxX": 889
+    },
+    {
+      "maxX": 889
+    }
+  ]
 }
