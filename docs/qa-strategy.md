@@ -249,3 +249,41 @@ Tightening cadence: once `traces.js` is above 50%, expand `mutate` to
 add `filters.js`, `topo2d.js`, `bids-recording.js`. Do not expand to
 `viewer.js` until it can be tested under `node:test` (see the
 "eventually-modularize" thread in `docs/qa-followups.md`).
+
+## Fuzz Testing
+
+The format parsers (EDF/BDF, BrainVision, EEGLAB, FIFF) are the highest-
+leverage fuzz targets in the repo — they consume external user-provided
+binary input. The PR fast suite (`tests/prop-*.test.mjs`, 100 runs/test)
+provides per-PR safety; the nightly fuzz suite
+(`tests/fuzz-formats.test.mjs`, 10,000 runs/test) provides depth.
+
+Configuration:
+- Uses fast-check with corpus-seeded mutation (1:9 verbatim:mutated)
+- Corpus seeds: real fixtures under `tests/fixtures/` when present.
+  As of the PR introducing this section, `tests/fixtures/` only ships
+  ES-module helpers (synthetic builders, fixture URL registry), so
+  every corpus-seeded target is in "synthetic-fallback" mode: a 1 KB
+  zeroed seed with 0–16 random byte overwrites. When real .edf/.bdf/
+  .vhdr/.fif files land, add their paths to the `corpusFuzzedBuffer(
+  [...])` calls in `tests/fuzz-formats.test.mjs` to upgrade the fuzz
+  from "random noise" to "header-aware mutation".
+- Runtime budget: ~10 s locally for 60K total iterations; 30 min CI
+  timeout
+- 6 fuzz targets × 10,000 runs = 60,000 iterations per nightly run
+
+Local: `npm run test:fuzz`
+CI: nightly 04:00 UTC via `.github/workflows/fuzz.yml`
+
+When a fuzz target finds a crash:
+1. fast-check shrinks to the smallest reproducing input.
+2. Capture the bytes; pin as `examples: [...]` in the corresponding
+   `tests/prop-*.test.mjs` so PR CI catches regressions immediately.
+3. Document the bug in `docs/fuzz-findings-<date>.md`.
+4. Fix the parser; verify both the prop test and the fuzz test pass.
+
+Scope for next iteration: deepen the mutation strategy (currently
+random byte overwrites only — could add format-aware mutations like
+"corrupt the num_data_records header field", "truncate at chunk
+boundary", "duplicate a section"). Also: commit a small set of real
+fixture files so the corpus is non-synthetic.
