@@ -769,12 +769,33 @@
   // Walks the URL params on page load and returns a normalized
   // descriptor the bootstrap code feeds into loadRecordingMetadata.
   // Returns null when no params are present (cold viewer state).
+  // Allowed URL protocols for query-param-supplied recording URLs. The
+  // viewer accepts https only by default — data:/blob:/file:/javascript:
+  // are rejected to prevent (a) cross-origin SSRF-from-victim where a
+  // malicious link causes the browser to fetch an attacker URL with
+  // the viewer's referer/cookies, and (b) data:/blob: payloads that
+  // could bypass the format-reader's bounds checks. http: is permitted
+  // for localhost / dev. (SAST scanner finding P2, 2026-05-21.)
+  function isAllowedProtocol(urlString) {
+    if (typeof urlString !== 'string' || !urlString) return false;
+    try {
+      const u = new URL(urlString);
+      return u.protocol === 'https:' || u.protocol === 'http:';
+    } catch {
+      return false;
+    }
+  }
+
   api.resolveTargets = function (urlSearchParams) {
     const p = urlSearchParams;
     // Support ?eeg=, ?ieeg=, ?emg= parameters for direct URL loading
     for (const suffix of ['eeg', 'ieeg', 'emg', 'meg', 'nirs']) {
       if (p.has(suffix)) {
-        return { kind: 'url', eeg_url: p.get(suffix) };
+        const url = p.get(suffix);
+        if (!isAllowedProtocol(url)) {
+          throw new Error(`Invalid URL protocol in ?${suffix}=; only http(s) allowed.`);
+        }
+        return { kind: 'url', eeg_url: url };
       }
     }
     if (p.has('dataset')) {

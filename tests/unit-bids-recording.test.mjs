@@ -1020,3 +1020,68 @@ test('iter9 parseTsv: stripQuotes handles single and double quotes', () => {
 // ============================================================
 // End iteration 9 additions
 // ============================================================
+
+// ─── resolveTargets URL protocol validation (SAST P2 fix) ────────
+
+test('resolveTargets: rejects data: URL in ?eeg= param', () => {
+  const params = new URLSearchParams('eeg=data:text/plain;base64,SGVsbG8=');
+  assert.throws(
+    () => BIDSRecording.resolveTargets(params),
+    /Invalid URL protocol/,
+  );
+});
+
+test('resolveTargets: rejects file: URL in ?eeg= param', () => {
+  const params = new URLSearchParams('eeg=file:///etc/passwd');
+  assert.throws(
+    () => BIDSRecording.resolveTargets(params),
+    /Invalid URL protocol/,
+  );
+});
+
+test('resolveTargets: rejects javascript: URL in ?eeg= param', () => {
+  const params = new URLSearchParams('eeg=javascript:alert(1)');
+  assert.throws(
+    () => BIDSRecording.resolveTargets(params),
+    /Invalid URL protocol/,
+  );
+});
+
+test('resolveTargets: rejects blob: URL in ?eeg= param', () => {
+  const params = new URLSearchParams('eeg=blob:https://example.com/abc-123');
+  assert.throws(
+    () => BIDSRecording.resolveTargets(params),
+    /Invalid URL protocol/,
+  );
+});
+
+test('resolveTargets: accepts https URL in ?eeg= param', () => {
+  const params = new URLSearchParams('eeg=https://s3.amazonaws.com/openneuro.org/ds002034/sub-01/eeg/sub-01_eeg.edf');
+  const t = BIDSRecording.resolveTargets(params);
+  assert.equal(t.kind, 'url');
+});
+
+test('resolveTargets: accepts http URL (dev/localhost) in ?eeg= param', () => {
+  const params = new URLSearchParams('eeg=http://localhost:8011/sub-01_eeg.edf');
+  const t = BIDSRecording.resolveTargets(params);
+  assert.equal(t.kind, 'url');
+});
+
+test('resolveTargets: rejects malformed URL gracefully', () => {
+  const params = new URLSearchParams('eeg=not-a-url');
+  assert.throws(
+    () => BIDSRecording.resolveTargets(params),
+    /Invalid URL protocol/,
+  );
+});
+
+test('resolveTargets: protocol check applies to ?ieeg=, ?emg=, ?meg=, ?nirs= too', () => {
+  for (const suffix of ['ieeg', 'emg', 'meg', 'nirs']) {
+    const params = new URLSearchParams(`${suffix}=data:text/plain,evil`);
+    assert.throws(
+      () => BIDSRecording.resolveTargets(params),
+      /Invalid URL protocol/,
+      `${suffix} param must also be protocol-validated`,
+    );
+  }
+});
