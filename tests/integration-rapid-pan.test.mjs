@@ -210,3 +210,23 @@ test('rapid-pan stress: 50 pans, only the last one resolves to full data', async
   assert.ok(last, 'final stream must deliver at least one chunk');
   assert.equal(last.partial, false, 'final chunk must be terminal (partial:false)');
 });
+
+test('prefetch gate: prefetch is skipped while worker has in-flight requests', async () => {
+  // Mirrors viewer.js prefetchNeighbours() gate:
+  //   if (pendingRequests.size > 0) return;
+  // We assert the gate behaves as documented: while a stream is in flight,
+  // the queue is non-empty and prefetch must be skipped; once the stream is
+  // aborted/drained, the queue empties and prefetch is allowed again.
+  const client = makeStreamingClient();
+  const ctrl = new AbortController();
+  client.fetchStream(1000, 10, 5, ctrl.signal);
+
+  function shouldPrefetch() { return client.pendingRequests.size === 0; }
+
+  assert.equal(shouldPrefetch(), false, 'must not prefetch while a stream is in flight');
+
+  ctrl.abort();
+  // Settle one event-loop tick so the abort handler removes the pending entry.
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(shouldPrefetch(), true, 'must allow prefetch once stream is aborted/drained');
+});
