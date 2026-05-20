@@ -46,6 +46,13 @@ const READERS = {
 };
 
 let reader = null;
+// Monotonic counter bumped on every LOAD_FILE. Long-running fetches
+// (especially streaming) capture the epoch at entry and bail at every
+// await/iterator boundary if the epoch changed — protects against
+// the recording-switch race where reader A's window samples would
+// otherwise get rawCachePut into reader B's cache, corrupting
+// subsequent reads. (Worker sleuth finding 2.)
+let currentReaderEpoch = 0;
 
 // F08: Active filter chain — array of biquad coefficient objects.
 // Each entry: { kind, cutoff_hz, coefs: {b, a} }
@@ -165,6 +172,10 @@ self.onmessage = async function (evt) {
         activeFilterCoefs = [];
         rawCache.clear();
         inflightRawFetches.clear();
+        // Bump the epoch so any in-flight FETCH_WINDOW(_STREAM) from
+        // the previous recording bails before writing into the new
+        // recording's cache. (Worker sleuth finding 2.)
+        currentReaderEpoch++;
         self.postMessage({
           type: 'HEADER',
           n_channels:          reader.n_channels,
@@ -185,18 +196,27 @@ self.onmessage = async function (evt) {
           self.postMessage({ type: 'ERROR', request_id, message: 'No reader loaded' });
           return;
         }
+        // Same epoch + filter snapshot pattern as FETCH_WINDOW_STREAM
+        // (Worker sleuth findings 1 + 2). Even though FETCH_WINDOW has
+        // only one await, that's enough for APPLY_FILTER or LOAD_FILE
+        // to land between request and response.
+        const epoch = currentReaderEpoch;
+        const localReader = reader;
+        const filterSnapshot = activeFilterCoefs.slice();
+
         const cacheKey = `${start_sample}-${n_samples}`;
         // awaitInflight handles cache hit, dedupes concurrent misses,
         // and on miss pays the S3 round-trip + populates the cache.
         const rawChannels = rawCacheGet(cacheKey)
           ?? await awaitInflight(cacheKey,
-                                  () => reader.readWindow(start_sample, n_samples));
-        // Apply current filter chain to a fresh OUTPUT buffer per
+                                  () => localReader.readWindow(start_sample, n_samples));
+        if (epoch !== currentReaderEpoch) return;  // recording switched; drop
+        // Apply the snapshot filter chain to a fresh OUTPUT buffer per
         // channel — never mutate the cached raw. Each output buffer
         // is owned + transferable.
         const owned = rawChannels.map(rawCh => {
-          if (activeFilterCoefs.length > 0) {
-            return globalThis.Filters.applyChain(rawCh, activeFilterCoefs);
+          if (filterSnapshot.length > 0) {
+            return globalThis.Filters.applyChain(rawCh, filterSnapshot);
           }
           const a = new Float32Array(rawCh.length);
           a.set(rawCh);
@@ -234,16 +254,26 @@ self.onmessage = async function (evt) {
           self.postMessage({ type: 'ERROR', request_id, message: 'No reader loaded' });
           return;
         }
+        // Capture epoch + filter chain at entry. Any APPLY_FILTER /
+        // LOAD_FILE that arrives between awaits below MUST NOT change
+        // what this stream sends — the viewer's request_id contract is
+        // "the answer to the question the user asked at the moment they
+        // asked it". (Worker sleuth findings 1 + 2.)
+        const epoch = currentReaderEpoch;
+        const localReader = reader;
+        const filterSnapshot = activeFilterCoefs.slice();
+        const isStillCurrent = () => epoch === currentReaderEpoch;
 
         // If no streaming method available, fall back to non-streaming
-        if (!reader.readWindowStreaming) {
+        if (!localReader.readWindowStreaming) {
           const cacheKey = `${start_sample}-${n_samples}`;
           const rawChannels = rawCacheGet(cacheKey)
             ?? await awaitInflight(cacheKey,
-                                    () => reader.readWindow(start_sample, n_samples));
+                                    () => localReader.readWindow(start_sample, n_samples));
+          if (!isStillCurrent()) return;  // recording switched mid-fetch — drop result
           const owned = rawChannels.map(rawCh => {
-            if (activeFilterCoefs.length > 0) {
-              return globalThis.Filters.applyChain(rawCh, activeFilterCoefs);
+            if (filterSnapshot.length > 0) {
+              return globalThis.Filters.applyChain(rawCh, filterSnapshot);
             }
             const a = new Float32Array(rawCh.length);
             a.set(rawCh);
@@ -265,9 +295,19 @@ self.onmessage = async function (evt) {
         // hit branch and the dedup branch (when another concurrent
         // request is already streaming this window).
         const sendFinalFromRaw = (raw) => {
+          // Guard against the resolveInflight([]) / null edge case where
+          // the upstream stream yielded nothing. Either send an ERROR or
+          // a zero-length WINDOW_CHUNK; sending an error is the more
+          // useful signal because the main thread already handles ERROR
+          // messages cleanly. (Worker sleuth finding 4.)
+          if (!raw || raw.length === 0 || !raw[0] || raw[0].length === 0) {
+            self.postMessage({ type: 'ERROR', request_id,
+              message: 'fetch returned no data (end-of-recording or aborted)' });
+            return;
+          }
           const owned = raw.map(rawCh => {
-            if (activeFilterCoefs.length > 0) {
-              return globalThis.Filters.applyChain(rawCh, activeFilterCoefs);
+            if (filterSnapshot.length > 0) {
+              return globalThis.Filters.applyChain(rawCh, filterSnapshot);
             }
             const a = new Float32Array(rawCh.length);
             a.set(rawCh);
@@ -296,7 +336,7 @@ self.onmessage = async function (evt) {
           return;
         }
 
-        const hasFilter = activeFilterCoefs.length > 0;
+        const hasFilter = filterSnapshot.length > 0;
 
         // Register the in-flight assembly promise so concurrent
         // FETCH_WINDOW(_STREAM) for the same key dedup against us.
@@ -315,7 +355,8 @@ self.onmessage = async function (evt) {
             // rawCache assembly: accumulate into a single buffer per channel.
             let assembledChannels = null;
             let totalSamples = 0;
-            for await (const chunk of reader.readWindowStreaming(start_sample, n_samples)) {
+            for await (const chunk of localReader.readWindowStreaming(start_sample, n_samples)) {
+              if (!isStillCurrent()) { resolveInflight([]); return; }
               if (!assembledChannels) {
                 assembledChannels = chunk.channels.map(ch => {
                   const a = new Float32Array(n_samples);
@@ -330,12 +371,13 @@ self.onmessage = async function (evt) {
                 totalSamples += chunk.channels[0].length;
               }
             }
-            if (!assembledChannels) { resolveInflight(null); return; }
+            if (!assembledChannels) { resolveInflight([]); return; }
+            if (!isStillCurrent()) { resolveInflight([]); return; }
             // Trim to actual samples received
             const trimmed = assembledChannels.map(ch => ch.subarray(0, totalSamples));
             rawCachePut(cacheKey, trimmed);
             resolveInflight(rawCacheGet(cacheKey));
-            const filtered = trimmed.map(rawCh => globalThis.Filters.applyChain(rawCh, activeFilterCoefs));
+            const filtered = trimmed.map(rawCh => globalThis.Filters.applyChain(rawCh, filterSnapshot));
             const ownedFiltered = filtered.map(ch => {
               const a = new Float32Array(ch.length);
               a.set(ch);
@@ -352,7 +394,8 @@ self.onmessage = async function (evt) {
             // Assemble into rawCache simultaneously (deep copy each chunk).
             let assembledChannels = null;
             let totalSamples = 0;
-            for await (const chunk of reader.readWindowStreaming(start_sample, n_samples)) {
+            for await (const chunk of localReader.readWindowStreaming(start_sample, n_samples)) {
+              if (!isStillCurrent()) { resolveInflight([]); return; }
               const chunkLen = chunk.channels[0].length;
               if (!assembledChannels) {
                 assembledChannels = chunk.channels.map(() => new Float32Array(n_samples));
@@ -377,7 +420,8 @@ self.onmessage = async function (evt) {
               );
             }
 
-            if (!assembledChannels) { resolveInflight(null); return; }
+            if (!assembledChannels) { resolveInflight([]); return; }
+            if (!isStillCurrent()) { resolveInflight([]); return; }
             // Populate rawCache with complete assembled buffer
             const trimmed = assembledChannels.map(ch => ch.subarray(0, totalSamples));
             rawCachePut(cacheKey, trimmed);
