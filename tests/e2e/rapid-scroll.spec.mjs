@@ -126,3 +126,35 @@ test('RAPID-2: rapid pan at devicePixelRatio=2 leaves no ghost residue', async (
     await context.close();
   }
 });
+
+test('RAPID-3: viewport resize while streaming does not leave dead pixels', async ({ page }) => {
+  // resize fires requestRender(); deviceFitCanvas resets dims and the next
+  // draw re-fits the backing store. If the streaming render aborts then
+  // restarts with stale `plotW` cached from the closure, the new render
+  // can paint into the wrong region. This test sets a smaller viewport
+  // mid-stream and asserts the canvas refits cleanly.
+  const dir = evidenceDir('rapid-3-resize');
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text());
+  });
+
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
+  await waitForLoad(page);
+  await page.waitForTimeout(500);
+
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(30);
+  await page.setViewportSize({ width: 900, height: 700 });
+  await page.waitForTimeout(30);
+  await page.setViewportSize({ width: 1400, height: 900 });
+
+  const after = await settle(page);
+  await page.screenshot({ path: path.join(dir, 'after-resize.png') });
+  fs.writeFileSync(path.join(dir, 'pixel-counts.json'), JSON.stringify({ after }, null, 2));
+
+  expect(errors).toHaveLength(0);
+  expect(after).toBeGreaterThan(500);
+});
