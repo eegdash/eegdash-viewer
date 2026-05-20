@@ -199,3 +199,93 @@ By mutator (top survivors):
 - StringLiteral survivors (37 of them) are mostly font/color constants
   that the visual tests don't actually verify. Either accept-document
   them or add a pixel-level visual diff.
+
+## Iteration 3 (PR 6, 2026-05-20)
+
+Score: 54.55% (killed: 348 / total: 649, with 6 timeouts and 295 survivors)
+Delta vs iteration 2: +10.79 pp (43.76% → 54.55%)
+
+Tests added:
+- `tests/unit-traces-time-axis.test.mjs` (new file, 32 tests):
+  - `secToHHMMSS` boundary cases: 00:00:00, 00:59:59, 01:00:00, 02:02:02,
+    23:59:59, exact-midnight wrap (86400), past-midnight wrap (90000),
+    fractional floor (45.7 → "00:00:45"). 8 tests.
+  - `isoToSecOfDay` parsing + null fallback: null, '', non-ISO string,
+    midnight, +1h, end-of-day max, ISO with .ms suffix (truncated). 7 tests.
+  - `computeTimeTicks` step selection from the niceSteps table:
+    span=10 → step=1, span=100 → step=10, span=0.07 → step=0.01,
+    floating-point edge (span=0.7 yields step=0.05 because 0.7/7 is
+    0.0999...9 in IEEE 754), boundary pair at span=0.7000001 → step=0.1.
+    5 tests.
+  - `computeTimeTicks` clock vs numeric mode branch: numeric mode →
+    useClock=false; clock mode with valid ISO → HH:MM:SS labels
+    ("10:00:00" through "10:00:10"); clock mode with null ISO →
+    useClock=false fallback. 3 tests.
+  - `computeTimeTicks` first-tick alignment: (5,15) → first=5,
+    (5.5,10.5) → step=0.5 and first=5.5. Endpoint inclusion: (0,10,step=1)
+    → 11 ticks (t=0..10 inclusive, exercises the `t <= t1Sec + 1e-9`
+    loop guard). 3 tests.
+  - `formatScale` µV/mV boundary: 0.50 µV (sub-microvolt branch), 50 µV,
+    999 µV (just under boundary), 1.0 mV (exact mV boundary), 5.5 mV.
+    5 tests.
+  - Plus 1 export-sanity test.
+
+Source changes (debug exports only, NO behaviour changes):
+- `_secToHHMMSS`, `_isoToSecOfDay`, `_computeTimeTicks`, `_formatScale`
+  added to the `api` object in traces.js (mirrors the existing
+  `_niceRound` pattern). Function bodies untouched.
+
+Discrepancies found (documented, not fixed):
+- `_computeTimeTicks(0, 0.7, ...)` returns step=0.05 — NOT 0.1 as a
+  naive reading of the niceSteps table would suggest. Cause:
+  `0.7 / 7 === 0.09999999999999999` in IEEE 754, which is strictly less
+  than 0.1, so the `s <= target` scan stops at 0.05. The test pins this
+  behaviour explicitly (with a sister test at span=0.7000001 → step=0.1
+  to bound both sides of the float boundary). This is implementation-
+  faithful, not a bug to fix in this PR.
+- `_computeTimeTicks(5.5, 10.5, ...)` returns step=0.5 — the iteration-3
+  plan initially claimed step=1 (first tick at 6), but the actual target
+  is span/7 ≈ 0.714, which puts step at 0.5 and first tick at 5.5. Test
+  pins the actual contract.
+
+Threshold change:
+- `break: 38` → `break: 49` (new_score - 5, rounded down). The +10.79 pp
+  jump is large enough to warrant a firmer floor; 49 still leaves 5.5 pp
+  of noise headroom.
+
+Remaining survivors after iteration 3 (top clusters):
+
+| Lines     | Survivors | What lives here                                                |
+|-----------|----------:|----------------------------------------------------------------|
+| 350-399   |        43 | `drawTimeAxis` clock-mode label/minor-tick rendering branches  |
+| 200-249   |        37 | `drawScaleBar` geometry (moveTo/lineTo coordinates, fillText)  |
+| 500-549   |        35 | Pagination tail / per-channel slice edges                      |
+| 250-299   |        26 | `drawEventMarkers` body (label collision, slice(0,14), etc.)   |
+| 600-649   |        25 | IIFE-export noise (mostly equivalent — see Acceptable section) |
+| 150-199   |        27 | Header constants + `niceRound` interior                        |
+| 100-149   |        21 | Color/font constants (StringLiteral survivors)                 |
+
+By mutator (top survivors):
+
+| Mutator              | Survived |
+|---------------------|---------:|
+| ArithmeticOperator  |       81 |
+| ConditionalExpression |     78 |
+| EqualityOperator    |       54 |
+| StringLiteral       |       29 |
+| LogicalOperator     |       13 |
+
+**Next iteration should target:**
+- `drawTimeAxis` rendering geometry (lines 333-410). The pure helpers
+  are now covered; the remaining 43 survivors in 350-399 are the
+  visual rendering path (moveTo/lineTo for minor ticks, fillText for
+  labels). Extending the `unit-traces-draw` harness to record axis
+  calls would attack this directly.
+- `drawScaleBar` geometry (lines 217-244). Same pattern: 37 survivors
+  in 200-249 are mostly geometry. Direct unit test with mocked ctx +
+  assertions on `moveTo` coordinates and `fillText` arg.
+- `drawEventMarkers` body (lines 250-284). 26 survivors. The label
+  collision logic (`if (x - lastLabelX < 32) continue`) and the
+  `.slice(0, 14)` truncation are likely the biggest unattacked branches.
+- StringLiteral survivors (29 left): font/color constants. Same
+  recommendation as iteration 2 — either accept-document or pixel diff.
