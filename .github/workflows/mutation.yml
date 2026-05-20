@@ -1,0 +1,45 @@
+name: Mutation testing (nightly)
+
+# Stryker mutation testing on traces.js. Runs nightly because a full
+# pass is ~2-15 minutes depending on cache state; that's too slow for
+# per-PR gating. Per-PR confidence comes from `npm run test:coverage`
+# (c8 gate) — mutation testing complements coverage with kill ratio.
+#
+# Workflow:
+#   - Scheduled at 03:00 UTC (off-peak)
+#   - Manual trigger via Actions → "Mutation testing (nightly)" → Run
+#   - Artifacts uploaded on every run (success or failure) so the
+#     HTML report and incremental cache are inspectable post-run.
+#
+# Tightening cadence: see docs/qa-strategy.md § Mutation Testing.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 03:00 UTC nightly
+  workflow_dispatch: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # incremental run needs git history
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run Stryker
+        run: npm run mutation
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          retention-days: 30
