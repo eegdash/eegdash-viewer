@@ -11,6 +11,8 @@
 // fast-check ships as CJS; bridge via createRequire so this module
 // works whether the test file imports us from .mjs (most cases) or
 // requires us from a CJS sandbox.
+import fs from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const fc = require('fast-check');
@@ -113,6 +115,76 @@ export const brainVisionVhdrText = fc
     }
     return { text: lines.join('\n'), sections };
   });
+
+// ---- corpus-seeded mutation fuzz ----------------------------------
+
+/**
+ * Build a fast-check arbitrary that yields either a real-file corpus
+ * member (verbatim) OR a fuzzed mutation of a real file (random byte
+ * overwrites on a copy). The mix is 1:9 in favor of mutations —
+ * verbatim corpus members exercise the happy path; mutations exercise
+ * the boundary between "well-formed" and "garbage". This is the same
+ * technique libFuzzer / OSS-Fuzz uses with `--corpus-dir`.
+ *
+ * Used by the nightly fuzz suite to seed each parser with realistic
+ * starting bytes before letting fast-check shrink down failing
+ * counterexamples to the smallest reproducing case.
+ *
+ * Missing files are skipped silently; if no path resolves to a real
+ * file, the arbitrary falls back to a small synthetic seed so the
+ * fuzz still runs (with reduced realism — document in the test file
+ * when this is the case).
+ *
+ * @param {string[]} relativePaths - paths under tests/fixtures/
+ * @returns {fc.Arbitrary<Uint8Array>}
+ */
+export function corpusFuzzedBuffer(relativePaths) {
+  const corpus = [];
+  for (const rel of relativePaths) {
+    const abs = path.resolve('tests/fixtures', rel);
+    try {
+      corpus.push(new Uint8Array(fs.readFileSync(abs)));
+    } catch {
+      // missing fixture file — skip and continue
+    }
+  }
+  if (corpus.length === 0) {
+    // Synthetic fallback: 1 KB of zeros. Mutation will turn this into
+    // arbitrary low-entropy noise, which still flushes most "doesn't
+    // crash on garbage" properties even without a realistic header.
+    corpus.push(new Uint8Array(1024));
+  }
+
+  // 10% verbatim, 90% mutated. Mutation strategy: 0-16 random byte
+  // overwrites at deterministic positions driven by a tiny LCG.
+  // Shrinkable on both the seed and the mutation count so fast-check
+  // can find minimal counterexamples.
+  return fc.oneof(
+    { weight: 1, arbitrary: fc.constantFrom(...corpus) },
+    {
+      weight: 9,
+      arbitrary: fc.tuple(
+        fc.constantFrom(...corpus),
+        fc.integer({ min: 0, max: 0xffff }),  // mutation seed
+        fc.integer({ min: 0, max: 16 }),       // # of mutations
+      ).map(([base, seed, nMutations]) => {
+        const out = new Uint8Array(base.length);
+        out.set(base);
+        if (out.length === 0) return out;
+        // Tiny LCG (Numerical Recipes constants) for deterministic,
+        // shrink-friendly mutations. Avoids importing a PRNG dep.
+        let s = seed || 1;
+        for (let m = 0; m < nMutations; m++) {
+          s = (s * 1103515245 + 12345) & 0x7fffffff;
+          const idx = s % out.length;
+          s = (s * 1103515245 + 12345) & 0x7fffffff;
+          out[idx] = s & 0xff;
+        }
+        return out;
+      }),
+    },
+  );
+}
 
 // ---- determinism helper -------------------------------------------
 
