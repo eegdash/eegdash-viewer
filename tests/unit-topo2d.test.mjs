@@ -1250,3 +1250,755 @@ describe('EEGTopo2D global', () => {
     });
   });
 });
+
+// ============================================================
+// Iteration 8 (PR 14): golden-output assertions
+// ------------------------------------------------------------
+// topo2d.js had 91% c8 line coverage but only 37.36% mutation score —
+// 253 of 384 survivors were StringLiteral mutants on DOM-attribute
+// strings + path-coordinate template literals, plus 31 Arithmetic +
+// 18 UnaryOperator mutants on coordinate math. The fix is to read
+// back exact attribute values and pin them with deepEqual, instead
+// of merely checking "an element exists" or "opacity changed".
+// ============================================================
+
+// Helper: pull every attribute as a plain object so we can deepEqual it.
+function attrsOf(el) {
+  return { ...el._attrs };
+}
+
+// ---------------------------------------------------------------------------
+// Sphere outline: full golden DOM
+// ---------------------------------------------------------------------------
+
+describe('sphere outline — golden DOM', () => {
+  beforeEach(() => { setupGlobals(); });
+  afterEach(() => { teardownGlobals(); });
+
+  test('sphere outline has 9 children in canonical order', () => {
+    // buildOutline appends in a fixed order: head, 3 rings, nose, earL,
+    // earR, crossV, crossH = 9 children. A mutation that drops the
+    // appendChild of any single element fails count.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', { electrodes: [{ name: 'Cz', ux: 0, uy: 0, uz: 1, region: 'central' }] });
+    const gOut = ctr.children[0].children[0];
+    assert.equal(gOut.children.length, 9, 'sphere outline child count');
+  });
+
+  test('sphere head circle: exact attribute set', () => {
+    // Kills StringLiteral mutants on lines 126-134 (the head circle):
+    // cx/cy=0, r=1, fill var, stroke var, stroke-width 0.012, opacity 0.6.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', { electrodes: [{ name: 'Cz', ux: 0, uy: 0, uz: 1, region: 'central' }] });
+    const head = ctr.children[0].children[0].children[0];
+    assert.equal(head.tagName, 'circle');
+    assert.deepEqual(attrsOf(head), {
+      cx: '0',
+      cy: '0',
+      r: '1',
+      fill: 'var(--surface, #f7f6f2)',
+      stroke: 'var(--ink, #17181a)',
+      'stroke-width': '0.012',
+      opacity: '0.6',
+    });
+  });
+
+  test('sphere reference rings: 3 rings at radii [0.25, 0.5, 0.75] for ≤200 electrodes', () => {
+    // Kills line 143-145 mutants on the dense-vs-sparse ring selection
+    // (the `electrodes.length > 200` predicate) AND the ring-radii
+    // ArrayDeclaration mutants on line 144 ([0.25, 0.5, 0.75]).
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    // 8 electrodes is well under 200 → sparse rings.
+    api.setMontage('t', STD_MONTAGE);
+    const gOut = ctr.children[0].children[0];
+    // Rings are children[1..3] in sphere mode.
+    const rs = [gOut.children[1], gOut.children[2], gOut.children[3]];
+    assert.deepEqual(rs.map(r => r.getAttribute('r')), ['0.25', '0.5', '0.75']);
+    // Opacity 0.45 in sparse mode (kills line 145 string mutant).
+    rs.forEach(r => assert.equal(r.getAttribute('opacity'), '0.45'));
+    // Stroke is var(--ink-3, #b5b8bd), dash pattern is "0.012 0.018".
+    rs.forEach(r => {
+      assert.equal(r.getAttribute('stroke'), 'var(--ink-3, #b5b8bd)');
+      assert.equal(r.getAttribute('stroke-dasharray'), '0.012 0.018');
+      assert.equal(r.getAttribute('fill'), 'none');
+      assert.equal(r.getAttribute('stroke-width'), '0.003');
+    });
+  });
+
+  test('sphere reference rings: dense (>200 electrodes) → 2 rings at [0.33, 0.66] opacity 0.35', () => {
+    // The dense-mode branch on line 144 — kills the
+    // `dense ? [0.33, 0.66] : [0.25, 0.5, 0.75]` mutants and the
+    // `0.35 : 0.45` opacity flip on line 145.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    const electrodes = Array.from({ length: 256 }, (_, i) => ({
+      name: `E${i + 1}`,
+      ux: Math.cos(i / 256 * 2 * Math.PI) * 0.5,
+      uy: Math.sin(i / 256 * 2 * Math.PI) * 0.5,
+      uz: 0.5,
+      region: 'other',
+    }));
+    api.setMontage('t', { electrodes });
+    const gOut = ctr.children[0].children[0];
+    // Dense: only 2 rings → children = head, ring1, ring2, nose, earL,
+    // earR, crossV, crossH = 8 children (one fewer than sparse).
+    assert.equal(gOut.children.length, 8);
+    const rs = [gOut.children[1], gOut.children[2]];
+    assert.deepEqual(rs.map(r => r.getAttribute('r')), ['0.33', '0.66']);
+    rs.forEach(r => assert.equal(r.getAttribute('opacity'), '0.35'));
+  });
+
+  test('sphere ring threshold at exactly 200 electrodes → still sparse (3 rings)', () => {
+    // Pins the `electrodes.length > 200` predicate — at exactly 200,
+    // the condition is FALSE, so we're in sparse mode. Kills the
+    // `>= 200` mutant.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    const electrodes = Array.from({ length: 200 }, (_, i) => ({
+      name: `E${i + 1}`,
+      ux: 0, uy: 0, uz: 1, region: 'other',
+    }));
+    api.setMontage('t', { electrodes });
+    const gOut = ctr.children[0].children[0];
+    // Sparse: 3 rings → 9 total outline children.
+    assert.equal(gOut.children.length, 9, 'at exactly 200 electrodes, outline still sparse');
+  });
+
+  test('sphere nose path: exact "d" attribute string', () => {
+    // Pins the nose path coordinates verbatim (line 162-166). Kills
+    // StringLiteral mutants on the path d attribute AND ArithmeticOperator
+    // mutants on the coordinate constants embedded in the string.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', STD_MONTAGE);
+    const nose = ctr.children[0].children[0].children[4];
+    assert.equal(nose.tagName, 'path');
+    assert.equal(
+      nose.getAttribute('d'),
+      'M -0.15 -0.992 Q -0.06 -1.08, 0 -1.12 Q 0.06 -1.08, 0.15 -0.992');
+    assert.equal(nose.getAttribute('stroke-linejoin'), 'round');
+    assert.equal(nose.getAttribute('stroke-linecap'), 'round');
+  });
+
+  test('sphere left ear path: exact "d" attribute', () => {
+    // Kills the StringLiteral mutants on line 177-181 (the left-ear
+    // path). The Q-curve and C-bezier control points are pinned.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', STD_MONTAGE);
+    const earL = ctr.children[0].children[0].children[5];
+    assert.equal(earL.tagName, 'path');
+    assert.equal(
+      earL.getAttribute('d'),
+      'M -0.99 -0.13 C -1.05 -0.09, -1.07 0.02, -1.06 0.09 C -1.05 0.15, -1.03 0.18, -0.995 0.18');
+  });
+
+  test('sphere right ear path: exact "d" attribute (mirror of left, +x)', () => {
+    // Right ear is at +X (line 190-193). Kills the symmetric mirror
+    // StringLiteral mutants.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', STD_MONTAGE);
+    const earR = ctr.children[0].children[0].children[6];
+    assert.equal(earR.tagName, 'path');
+    assert.equal(
+      earR.getAttribute('d'),
+      'M 0.99 -0.13 C 1.05 -0.09, 1.07 0.02, 1.06 0.09 C 1.05 0.15, 1.03 0.18, 0.995 0.18');
+  });
+
+  test('sphere crosshairs: vertical at x=0, horizontal at y=0, both ±1', () => {
+    // Pins the crosshair line endpoints. Kills UnaryOperator and
+    // StringLiteral mutants on lines 204-218.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', STD_MONTAGE);
+    const gOut = ctr.children[0].children[0];
+    const crossV = gOut.children[7];
+    const crossH = gOut.children[8];
+    assert.equal(crossV.tagName, 'line');
+    assert.equal(crossH.tagName, 'line');
+    assert.deepEqual(
+      { x1: crossV.getAttribute('x1'), y1: crossV.getAttribute('y1'),
+        x2: crossV.getAttribute('x2'), y2: crossV.getAttribute('y2') },
+      { x1: '0', y1: '-1', x2: '0', y2: '1' });
+    assert.deepEqual(
+      { x1: crossH.getAttribute('x1'), y1: crossH.getAttribute('y1'),
+        x2: crossH.getAttribute('x2'), y2: crossH.getAttribute('y2') },
+      { x1: '-1', y1: '0', x2: '1', y2: '0' });
+    // Both share the same dash + opacity contract.
+    assert.equal(crossV.getAttribute('stroke-dasharray'), '0.02 0.02');
+    assert.equal(crossV.getAttribute('opacity'), '0.35');
+    assert.equal(crossH.getAttribute('opacity'), '0.35');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Flat outline: golden DOM
+// ---------------------------------------------------------------------------
+
+describe('flat outline — golden DOM', () => {
+  beforeEach(() => { setupGlobals(); });
+  afterEach(() => { teardownGlobals(); });
+
+  test('flat outline (emg): 3 children — box + 2 crosshair lines, NO head silhouette', () => {
+    // EMG does NOT carry a head reference (line 228 set). Kills the
+    // line 258 `if (!withHead) return` guard mutation: flipping it
+    // would add the head circle/nose/ears unconditionally.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat',
+      modality: 'emg',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const gOut = ctr.children[0].children[0];
+    assert.equal(gOut.children.length, 3, 'emg flat outline: box + 2 crosshairs only');
+    assert.equal(gOut.children[0].tagName, 'rect');
+    assert.equal(gOut.children[1].tagName, 'line');
+    assert.equal(gOut.children[2].tagName, 'line');
+  });
+
+  test('flat outline (ieeg): 7 children — box + 2 crosshair lines + head circle + nose + 2 ears', () => {
+    // iEEG DOES carry a head reference (line 228). Kills the
+    // MODALITIES_WITH_HEAD_REFERENCE Set membership mutants.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat',
+      modality: 'ieeg',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const gOut = ctr.children[0].children[0];
+    assert.equal(gOut.children.length, 7);
+    assert.equal(gOut.children[3].tagName, 'circle');  // head silhouette
+    assert.equal(gOut.children[3].getAttribute('r'), '0.85');  // headR pinned
+    assert.equal(gOut.children[3].getAttribute('opacity'), '0.5');
+    assert.equal(gOut.children[3].getAttribute('stroke-dasharray'), '0.02 0.02');
+  });
+
+  test('flat outline (fnirs): also gets head silhouette', () => {
+    // fNIRS is in MODALITIES_WITH_HEAD_REFERENCE — kills the mutant
+    // that drops fnirs from the Set.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat',
+      modality: 'fnirs',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const gOut = ctr.children[0].children[0];
+    assert.equal(gOut.children.length, 7);
+  });
+
+  test('flat outline (nirs alias): also gets head silhouette', () => {
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat',
+      modality: 'nirs',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const gOut = ctr.children[0].children[0];
+    assert.equal(gOut.children.length, 7);
+  });
+
+  test('flat outline rect: exact bounding box ±1 with rx=0.02', () => {
+    // Pins line 237-243 attributes. Kills UnaryOperator (-1 → +1),
+    // ArithmeticOperator on width/height (2 → 0, etc.), and
+    // StringLiteral mutants on the rx corner-radius.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat',
+      modality: 'emg',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const rect = ctr.children[0].children[0].children[0];
+    assert.deepEqual(attrsOf(rect), {
+      x: '-1',
+      y: '-1',
+      width: '2',
+      height: '2',
+      fill: 'var(--surface, #f7f6f2)',
+      stroke: 'var(--ink, #17181a)',
+      'stroke-width': '0.008',
+      opacity: '0.6',
+      rx: '0.02',
+    });
+  });
+
+  test('flat outline nose path (ieeg): pins the computed coordinates from headR=0.85', () => {
+    // The nose path d is built from template literals containing
+    // expressions like `${-0.12 * headR} ${-headR * 0.995}` (lines 282-285).
+    // Kills ArithmeticOperator mutants (multiply→divide), UnaryOperator
+    // mutants (sign flip), and StringLiteral mutants on the entire d.
+    //
+    // Golden values: headR = 0.85.
+    //   -0.12 * 0.85 = -0.102
+    //   -0.85 * 0.995 = -0.84575
+    //   -0.05 * 0.85 = -0.0425
+    //   -0.85 * 1.08 = -0.918
+    //   -0.85 * 1.12 = -0.952 (JS prints as -0.9520000000000001)
+    //   0.05 * 0.85 = 0.0425
+    //   0.12 * 0.85 = 0.102
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat', modality: 'ieeg',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const nose = ctr.children[0].children[0].children[4];
+    assert.equal(nose.tagName, 'path');
+    assert.equal(
+      nose.getAttribute('d'),
+      'M -0.102 -0.84575 Q -0.0425 -0.918, 0 -0.9520000000000001 Q 0.0425 -0.918, 0.102 -0.84575');
+  });
+
+  test('flat outline left ear (ieeg): pins all 7 coordinate pairs from headR=0.85', () => {
+    // Lines 297-306 — left ear (sign=-1). Kills coordinate-arithmetic
+    // mutants on every cx/cy in the C-bezier path.
+    // -0.85 * 0.995 = -0.84575
+    // -1 * 0.85 * 1.06 = -0.901
+    // -0.85 * 0.13 = -0.1105
+    // -1 * 0.85 * 1.08 = -0.918
+    // 0.02 * 0.85 = 0.017
+    // -1 * 0.85 * 1.07 = -0.9095
+    // 0.09 * 0.85 = 0.0765
+    // 0.15 * 0.85 = 0.1275
+    // -1 * 0.85 * 1.04 = -0.884
+    // 0.18 * 0.85 = 0.153
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat', modality: 'ieeg',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const earL = ctr.children[0].children[0].children[5];
+    assert.equal(
+      earL.getAttribute('d'),
+      'M -0.84575 -0.1105 C -0.901 -0.0765, -0.918 0.017, -0.9095 0.0765 C -0.901 0.1275, -0.884 0.153, -0.84575 0.153');
+  });
+
+  test('flat outline right ear (ieeg): mirror of left (positive x)', () => {
+    // Same template, sign=+1. Pins the sign multiplier semantics.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat', modality: 'ieeg',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const earR = ctr.children[0].children[0].children[6];
+    assert.equal(
+      earR.getAttribute('d'),
+      'M 0.84575 -0.1105 C 0.901 -0.0765, 0.918 0.017, 0.9095 0.0765 C 0.901 0.1275, 0.884 0.153, 0.84575 0.153');
+  });
+
+  test('flat outline modality lowercased: "FNIRS" treated as "fnirs"', () => {
+    // setMontage on line 543 lowercases data.modality. Kills the
+    // .toLowerCase() mutant — without it, "FNIRS" would miss the Set
+    // membership test and the head silhouette wouldn't be drawn.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat', modality: 'FNIRS',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const gOut = ctr.children[0].children[0];
+    assert.equal(gOut.children.length, 7,
+      'uppercased "FNIRS" should still produce head silhouette');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Landmarks: golden text positions
+// ---------------------------------------------------------------------------
+
+describe('landmarks — golden positions and labels', () => {
+  beforeEach(() => { setupGlobals(); });
+  afterEach(() => { teardownGlobals(); });
+
+  test('landmarks: 4 entries in canonical order Nasion, Inion, LPA, RPA with exact positions', () => {
+    // Pins the LANDMARKS array (line 317-322) — coords, anchors,
+    // baselines. Kills:
+    //   - StringLiteral mutants on the names ("Nasion" → "Stryker")
+    //   - StringLiteral mutants on the anchors
+    //   - UnaryOperator mutants on the y coordinates (sign flip)
+    //   - .toUpperCase() mutant on line 345
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', STD_MONTAGE);
+    const gLm = ctr.children[0].children[1];
+    assert.equal(gLm.children.length, 4);
+
+    const expected = [
+      { text: 'NASION', x: '0',     y: '-1.06', anchor: 'middle', baseline: 'bottom' },
+      { text: 'INION',  x: '0',     y: '1.06',  anchor: 'middle', baseline: 'hanging' },
+      { text: 'LPA',    x: '-1.06', y: '0',     anchor: 'end',    baseline: 'middle' },
+      { text: 'RPA',    x: '1.06',  y: '0',     anchor: 'start',  baseline: 'middle' },
+    ];
+    for (let i = 0; i < expected.length; i++) {
+      const e = expected[i];
+      const t = gLm.children[i];
+      assert.equal(t.tagName, 'text');
+      assert.equal(t.textContent, e.text, `landmark ${i} text`);
+      assert.equal(t.getAttribute('x'), e.x, `landmark ${i} x`);
+      assert.equal(t.getAttribute('y'), e.y, `landmark ${i} y`);
+      assert.equal(t.getAttribute('text-anchor'), e.anchor, `landmark ${i} anchor`);
+      assert.equal(t.getAttribute('dominant-baseline'), e.baseline, `landmark ${i} baseline`);
+      // Pinned styling (line 339-344).
+      assert.equal(t.getAttribute('font-size'), '0.045');
+      assert.equal(t.getAttribute('opacity'), '0.7');
+      assert.equal(t.getAttribute('letter-spacing'), '0.02em');
+    }
+  });
+
+  test('landmarks: flat layout hides the landmarks group regardless of showLandmarks', () => {
+    // Kills the line 328-331 flat-mode guard mutation. Even with
+    // showLandmarks default true, flat → display:none.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat', modality: 'ieeg',
+      electrodes: [{ name: 'X', ux: 0, uy: 0, uz: 0, region: 'other' }],
+    });
+    const gLm = ctr.children[0].children[1];
+    assert.equal(gLm.style.display, 'none');
+    assert.equal(gLm.children.length, 0,
+      'flat-mode landmarks group should not be populated with text');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Projection: golden (cx, cy) values
+// ---------------------------------------------------------------------------
+
+describe('projection — golden cx/cy for canonical electrodes', () => {
+  beforeEach(() => { setupGlobals(); });
+  afterEach(() => { teardownGlobals(); });
+
+  test('canonical 10-20 montage: every electrode projects to its known (cx, cy)', () => {
+    // Pins the project() function (lines 49-64). Kills:
+    //   - ArithmeticOperator mutants on `theta = acos(uz)`, `az = atan2(ux, uy)`,
+    //     `r * sin(az)`, `-r * cos(az)`
+    //   - UnaryOperator on `-r * cos(az)` (would flip the y axis)
+    //   - The Math.PI/2 divisor (would put Cz at the edge instead of center)
+    //
+    // Golden coordinates derived from the formulas:
+    //   r = min(1, acos(uz) / (PI/2)), x = r*sin(atan2(ux,uy)), y = -r*cos(atan2(ux,uy))
+    //
+    // Note on float quirks:
+    //   - T7/T8 cy is -6.123e-17 (cos(PI/2) is not exactly 0 in IEEE 754).
+    //     We use approximate match (|cy| < 1e-15).
+    //   - Fp1/Fp2 cx and cy carry their full 17-digit IEEE doubles.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      electrodes: [
+        { name: 'Cz',  ux: 0,      uy: 0,      uz: 1,    region: 'central' },
+        { name: 'Fz',  ux: 0,      uy: 0.707,  uz: 0.707, region: 'frontal' },
+        { name: 'T7',  ux: -1,     uy: 0,      uz: 0,    region: 'temporal' },
+        { name: 'T8',  ux: 1,      uy: 0,      uz: 0,    region: 'temporal' },
+        { name: 'Fp1', ux: -0.309, uy: 0.951,  uz: 0,    region: 'frontal' },
+        { name: 'Fp2', ux: 0.309,  uy: 0.951,  uz: 0,    region: 'frontal' },
+      ],
+    });
+    const dots = ctr.children[0].children[2].children;
+    function pos(i) {
+      return { cx: parseFloat(dots[i].getAttribute('cx')),
+               cy: parseFloat(dots[i].getAttribute('cy')) };
+    }
+    // Cz: exact (0, 0) — uz=1 ⇒ theta=0 ⇒ r=0.
+    assert.deepEqual(pos(0), { cx: 0, cy: 0 });
+    // Fz: cx=0 (midline), cy ≈ -0.5 (front; the -cos(0) y-flip).
+    // Pinned value from the formula: r ≈ 0.5001 ⇒ y ≈ -0.5001.
+    const fz = pos(1);
+    assert.equal(fz.cx, 0);
+    assert.ok(Math.abs(fz.cy - (-0.5000961295870888)) < 1e-12,
+      `Fz cy=${fz.cy} expected -0.5000961295870888 (pinned)`);
+    // T7: cx=-1, cy≈0 (within float epsilon).
+    const t7 = pos(2);
+    assert.equal(t7.cx, -1);
+    assert.ok(Math.abs(t7.cy) < 1e-15, `T7 cy=${t7.cy} expected ~0`);
+    // T8: cx=+1, cy≈0.
+    const t8 = pos(3);
+    assert.equal(t8.cx, 1);
+    assert.ok(Math.abs(t8.cy) < 1e-15, `T8 cy=${t8.cy} expected ~0`);
+    // Fp1: pinned IEEE 754 doubles.
+    assert.deepEqual(pos(4), {
+      cx: -0.3090182326136022,
+      cy: -0.9510561139661349,
+    });
+    // Fp2: mirror of Fp1 across the midline.
+    assert.deepEqual(pos(5), {
+      cx: 0.3090182326136022,
+      cy: -0.9510561139661349,
+    });
+  });
+
+  test('below-equator electrode (uz=-0.5) clamps to r=1 — exactly (0, -1) when uy=1', () => {
+    // Pins the r = Math.min(1, theta / (PI/2)) clamp on line 56.
+    // With ux=0, uy=1, uz=-0.5: theta = acos(-0.5) = 2pi/3 > pi/2,
+    // so r clamps to 1. atan2(0, 1)=0 ⇒ x=sin(0)=0, y=-cos(0)=-1.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      electrodes: [{ name: 'Sub', ux: 0, uy: 1, uz: -0.5, region: 'central' }],
+    });
+    const d = ctr.children[0].children[2].children[0];
+    assert.equal(parseFloat(d.getAttribute('cx')), 0);
+    assert.equal(parseFloat(d.getAttribute('cy')), -1);
+  });
+
+  test('uz clamp at -1: acos(-1.5) is NaN, but Math.max/min clamps -1.5 to -1', () => {
+    // Pins the line 53 Math.max(-1, Math.min(1, u.uz)) double clamp.
+    // Without the clamp, acos(-1.5) returns NaN and breaks everything.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      electrodes: [{ name: 'Sub', ux: 0, uy: 1, uz: -1.5, region: 'central' }],
+    });
+    const d = ctr.children[0].children[2].children[0];
+    const cx = parseFloat(d.getAttribute('cx'));
+    const cy = parseFloat(d.getAttribute('cy'));
+    // With uz clamped to -1: theta = acos(-1) = PI, r = min(1, PI/(PI/2)) = min(1, 2) = 1.
+    // Same x=0, y=-1 as uz=-0.5.
+    assert.equal(cx, 0);
+    assert.equal(cy, -1);
+  });
+
+  test('flat mode: cx=ux exactly, cy=-uy exactly (no clamp, no projection)', () => {
+    // Pins line 63 `return { x: u.ux, y: -u.uy }`. Kills the
+    // UnaryOperator mutant on the y-flip.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      layoutStyle: 'flat',
+      electrodes: [
+        { name: 'A', ux: 0.123, uy: 0.456, uz: 0, region: 'other' },
+        { name: 'B', ux: -0.789, uy: -0.321, uz: 0, region: 'other' },
+      ],
+    });
+    const gE = ctr.children[0].children[2];
+    assert.equal(parseFloat(gE.children[0].getAttribute('cx')), 0.123);
+    assert.equal(parseFloat(gE.children[0].getAttribute('cy')), -0.456);
+    assert.equal(parseFloat(gE.children[1].getAttribute('cx')), -0.789);
+    assert.equal(parseFloat(gE.children[1].getAttribute('cy')), 0.321);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyStyling — golden stroke/fill table per (mode, sel, hover)
+// ---------------------------------------------------------------------------
+
+describe('applyStyling — golden stroke/fill table', () => {
+  let api, gEl;
+
+  beforeEach(() => {
+    setupGlobals();
+    api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', {
+      electrodes: [
+        { name: 'Cz', ux: 0, uy: 0, uz: 1, region: 'central' },
+      ],
+    });
+    gEl = ctr.children[0].children[2];
+  });
+
+  afterEach(() => { teardownGlobals(); });
+
+  test('region mode, unselected, unhovered → fill=region color, stroke=rgba(23,24,26,0.45), sw=0.005, opacity=1', () => {
+    // Pins the default branch at applyStyling line 418-420 + 421
+    // (stroke-width). Kills:
+    //   - StringLiteral 'rgba(23,24,26,0.45)' mutant
+    //   - LogicalOperator on the `uniform || (highlight && !sel)` test
+    //   - StringLiteral '0.005' mutant on sw
+    //   - The opacity 1 vs 0.18 branch (line 436)
+    const d = gEl.children[0];
+    // Cz is region central → 'oklch(0.62 0.14 150)'.
+    assert.equal(d.getAttribute('fill'), 'oklch(0.62 0.14 150)');
+    assert.equal(d.getAttribute('stroke'), 'rgba(23,24,26,0.45)');
+    assert.equal(d.getAttribute('stroke-width'), '0.005');
+    assert.equal(d.getAttribute('opacity'), '1');
+  });
+
+  test('uniform mode, unselected → fill=MONO_FILL, stroke=MONO_STROKE', () => {
+    // Pins the uniform-mode branch of line 418: stroke is MONO_STROKE,
+    // NOT 'rgba(23,24,26,0.45)'.
+    api.setOpts({ colorMode: 'uniform' });
+    const d = gEl.children[0];
+    assert.equal(d.getAttribute('fill'), 'oklch(0.58 0.012 75)');
+    assert.equal(d.getAttribute('stroke'), 'oklch(0.28 0.015 70)');
+  });
+
+  test('highlight mode, unselected → fill=MONO_FILL, stroke=MONO_STROKE', () => {
+    // The `(highlight && !sel)` branch of line 418. Pins the
+    // composed predicate.
+    api.setOpts({ colorMode: 'highlight' });
+    const d = gEl.children[0];
+    assert.equal(d.getAttribute('fill'), 'oklch(0.58 0.012 75)');
+    assert.equal(d.getAttribute('stroke'), 'oklch(0.28 0.015 70)');
+  });
+
+  test('highlight mode + selected → fill=SEL_FILL, stroke=selection-orange, sw=0.012', () => {
+    // The `(highlight && !sel)` predicate must be FALSE when sel is true,
+    // so we fall through to the `if (sel)` block at line 423-427.
+    api.setOpts({ colorMode: 'highlight' });
+    api.setSelected(['Cz']);
+    const d = gEl.children[0];
+    assert.equal(d.getAttribute('fill'), 'oklch(0.58 0.17 45)');
+    assert.equal(d.getAttribute('stroke'), 'oklch(0.32 0.14 40)');
+    assert.equal(d.getAttribute('stroke-width'), '0.012');
+  });
+
+  test('region mode + selected → SEL_FILL applied over region color', () => {
+    // The `if (sel)` block on line 423 overwrites fill from
+    // colorFor(el). Pins the sequence: colorFor first, then sel override.
+    api.setSelected(['Cz']);
+    const d = gEl.children[0];
+    assert.equal(d.getAttribute('fill'), 'oklch(0.58 0.17 45)');
+    assert.equal(d.getAttribute('stroke-width'), '0.012');
+  });
+
+  test('dimmed (region in dimmedRegions) → opacity 0.18, fill unchanged', () => {
+    // The dim check (line 411) ORs region with !filtered. Kills the
+    // BooleanLiteral mutant on `dim ? 0.18 : 1`.
+    api.setDimmedRegions(['central']);
+    const d = gEl.children[0];
+    assert.equal(d.getAttribute('opacity'), '0.18');
+    // Fill is still the region color — dim only affects opacity.
+    assert.equal(d.getAttribute('fill'), 'oklch(0.62 0.14 150)');
+  });
+
+  test('label opacity: dim → 0.25, selected → 1, default → 0.85', () => {
+    // Pins line 453: `dim ? 0.25 : (sel || isHover ? 1 : 0.85)`.
+    // Kills the StringLiteral mutants on '0.25', '1', '0.85'.
+    const ctr = makeContainer();
+    const api2 = loadFreshTopo2D();
+    api2.init(ctr);
+    api2.setMontage('t', STD_MONTAGE);
+    const gLb = ctr.children[0].children[3];
+
+    // Default: opacity 0.85.
+    assert.equal(gLb.children[0].getAttribute('opacity'), '0.85');
+
+    // Selected → opacity 1.
+    api2.setSelected(['Cz']);
+    assert.equal(gLb.children[0].getAttribute('opacity'), '1');
+
+    // Dimmed (filter excludes Cz) → opacity 0.25.
+    api2.setSelected([]);
+    api2.setFiltered(['Fz']);
+    assert.equal(gLb.children[0].getAttribute('opacity'), '0.25');
+  });
+
+  test('selected label font-weight 600, unselected 500', () => {
+    // Pins line 454-455. Kills the BooleanLiteral / Number mutants on
+    // the font-weight values.
+    const ctr = makeContainer();
+    const api2 = loadFreshTopo2D();
+    api2.init(ctr);
+    api2.setMontage('t', STD_MONTAGE);
+    const gLb = ctr.children[0].children[3];
+
+    api2.setSelected(['Cz']);
+    assert.equal(gLb.children[0].getAttribute('font-weight'), '600');
+
+    api2.setSelected([]);
+    assert.equal(gLb.children[0].getAttribute('font-weight'), '500');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dot radius scaling
+// ---------------------------------------------------------------------------
+
+describe('baseRadius — exact dot r values', () => {
+  beforeEach(() => { setupGlobals(); });
+  afterEach(() => { teardownGlobals(); });
+
+  test('dotSize=1 → r=0.022; dotSize=1.5 → r=0.033; dotSize=0.3 → r=0.0066', () => {
+    // Pins the line 354 multiplier 0.022. Kills ArithmeticOperator
+    // mutants (multiply → divide → add).
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', { electrodes: [{ name: 'Cz', ux: 0, uy: 0, uz: 1, region: 'central' }] });
+    const dot = ctr.children[0].children[2].children[0];
+
+    // Default dotSize=1.
+    assert.equal(parseFloat(dot.getAttribute('r')), 0.022);
+
+    // Scale up.
+    api.setOpts({ dotSize: 1.5 });
+    assert.ok(Math.abs(parseFloat(dot.getAttribute('r')) - 0.033) < 1e-9);
+
+    // Scale down.
+    api.setOpts({ dotSize: 0.3 });
+    assert.ok(Math.abs(parseFloat(dot.getAttribute('r')) - 0.0066) < 1e-9);
+  });
+
+  test('dotSize=0 → r=0.022 (default fallback via `opts.dotSize || 1`)', () => {
+    // Pins the `|| 1` fallback on line 354. Without it, dotSize=0
+    // would collapse all dots to a point.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    api.setMontage('t', { electrodes: [{ name: 'Cz', ux: 0, uy: 0, uz: 1, region: 'central' }] });
+    api.setOpts({ dotSize: 0 });
+    const dot = ctr.children[0].children[2].children[0];
+    assert.equal(parseFloat(dot.getAttribute('r')), 0.022);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SVG viewBox + attributes
+// ---------------------------------------------------------------------------
+
+describe('init — svg attribute golden set', () => {
+  beforeEach(() => { setupGlobals(); });
+  afterEach(() => { teardownGlobals(); });
+
+  test('svg has class topo-svg, viewBox "-1.25 -1.25 2.5 2.5", preserveAspectRatio "xMidYMid meet"', () => {
+    // Pins lines 513-516. Kills the VB constant (1.25) Arithmetic
+    // mutants AND the StringLiteral mutants on the SVG class /
+    // preserveAspectRatio.
+    const api = loadFreshTopo2D();
+    const ctr = makeContainer();
+    api.init(ctr);
+    const svg = ctr.children[0];
+    assert.equal(svg.tagName, 'svg');
+    assert.equal(svg.getAttribute('class'), 'topo-svg');
+    assert.equal(svg.getAttribute('viewBox'), '-1.25 -1.25 2.5 2.5');
+    assert.equal(svg.getAttribute('preserveAspectRatio'), 'xMidYMid meet');
+  });
+});
+
