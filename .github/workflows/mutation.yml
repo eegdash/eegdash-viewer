@@ -36,6 +36,12 @@ jobs:
       - run: npm ci
       - name: Run Stryker
         run: npm run mutation
+      - name: Save Stryker incremental cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-incremental-${{ github.sha }}
       - name: Upload mutation report
         if: always()
         uses: actions/upload-artifact@v4

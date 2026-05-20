@@ -1,0 +1,52 @@
+name: Mutation testing (PR incremental)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'traces.js'
+      - 'filters.js'
+      - 'topo2d.js'
+      - 'bids-recording.js'
+      - 'tests/unit-traces-*.test.mjs'
+      - 'tests/unit-filters.test.mjs'
+      - 'tests/unit-topo2d.test.mjs'
+      - 'tests/unit-bids-recording*.test.mjs'
+      - 'stryker.conf.json'
+  workflow_dispatch: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  mutation-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # incremental needs git history
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Restore Stryker cache
+        uses: actions/cache/restore@v4
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-incremental-${{ github.event.pull_request.base.sha }}
+          restore-keys: |
+            stryker-incremental-
+
+      - name: Run Stryker (incremental)
+        run: npx stryker run --incremental
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation-pr-report
+          path: reports/mutation/
+          retention-days: 14
