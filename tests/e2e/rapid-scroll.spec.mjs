@@ -245,6 +245,86 @@ test('RAPID-6: channel offset paging (PgDn) during pan stays clean', async ({ pa
   expect(after).toBeLessThan(baseline * 1.5);
 });
 
+test('RAPID-7: pan-and-return produces a pixel-perfect-ish match to reference', async ({ page }) => {
+  // GAP: All other RAPID-* tests assert APPROXIMATE pixel counts. None
+  // capture the canvas as a known-good reference and diff against it
+  // pixel-by-pixel after a stress sequence. This test takes a reference
+  // ImageData at the initial window, rapid-pans away and back, and
+  // asserts the per-pixel RGB delta is small. Even a 1% RMS delta would
+  // catch a sub-pixel offset, color-channel ordering bug, or ghost-pixel
+  // residue that pixel-count-based tests are too coarse to detect.
+  const dir = evidenceDir('rapid-7-visual-diff');
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text());
+  });
+
+  await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
+  await waitForLoad(page);
+  await page.waitForTimeout(1000);
+  // Ensure the initial render is fully settled before snapshotting.
+  await settle(page);
+
+  // Capture the reference. Serialize the Uint8ClampedArray as a plain
+  // array so it survives page.evaluate's structured-clone boundary.
+  const reference = await page.evaluate(() => {
+    const canvas = document.getElementById('traces');
+    const ctx = canvas.getContext('2d');
+    const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return { w: d.width, h: d.height, data: Array.from(d.data) };
+  });
+  await page.screenshot({ path: path.join(dir, 'reference.png') });
+  expect(reference.data.length).toBeGreaterThan(0);
+
+  // Stress: pan away and back. The final position MUST be identical to
+  // the initial position (same start_sec, same channel_offset, same gain,
+  // same filters, same DPR) for the diff to be meaningful.
+  for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
+  for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowLeft');
+  await settle(page);
+
+  const after = await page.evaluate(() => {
+    const canvas = document.getElementById('traces');
+    const ctx = canvas.getContext('2d');
+    const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return { w: d.width, h: d.height, data: Array.from(d.data) };
+  });
+  await page.screenshot({ path: path.join(dir, 'after.png') });
+
+  expect(after.w).toBe(reference.w);
+  expect(after.h).toBe(reference.h);
+
+  // Compute per-pixel diff: non-zero pixels and RMS RGB delta.
+  let nonZero = 0;
+  let sumSq = 0;
+  const nPx = reference.data.length / 4;
+  for (let i = 0; i < reference.data.length; i += 4) {
+    const dr = reference.data[i]     - after.data[i];
+    const dg = reference.data[i + 1] - after.data[i + 1];
+    const db = reference.data[i + 2] - after.data[i + 2];
+    if (dr || dg || db) nonZero++;
+    sumSq += dr * dr + dg * dg + db * db;
+  }
+  const rms = Math.sqrt(sumSq / (nPx * 3));
+  const diffRatio = nonZero / nPx;
+
+  fs.writeFileSync(path.join(dir, 'diff.json'), JSON.stringify({
+    canvas: { w: reference.w, h: reference.h, total_pixels: nPx },
+    non_zero_pixels: nonZero,
+    diff_ratio: Number(diffRatio.toFixed(4)),
+    rms_delta_rgb_per_255: Number(rms.toFixed(3)),
+  }, null, 2));
+
+  expect(errors).toHaveLength(0);
+  // Tolerances: < 2% of pixels differ AND RMS RGB delta < 8/255. A clean
+  // pan-and-return on a deterministic recording should round-trip to a
+  // near-identical canvas. Sub-pixel rendering jitter and font hinting
+  // contribute small noise, hence the non-zero tolerance.
+  expect(diffRatio).toBeLessThan(0.02);
+  expect(rms).toBeLessThan(8);
+});
+
 test('RAPID-5: 200 sequential pans do not leak heap memory', async ({ page }) => {
   const dir = evidenceDir('rapid-5-heap');
   const errors = [];
