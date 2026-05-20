@@ -1628,3 +1628,24 @@ test('iter10 eegdashFallback: cdn.eegdash.org host also triggers fallback (not j
       'cdn.eegdash.org host must trigger the fallback path');
   } finally { f.restore(); }
 });
+
+test('resolveTargets: accepts SAME-ORIGIN relative URL in ?eeg= param', () => {
+  // Same-origin paths starting with / are safe — they resolve against
+  // the viewer's own origin (no cross-origin / data: / blob: attack
+  // surface). Used by local test fixtures and bundled demo recordings.
+  const params = new URLSearchParams('eeg=/test-data/edfplus-with-annotations.edf');
+  const t = BIDSRecording.resolveTargets(params);
+  assert.equal(t.kind, 'url');
+  assert.equal(t.eeg_url, '/test-data/edfplus-with-annotations.edf');
+});
+
+test('resolveTargets: rejects protocol-relative // URL in ?eeg= param', () => {
+  // //host/path is a SCHEME-RELATIVE URL — resolves against the page's
+  // scheme but the host is attacker-controlled. Reject to keep the
+  // same-origin invariant.
+  const params = new URLSearchParams('eeg=//evil.example.com/x_eeg.edf');
+  assert.throws(
+    () => BIDSRecording.resolveTargets(params),
+    /Invalid URL protocol/,
+  );
+});

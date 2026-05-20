@@ -778,6 +778,12 @@
   // for localhost / dev. (SAST scanner finding P2, 2026-05-21.)
   function isAllowedProtocol(urlString) {
     if (typeof urlString !== 'string' || !urlString) return false;
+    // Same-origin relative URLs (start with /) are always safe — they
+    // resolve against the viewer's own origin, so there's no
+    // SSRF-from-victim or data:/blob: attack surface. Used by local
+    // test fixtures like `?eeg=/test-data/*.edf` and by future
+    // pre-bundled demo recordings.
+    if (urlString.startsWith('/') && !urlString.startsWith('//')) return true;
     try {
       const u = new URL(urlString);
       return u.protocol === 'https:' || u.protocol === 'http:';
