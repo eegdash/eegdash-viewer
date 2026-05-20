@@ -776,15 +776,19 @@
               // Determine which samples to paint in this partial step
               const visibleChannels = assembledChannels.map(ch => ch.subarray(0, totalSamples));
               const drawOpts = buildDrawOpts(visibleChannels, startSample, fs);
-              if (firstChunk) {
-                // First chunk: clear + draw (removes stale previous frame)
-                TraceRenderer.draw(tracesCanvas, drawOpts);
-                firstChunk = false;
-              } else {
-                // Subsequent chunks: partial repaint of expanded region
-                drawOpts.partial_fill = { sample_start, sample_end, total_samples: windowSamples };
-                TraceRenderer.draw(tracesCanvas, drawOpts);
-              }
+              // Always pass partial_fill so the renderer knows the FULL
+              // window's sample count (needed to map the polyline to its
+              // real x-band instead of stretching across plotW). The first
+              // chunk additionally requests a full clear to wipe stale
+              // pixels from any previously-painted (now superseded) window.
+              drawOpts.partial_fill = {
+                sample_start,
+                sample_end,
+                total_samples: windowSamples,
+                full_clear: firstChunk,
+              };
+              TraceRenderer.draw(tracesCanvas, drawOpts);
+              if (firstChunk) firstChunk = false;
               updateGainReadout();
 
               // If final chunk: update cursor cache and fire prefetch

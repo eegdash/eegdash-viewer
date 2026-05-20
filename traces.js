@@ -443,25 +443,32 @@
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Partial-fill mode: only repaint the x-band for the new samples.
-    // We must NOT call clear() — that would erase the already-painted part.
+    // Partial-fill mode: only repaint the x-band for the new samples
+    // (skip the full clear so already-painted x-bands stay intact).
+    //
+    // Exception: when the caller flags `full_clear: true` we DO clear the
+    // whole canvas first — this is the streaming first-chunk case, where
+    // the previous render's pixels would otherwise persist outside the
+    // new chunk's band. The polyline x-mapping (downstream) still uses
+    // `total_samples` so the partial data lands in its real x position.
     const partialFill = opts.partial_fill;
     if (partialFill) {
-      // Compute the x-pixel range for the new samples
-      const allChannels0 = opts.channels;
-      const nSamplesTotal = partialFill.total_samples || (allChannels0[0] ? allChannels0[0].length : 0);
-      const plotX0 = PAD_LEFT;
-      const plotX1 = cssW - PAD_RIGHT;
-      const plotW = plotX1 - plotX0;
-      if (nSamplesTotal > 0 && plotW > 0) {
-        const xStart = Math.floor(plotX0 + (partialFill.sample_start / nSamplesTotal) * plotW);
-        const xEnd = Math.ceil(plotX0 + ((partialFill.sample_end + 1) / nSamplesTotal) * plotW);
-        const bandW = Math.max(1, xEnd - xStart);
-        // Clear only the band for the new samples (plus label area)
-        ctx.fillStyle = BG_COLOR;
-        ctx.fillRect(xStart, 0, bandW, cssH);
+      if (partialFill.full_clear) {
+        clear(ctx, cssW, cssH, opts.transparent === true);
+      } else {
+        const allChannels0 = opts.channels;
+        const nSamplesTotal = partialFill.total_samples || (allChannels0[0] ? allChannels0[0].length : 0);
+        const plotX0 = PAD_LEFT;
+        const plotX1 = cssW - PAD_RIGHT;
+        const plotW = plotX1 - plotX0;
+        if (nSamplesTotal > 0 && plotW > 0) {
+          const xStart = Math.floor(plotX0 + (partialFill.sample_start / nSamplesTotal) * plotW);
+          const xEnd = Math.ceil(plotX0 + ((partialFill.sample_end + 1) / nSamplesTotal) * plotW);
+          const bandW = Math.max(1, xEnd - xStart);
+          ctx.fillStyle = BG_COLOR;
+          ctx.fillRect(xStart, 0, bandW, cssH);
+        }
       }
-      // Fall through to normal draw but skip clear()
     } else {
       clear(ctx, cssW, cssH, opts.transparent === true);
     }
@@ -476,7 +483,15 @@
 
     const t0 = opts.start_sec;
     const nSamplesVisible0 = Math.min(opts.n_samples_visible, allChannels[0].length);
-    const t1 = t0 + nSamplesVisible0 / opts.fs;
+    // Time axis and event positions are anchored to the FULL window even
+    // during streaming, so ticks don't jitter as chunks arrive and so events
+    // appear at their true t-coordinate. Without partial_fill the full
+    // window equals the partial (chunk == window). With partial_fill we
+    // trust `total_samples` from the caller.
+    const nSamplesTotal = (opts.partial_fill && opts.partial_fill.total_samples)
+      ? opts.partial_fill.total_samples
+      : nSamplesVisible0;
+    const t1 = t0 + nSamplesTotal / opts.fs;
     const gain = opts.gain ?? 1;
 
     const plotX0 = PAD_LEFT;
@@ -504,6 +519,16 @@
     const nVisible = Math.min(opts.n_samples_visible, channels[0].length);
     const slotH = plotH / nCh;
     const halfSlotPx = slotH * 0.45;
+    // When streaming, the chunk contains only `nVisible` of the eventual
+    // `nSamplesTotal` samples. The polyline/decimator must map sample i to
+    // x = plotX0 + (i / (nSamplesTotal-1)) * plotW so partial data stays in
+    // its real x-band instead of stretching across the whole plot. Without
+    // this remapping, every chunk paints a different stretched lookalike of
+    // the final shape and the band-clear leaves ghost lines from prior
+    // chunks — the visible "trace residue" reported during fast pan.
+    const effectivePlotW = (nSamplesTotal > nVisible)
+      ? plotW * (nVisible / nSamplesTotal)
+      : plotW;
 
     drawSlotDividers(ctx, plotX0, plotX1, plotY0, slotH, nCh);
     drawChannelLabels(ctx, labels, types, slotH, plotX0, plotY0);
@@ -517,7 +542,10 @@
     // additional data.
     drawEventMarkers(ctx, opts.events, t0, t1, plotX0, plotX1, plotY0, plotH);
 
-    const decimated = nVisible > plotW * DECIMATE_RATIO;
+    // Decimation threshold uses the *effective* plot width — samples-per-
+    // pixel density is the same regardless of partial vs full (we just have
+    // fewer samples mapped into fewer pixels), so the trigger stays accurate.
+    const decimated = nVisible > effectivePlotW * DECIMATE_RATIO;
     const stds = [];
     for (let c = 0; c < nCh; c++) {
       const data = channels[c];
@@ -558,9 +586,9 @@
       const type = (types && types[c] || '').toUpperCase();
       ctx.setLineDash(TYPE_DASH[type] || []);
       if (decimated) {
-        drawChannelDecimated(ctx, data, nVisible, plotX0, plotW, yC, vToPx);
+        drawChannelDecimated(ctx, data, nVisible, plotX0, effectivePlotW, yC, vToPx);
       } else {
-        drawChannelPolyline(ctx, data, nVisible, plotX0, plotW, yC, vToPx);
+        drawChannelPolyline(ctx, data, nVisible, plotX0, effectivePlotW, yC, vToPx);
       }
       ctx.restore();
     }

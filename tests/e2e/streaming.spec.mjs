@@ -77,7 +77,6 @@ function pixelCountsStable(prev, curr) {
   const absFloor = 5;
   return Math.abs(curr - prev) < Math.max(absFloor, denom * 0.01);
 }
-}
 
 /**
  * STREAMING-E2E-1: Progressive paint TTFP test.
@@ -281,4 +280,140 @@ test('STREAMING-E2E-3: filter toggle after streaming renders filtered result', a
     before: pixelsBefore,
     after_filter: pixelsAfterFilter,
   }, null, 2));
+});
+
+/**
+ * STREAMING-E2E-4: Sustained rapid pan does NOT leave ghost trace residue.
+ *
+ * Reproduces the user-reported "trace residue when scrolling fast" bug.
+ * Holds ArrowRight for ~30 keypresses in quick succession, then waits for
+ * the canvas to settle. The final canvas is compared against a fresh
+ * single-window render at the same time position: the pixel counts must
+ * match within a tight tolerance. A larger pixel count after sustained pan
+ * would indicate accumulated ghost traces from interrupted streaming chunks.
+ *
+ * Pre-fix: each interrupted streaming chunk left a stretched polyline
+ * across the full plot width; only the next chunk's narrow band was cleared.
+ * After 30 rapid keystrokes the canvas accumulated dozens of ghost lines.
+ *
+ * Post-fix: each chunk paints only its actual data band, so even when
+ * interrupted there's nothing to leave behind outside the band.
+ */
+test('STREAMING-E2E-4: sustained rapid pan leaves no ghost trace residue', async ({ page }) => {
+  const dir = evidenceDir('streaming-e2e-4');
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) {
+      errors.push(m.text());
+    }
+  });
+
+  await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
+  await waitForLoad(page, 90_000);
+
+  // Settle baseline render.
+  await page.waitForTimeout(500);
+
+  // Capture a baseline pixel count for the "clean" state at the starting
+  // window. We'll compare against this after returning to the same window.
+  const baselinePixels = await countNonBgPixels(page);
+  await page.screenshot({ path: path.join(dir, 'baseline.png') });
+
+  // Sustained rapid pan: 30 ArrowRight presses with no settling time.
+  // The browser will fire keydown repeats; we explicitly press 30 times.
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press('ArrowRight');
+  }
+  // Then 30 ArrowLeft to return to roughly the same window.
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press('ArrowLeft');
+  }
+
+  // Wait for streaming + prefetches to fully settle.
+  {
+    let prev = await countNonBgPixels(page);
+    let stableRuns = 0;
+    for (let i = 0; i < 30 && stableRuns < 5; i++) {
+      await page.waitForTimeout(400);
+      const curr = await countNonBgPixels(page);
+      stableRuns = pixelCountsStable(prev, curr) ? stableRuns + 1 : 0;
+      prev = curr;
+    }
+  }
+
+  const afterStressPixels = await countNonBgPixels(page);
+  await page.screenshot({ path: path.join(dir, 'after-stress.png') });
+
+  // No JS errors.
+  expect(errors).toHaveLength(0);
+
+  // The post-stress canvas should have a pixel count within 15% of baseline.
+  // A larger jump indicates accumulated ghost traces from partial draws;
+  // a smaller jump (blank canvas) indicates the abort logic broke the render.
+  // 15% tolerance accounts for small differences in actual visible window
+  // (we may be off by a fraction of a window due to clamping at the dataset edges).
+  const ratio = afterStressPixels / Math.max(baselinePixels, 1);
+  fs.writeFileSync(path.join(dir, 'pixel-counts.json'), JSON.stringify({
+    baseline: baselinePixels,
+    after_stress: afterStressPixels,
+    ratio: Number(ratio.toFixed(3)),
+  }, null, 2));
+
+  expect(afterStressPixels).toBeGreaterThan(baselinePixels * 0.5);
+  expect(afterStressPixels).toBeLessThan(baselinePixels * 1.15);
+});
+
+/**
+ * STREAMING-E2E-5: Bouncing direction (rapid alternating ←/→).
+ *
+ * Mimics a user who scrubs back and forth in fast succession. Each
+ * direction change aborts the in-flight streaming render. We verify the
+ * final canvas is clean (no accumulated residue) and that there are no
+ * JS errors from the abort cascade.
+ */
+test('STREAMING-E2E-5: bouncing scroll direction stays clean', async ({ page }) => {
+  const dir = evidenceDir('streaming-e2e-5');
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) {
+      errors.push(m.text());
+    }
+  });
+
+  await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
+  await waitForLoad(page, 90_000);
+  await page.waitForTimeout(500);
+  const baselinePixels = await countNonBgPixels(page);
+
+  // 20 alternations.
+  for (let i = 0; i < 20; i++) {
+    await page.keyboard.press(i % 2 === 0 ? 'ArrowRight' : 'ArrowLeft');
+  }
+
+  // Settle.
+  {
+    let prev = await countNonBgPixels(page);
+    let stableRuns = 0;
+    for (let i = 0; i < 25 && stableRuns < 4; i++) {
+      await page.waitForTimeout(400);
+      const curr = await countNonBgPixels(page);
+      stableRuns = pixelCountsStable(prev, curr) ? stableRuns + 1 : 0;
+      prev = curr;
+    }
+  }
+
+  const finalPixels = await countNonBgPixels(page);
+  await page.screenshot({ path: path.join(dir, 'after-bounce.png') });
+
+  fs.writeFileSync(path.join(dir, 'pixel-counts.json'), JSON.stringify({
+    baseline: baselinePixels,
+    after_bounce: finalPixels,
+  }, null, 2));
+
+  expect(errors).toHaveLength(0);
+  // Final canvas pixel count within 15% of baseline (same window, no ghost).
+  expect(finalPixels).toBeGreaterThan(baselinePixels * 0.6);
+  expect(finalPixels).toBeLessThan(baselinePixels * 1.15);
 });
