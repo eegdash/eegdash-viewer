@@ -289,3 +289,107 @@ By mutator (top survivors):
   `.slice(0, 14)` truncation are likely the biggest unattacked branches.
 - StringLiteral survivors (29 left): font/color constants. Same
   recommendation as iteration 2 — either accept-document or pixel diff.
+
+## Iteration 4 (PR 9, 2026-05-20)
+
+Score: 56.68% (killed: 397 / total: 711, with 6 timeouts and 308 survivors)
+Delta vs iteration 3: +2.13 pp (54.55% → 56.68%)
+
+Honest disclosure: the absolute jump is small relative to iterations 2-3
+(+6.47, +10.79). Two factors compress the gain:
+
+1. The two new shims (`_computeScaleBarGeometry`, `_computeTimeAxisLayout`)
+   add 62 mutants of their own (711 vs 649 total mutants), so the
+   denominator grew. The shims are well-tested but Stryker mutates BOTH
+   the shim and the original function — and the original function bodies
+   (drawScaleBar / drawTimeAxis) are still mutation-blind for ctx-only
+   side effects (moveTo/lineTo coordinates, fillText positions). The shim
+   tests the *contract* the original function should implement, not the
+   actual ctx call stream of the original.
+2. The top-3 surviving line buckets (350-399, 200-249, 500-549) didn't
+   move much — their geometry mutants need a "record ctx calls and
+   assert coordinates" approach, not a parallel pure-function copy.
+   Iteration 5 should switch to that strategy.
+
+Tests added:
+- `tests/unit-traces-scalebar-axis.test.mjs` (new file, 24 tests):
+  - `_computeScaleBarGeometry` boundaries: zero/negative/NaN/Infinity
+    guards, px<8 floor, exact geometry deepStrictEqual, niceRound at
+    sub-µV (slotMicrovolts=1 → targetMv=0.5), magic-number anchors
+    (+18/-12/yTop=yBottom-px), linear slotH scaling. 11 tests.
+  - `_computeTimeAxisLayout` numeric: 11 majors at span=10 step=1,
+    linear x scaling, integer labels at step≥1, minor count = 40
+    (50 candidates - 10 majors), no minor at major position, minor x
+    bounded by adjacent majors, pinned t values (0.2/0.4/0.8/1.2)
+    around t=1.0 skip, span=1 → step=0.1 with float-imprecise endpoint,
+    (5,15) first-tick alignment. 9 tests.
+  - `_computeTimeAxisLayout` clock mode: HH:MM:SS labels at midnight
+    start, midnight wrap (23:59:55→00:00:05), null-ISO falls back to
+    useClock=false numeric labels. 3 tests.
+  - `_computeTimeAxisLayout` span≤0 → empty arrays defensive branch.
+    1 test.
+- `tests/unit-traces-draw.test.mjs` (+4 tests):
+  - `channel_offset = totalCh - maxVisible` exact tail boundary: 35
+    labels Ch16..Ch50, no clamp.
+  - `channel_offset = totalCh - 1`: single Ch50 visible.
+  - `channel_offset = totalCh`: clamps to totalCh-1, single Ch50.
+  - `channel_offset = 9999`: same clamp, defensive NaN-moveTo check.
+
+Source changes (debug exports only, NO behaviour changes):
+- `_computeScaleBarGeometry(slotMicrovolts, slotH, plotX1, plotY0, plotHeight)`
+  added to api. Mirrors drawScaleBar:217-225 line-for-line; parameter
+  named `plotHeight` (not `plotH`) only because 'use strict' rejects
+  duplicate parameter names.
+- `_computeTimeAxisLayout(x0, x1, t0Sec, t1Sec, time_mode, recording_start_iso)`
+  added to api. Mirrors drawTimeAxis:345-374 *without* ctx calls, returning
+  `{ major, minor, useClock, step }`.
+
+Threshold change:
+- `break: 49` unchanged (jump too small to raise the floor; 49 stays as
+  the iteration-3 anchor at score-5).
+
+Stryker config:
+- `commandRunner.command` extended to include
+  `tests/unit-traces-scalebar-axis.test.mjs`.
+
+Remaining survivors after iteration 4 (top clusters):
+
+| Lines     | Survivors | What lives here                                                |
+|-----------|----------:|----------------------------------------------------------------|
+| 350-399   |        43 | `drawTimeAxis` ctx-side effects (moveTo/lineTo, fillText)      |
+| 200-249   |        37 | `drawScaleBar` ctx-side effects (moveTo/lineTo, fillText)      |
+| 500-549   |        35 | Pagination tail body — line/dimension mutants in slice math    |
+| 150-199   |        27 | Header constants + `drawChannelLabels` interior + `niceRound` |
+| 250-299   |        26 | `drawEventMarkers` body (label collision, slice(0,14), etc.)   |
+| 600-649   |        25 | IIFE-export noise (mostly equivalent — see Acceptable section) |
+| 100-149   |        21 | Color/font constants (StringLiteral survivors)                 |
+
+By mutator (top survivors):
+
+| Mutator              | Survived |
+|---------------------|---------:|
+| ArithmeticOperator  |       87 |
+| ConditionalExpression |     80 |
+| EqualityOperator    |       58 |
+| StringLiteral       |       29 |
+| LogicalOperator     |       14 |
+
+**Next iteration should target:**
+- Switch strategy: instead of more shims, extend the
+  `unit-traces-draw.test.mjs` harness to record and assert on the
+  actual ctx call stream from `drawScaleBar` / `drawTimeAxis`. The
+  shim contracts are pinned; the remaining gap is observing what the
+  real ctx receives. Specifically:
+  - Record `moveTo`/`lineTo` calls during a draw() and assert the
+    minor-tick x-positions match `_computeTimeAxisLayout(...).minor`
+    exactly. That bridges the shim contract to the real path.
+  - Same for `drawScaleBar`: assert the four moveTo/lineTo coordinates
+    (vertical bar + two tick caps) match
+    `_computeScaleBarGeometry(...)` outputs.
+- `drawEventMarkers` body still has 26 survivors. The label collision
+  logic (`if (x - lastLabelX < 32) continue`) needs a dense-event test
+  (3+ events within 32px) to exercise both the skip-because-collision
+  and the no-skip branches. The `.slice(0, 14)` truncation needs a
+  test with a 15+ character label.
+- StringLiteral survivors (29 left): same accept-or-pixel-diff
+  recommendation as iterations 2 and 3.
