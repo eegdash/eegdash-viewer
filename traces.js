@@ -649,6 +649,54 @@
     _isoToSecOfDay: isoToSecOfDay,
     _computeTimeTicks: computeTimeTicks,
     _formatScale: formatScale,
+    // Iteration-4 debug exports: pure-function siblings of drawScaleBar
+    // and drawTimeAxis that return the *geometry* those routines would
+    // compute, without touching ctx. They mirror the in-function math
+    // line-for-line — used by tests/unit-traces-scalebar-axis.test.mjs
+    // to pin position-to-µV mapping and tick layout against the
+    // iteration-4 surviving-mutant clusters (lines 200-249 and 350-399
+    // in docs/mutation-survivors-2026-05.md).
+    _computeScaleBarGeometry(slotMicrovolts, slotH, plotX1, plotY0, plotHeight) {
+      // Mirrors drawScaleBar at traces.js:217-225 (everything before ctx).
+      // Param naming: plotHeight (not plotH) only to avoid a duplicate-name
+      // SyntaxError under 'use strict'; the math matches drawScaleBar's
+      // internal `plotH` variable exactly.
+      if (!isFinite(slotMicrovolts) || slotMicrovolts <= 0) return null;
+      const targetMv = niceRound(slotMicrovolts * 0.5);
+      const px = (targetMv / slotMicrovolts) * slotH;
+      if (!isFinite(px) || px < 8) return null;
+      const x = plotX1 + 18;
+      const yBottom = plotY0 + plotHeight - 12;
+      const yTop = yBottom - px;
+      return { targetMv, px, x, yBottom, yTop };
+    },
+    _computeTimeAxisLayout(x0, x1, t0Sec, t1Sec, time_mode, recording_start_iso) {
+      // Mirrors drawTimeAxis at traces.js:333-374 *without* ctx calls.
+      // Returns the major-tick and minor-tick positions drawTimeAxis would
+      // produce. The minor-skip-at-major rule (Math.abs(r-Math.round(r))<1e-6)
+      // matches the implementation exactly so the layout shim is the
+      // ground truth for tests.
+      const { ticks, step, useClock } = computeTimeTicks(t0Sec, t1Sec, time_mode, recording_start_iso);
+      const span = t1Sec - t0Sec;
+      if (span <= 0) return { major: [], minor: [], useClock, step };
+      const major = ticks.map(({ t, label }) => ({
+        t,
+        label,
+        x: x0 + ((t - t0Sec) / span) * (x1 - x0),
+      }));
+      const minorStep = step / 5;
+      const firstMinor = Math.ceil(t0Sec / minorStep) * minorStep;
+      const minor = [];
+      for (let t = firstMinor; t <= t1Sec + 1e-9; t += minorStep) {
+        const r = t / step;
+        if (Math.abs(r - Math.round(r)) < 1e-6) continue;
+        minor.push({
+          t,
+          x: x0 + ((t - t0Sec) / span) * (x1 - x0),
+        });
+      }
+      return { major, minor, useClock, step };
+    },
     lastDrawnXLabels: [],
     lastSlotMicrovolts: 0,
     lastMaxVisibleChannels: 0,
