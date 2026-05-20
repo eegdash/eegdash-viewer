@@ -41,3 +41,17 @@ floor.
 
 All four new test tiers (visual / acceptance / performance / smoke)
 have CI workflows wired.
+
+## Rapid-scroll behaviour gaps (2026-05-20)
+
+Not covered by current tests:
+1. Sustained pan (30+ keypresses) — locked in by STREAMING-E2E-4
+2. Bouncing direction (alternating ←/→) — locked in by STREAMING-E2E-5
+3. Pan during resize — TODO Task 8
+4. Pan during gain change — TODO Task 6
+5. Pan during filter toggle — partially covered by STREAMING-E2E-3
+6. Pan with DPR != 1 — TODO Task 7
+7. Tab visibility (rAF pause) — TODO Task 9
+8. Memory growth across N pans — TODO Task 10
+9. Worker queue saturation — TODO Task 5
+10. Streaming chunk monotonicity invariants — TODO Task 2
