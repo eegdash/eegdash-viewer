@@ -516,6 +516,74 @@ test('property: drawing the same opts twice produces the same lineTo trace', asy
   }
 });
 
+test('partial_fill: tail-clamped window (end of recording) bounds polyline correctly', async () => {
+  // GAP: at the very end of a recording the viewer's clampStart shortens the
+  // window (e.g. windowSec=5 → windowSamples=500 instead of 2500 when
+  // start_sec=99 on a 100s recording). The streaming layer then sends partial
+  // chunks whose `total_samples` is this CLAMPED size, not the original. We
+  // must verify a partial chunk against a tail-clamped window still maps the
+  // polyline correctly: a 100-sample chunk of a 500-sample tail window must
+  // paint to 20% of plotW (not 4% or 100%).
+  //
+  // The bug class this guards: if the renderer mistakenly used the request's
+  // window_sec * fs instead of partial_fill.total_samples, the chunk would
+  // paint to a tiny ribbon (~4%) of the full plot — visually invisible. Or
+  // worse, if it ignored partial_fill at the tail, a 100-sample chunk would
+  // stretch across the full plot width (the original ghost bug, recurring
+  // at the tail edge).
+  const tailWindowSamples = 500;   // clamped to a 1s tail at fs=500
+  const partial = 100;             // first chunk: 20% of tail window
+  const fullCh = buildChannel(tailWindowSamples);
+  const partialCh = fullCh.subarray(0, partial);
+
+  const cssW = 800, cssH = 600;
+  const plotX0 = PAD_LEFT;
+  const plotW = (cssW - PAD_RIGHT) - PAD_LEFT;
+  const plotY0 = PAD_TOP;
+  const plotY1 = cssH - PAD_BOTTOM;
+  const expectedMaxX = plotX0 + (partial / tailWindowSamples) * plotW;
+
+  const { canvas, lineTos } = makeTrackingCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, {
+    channels: [partialCh],
+    channel_labels: ['Ch1'],
+    channel_types: ['EEG'],
+    n_samples_visible: partial,
+    fs: 500,
+    // start_sec=99 simulates a tail-clamped window beginning at 99s on a 100s
+    // recording. The polyline mapping must depend on partial_fill.total_samples,
+    // NOT on (window_sec * fs).
+    start_sec: 99,
+    gain: 1,
+    transparent: false,
+    partial_fill: {
+      sample_start: 0,
+      sample_end: partial - 1,
+      total_samples: tailWindowSamples,
+      full_clear: true,
+    },
+  });
+
+  const xs = tracePolylineX(lineTos, plotX0, plotX0 + plotW, plotY0, plotY1);
+  assert.ok(xs.length > 0, 'expected polyline lineTo calls at tail-clamped window');
+  const maxX = Math.max(...xs);
+  assert.ok(
+    maxX <= expectedMaxX + 4,
+    `tail-clamped partial polyline must bound at ${expectedMaxX.toFixed(1)}; got ${maxX.toFixed(1)}. ` +
+    `If maxX is near plotX1 (${(plotX0 + plotW).toFixed(1)}), the renderer is ignoring partial_fill.total_samples ` +
+    `at the tail edge — the ghost bug recurs at end-of-recording.`,
+  );
+  // And it must REACH near its data front — guards against the inverse
+  // failure mode (renderer divides by the original window size, painting
+  // to a tiny invisible ribbon).
+  const minReach = plotX0 + (partial / tailWindowSamples) * plotW * 0.5;
+  assert.ok(
+    maxX >= minReach,
+    `tail-clamped polyline must reach near its data front (≥${minReach.toFixed(1)}); got ${maxX.toFixed(1)}. ` +
+    `If maxX is near plotX0, the renderer is using the wrong denominator for x-mapping.`,
+  );
+});
+
 test('property: changing devicePixelRatio scales backing store but does not stretch polyline', async () => {
   // Set DPR=2 and confirm: (a) canvas.width/height doubles, (b) lineTo x
   // coordinates are unchanged (we use the CSS-pixel transform), (c) the
