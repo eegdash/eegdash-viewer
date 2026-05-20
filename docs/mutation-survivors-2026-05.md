@@ -854,3 +854,86 @@ the fixes:
 
 These are independent of the mutation iteration but came from the same
 "actively hunt for bugs" sprint.
+
+## Iteration 9 (PR 15, 2026-05-21)
+
+Two-file expansion targeting iter-8's untouched files (filters.js had
+not been attacked since the iter-7 baseline; bids-recording got deeper
+golden assertions). Fresh baseline (no incremental cache, 11m 57s
+runtime, 2262 mutants).
+
+### Per-file results
+
+| File | iter-8 | iter-9 | Δ |
+|---|---:|---:|---:|
+| traces.js          | 66.39% | 66.39% | — |
+| filters.js         | 66.95% | **90.68%** | **+23.73** |
+| topo2d.js          | 71.29% | 71.29% | — |
+| bids-recording.js  | 68.90% | 70.12% | +1.22 |
+| **Aggregate**      | **68.66%** | **70.34%** | **+1.68** |
+
+### Key finding — varied-coefficient testing kills arithmetic mutants
+
+filters.js is the standout: from 66.95% to 90.68% (just 11 survivors
+out of 118 mutants). The 396 new lines of tests sweep across filter
+designs with varied cutoff frequencies, varied sample rates, and
+varied input signals — making arithmetic-operator mutations (`a * b`
+→ `a / b`, `+` → `-`) observable. Previous tests fixed coefficients
+at single values where the mutation result accidentally coincided
+with the expected output.
+
+This validates the "vary the inputs" pattern as the answer to the
+arithmetic-mutant survivor class that math-heavy files accumulate.
+
+### bids-recording smaller gain explained
+
+Of bids-recording.js's 255 → 245 survivors (only −10), the 138 new
+tests primarily killed StringLiteral mutants on already-asserted
+return field NAMES (where mutation produces a field a different
+name and the deepEqual already detects it). The remaining survivors
+concentrate on error-message StringLiteral mutants — the
+equivalent-mutant class iter-7 documented as acceptable noise.
+
+### Threshold decision
+
+Aggregate 70.34% < 72% raise-bar per PR-15 decision tree. Keep
+`break: 63`. Noise buffer remains comfortable at 7.34pp.
+
+### Iteration 10 strategy (if pursued)
+
+Diminishing returns at this layer. Three remaining tactical options:
+
+1. **traces.js — final shim-bridge sweep on the remaining 239 survivors.**
+   Most are equivalent (IIFE export tail, plus minor-tick float-eps).
+   Estimated +1-2 pp aggregate. Low value.
+
+2. **topo2d.js — DOM-attribute assertion expansion.** The 176 survivors
+   are mostly StringLiteral on SVG namespaces. Could attack with
+   DOM-snapshot tests but those are brittle. Estimated +2-4 pp on
+   topo2d only, +1 pp aggregate.
+
+3. **bids-recording.js — error-message branch coverage.** Add tests
+   that drive each error-throwing path and assert the message
+   verbatim. Estimated +3-5 pp on bids-recording, +1-2 pp aggregate.
+
+None are obviously high-value next steps. The session-arc summary
+(below) is the more useful artifact at this point.
+
+### Mutation testing — full arc (9 iterations across the session)
+
+| Iter | Aggregate | Δ | Strategy |
+|---|---:|---:|---|
+| 1 (baseline traces.js) | 37.29% | — | initial Stryker setup |
+| 2 | 43.76% | +6.47 | top-5 individual mutant kills |
+| 3 | 54.55% | +10.79 | promote time-axis helpers to test surface |
+| 4 | 56.68% | +2.13 | scale-bar + axis layout shim contract |
+| 5 | 64.14% | +7.46 | bridge shim → ctx call-stream |
+| 6 | 66.39% | +2.25 | pagination shim-bridge (equivalent-mutant plateau) |
+| 7 (scope expansion to 4 files) | 47.79% | −18.6 | added filters/topo2d/bids — exposed loose tests |
+| 8 (golden assertions on weak files) | 68.66% | +20.87 | 78 tests; topo2d 37→71, bids 37→69 |
+| 9 (varied-coefficient + bids deeper) | **70.34%** | +1.68 | filters jumped 67→91, bids 69→70 |
+
+**Net session gain**: traces.js-only 37.29% → 4-file aggregate 70.34%
+(+33.05pp). 9 iterations. ~210 new mutation-targeted tests across
+five test files. Zero source-code modifications beyond debug-export
+shims.
