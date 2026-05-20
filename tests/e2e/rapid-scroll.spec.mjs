@@ -91,3 +91,38 @@ test('RAPID-1: gain change during streaming produces a clean canvas', async ({ p
   expect(after).toBeGreaterThan(baseline * 0.3);
   expect(after).toBeLessThan(baseline * 2.0);
 });
+
+test('RAPID-2: rapid pan at devicePixelRatio=2 leaves no ghost residue', async ({ browser }) => {
+  // Retina-resolution browsers triple-buffer canvas pixels; the backing
+  // store is 2x cssW/cssH. The bug class we lock down: clearing using
+  // CSS coordinates while the polyline draws using transformed coordinates
+  // can leave 1-pixel halos at chunk boundaries on hi-DPR.
+  const dir = evidenceDir('rapid-2-dpr');
+  const context = await browser.newContext({ deviceScaleFactor: 2 });
+  const page = await context.newPage();
+  try {
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('console', (m) => {
+      if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text());
+    });
+
+    await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
+    await waitForLoad(page);
+    await page.waitForTimeout(500);
+    const baseline = await countNonBgPixels(page);
+
+    for (let i = 0; i < 25; i++) await page.keyboard.press('ArrowRight');
+    for (let i = 0; i < 25; i++) await page.keyboard.press('ArrowLeft');
+
+    const after = await settle(page);
+    await page.screenshot({ path: path.join(dir, 'after-dpr2.png') });
+    fs.writeFileSync(path.join(dir, 'pixel-counts.json'), JSON.stringify({ baseline, after }, null, 2));
+
+    expect(errors).toHaveLength(0);
+    expect(after).toBeGreaterThan(baseline * 0.5);
+    expect(after).toBeLessThan(baseline * 1.15);
+  } finally {
+    await context.close();
+  }
+});
