@@ -337,29 +337,63 @@ test('RAPID-5: 200 sequential pans do not leak heap memory', async ({ page }) =>
   await waitForLoad(page);
   await page.waitForTimeout(1000);
 
-  const startHeap = await page.evaluate(() => {
-    if (window.gc) window.gc();
-    return performance.memory ? performance.memory.usedJSHeapSize : null;
-  });
+  // window.gc is wired by Chromium's --js-flags=--expose-gc (set in
+  // playwright.config.mjs). Detect it once so the measurement protocol
+  // and threshold are reported alongside the data.
+  const hasGc = await page.evaluate(() => typeof window.gc === 'function');
+
+  // Joyee Cheung's tryGC pattern (Node.js memory-leak-testing blog 2024):
+  // V8's GC is asynchronous + lazy, so one gc() call rarely settles the
+  // heap. Calling it repeatedly with a setTimeout(0) tick between each
+  // call lets V8 drain pending tasks. 30 retries matches Node core's
+  // setRetryHeapSnapshotPath default.
+  const tryGcAndMeasure = async () => {
+    return page.evaluate(async ({ hasGc }) => {
+      if (hasGc) {
+        for (let i = 0; i < 30; i++) {
+          window.gc();
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+      // performance.memory is Chromium-only but available unconditionally
+      // there. usedJSHeapSize is post-GC retained memory.
+      return performance.memory ? performance.memory.usedJSHeapSize : null;
+    }, { hasGc });
+  };
+
+  const startHeap = await tryGcAndMeasure();
   if (startHeap === null) {
     test.skip(true, 'performance.memory not available');
     return;
   }
 
+  // The workout: 100 pans each direction = 200 abort/restart cascades.
+  // Each iteration allocates an AbortController, a streaming assembler,
+  // and (potentially) chunk Float32Arrays. If any of these are retained
+  // beyond the next pan, the heap grows.
   for (let i = 0; i < 100; i++) await page.keyboard.press('ArrowRight');
   for (let i = 0; i < 100; i++) await page.keyboard.press('ArrowLeft');
   await settle(page);
 
-  const endHeap = await page.evaluate(() => {
-    if (window.gc) window.gc();
-    return performance.memory.usedJSHeapSize;
-  });
-
+  const endHeap = await tryGcAndMeasure();
   const growth = endHeap - startHeap;
-  fs.writeFileSync(path.join(dir, 'heap.json'), JSON.stringify({ startHeap, endHeap, growthBytes: growth }, null, 2));
+
+  fs.writeFileSync(path.join(dir, 'heap.json'), JSON.stringify({
+    startHeap,
+    endHeap,
+    growthBytes: growth,
+    growthMb: Number((growth / 1024 / 1024).toFixed(2)),
+    gcAvailable: hasGc,
+    measurementProtocol: hasGc
+      ? 'Joyee-Cheung-tryGC-30x-setImmediate'
+      : 'untriggered-may-overshoot',
+  }, null, 2));
 
   expect(errors).toHaveLength(0);
-  // Allow up to 50 MB growth across 200 pans (the read cache holds 6
-  // windows worth of data, each ~MB — plus normal V8 working set).
-  expect(growth).toBeLessThan(50 * 1024 * 1024);
+
+  // Threshold gating: with forced GC we can trust 5 MB as a real-leak
+  // gate. Without it, V8's lazy GC can leave 30+ MB of dead-but-not-yet-
+  // reclaimed memory, so we keep the legacy 50 MB ceiling.
+  const threshold = hasGc ? 5 * 1024 * 1024 : 50 * 1024 * 1024;
+  expect(growth).toBeLessThan(threshold);
 });

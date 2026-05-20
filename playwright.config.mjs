@@ -22,7 +22,17 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        // Expose window.gc() to the page so the RAPID-5 memory-leak
+        // gate can drive Joyee Cheung's tryGC retry pattern. V8's GC
+        // is async + lazy; without explicit triggering, the heap-diff
+        // signal is dominated by deferred GC noise, not real leaks.
+        launchOptions: { args: ['--js-flags=--expose-gc'] },
+      },
+    },
   ],
   webServer: {
     // Use a Node static server with Range-request support — the EDF/BDF
