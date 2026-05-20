@@ -968,3 +968,123 @@ test('drawTimeAxis: horizontal baseline drawn from plotX0 to plotX1', async () =
   assert.equal(nextLineTo.args[1], axisBaselineY,
     `baseline lineTo y should be axisBaselineY=${axisBaselineY}, got ${nextLineTo.args[1]}`);
 });
+
+test('drawScaleBar: vertical line moveTo+lineTo match _computeScaleBarGeometry', async () => {
+  // The scale bar's vertical line is drawScaleBar:232-233:
+  //   ctx.moveTo(x + 0.5, yTop);
+  //   ctx.lineTo(x + 0.5, yBottom);
+  // (yBottom is reached by lineTo, NOT a second moveTo — see traces.js.)
+  // Both endpoints must match the geometry shim. Kills any mutant in
+  // lines 217-225 that shifts x/yTop/yBottom by even one pixel.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(4, 200));
+  const calls = canvas._ctx.calls;
+
+  const slotMicrovolts = TraceRenderer.lastSlotMicrovolts;
+  // Defensive skip: if slotMicrovolts is non-positive the scale bar
+  // was never drawn (the contract is null in that case — the shim's
+  // own tests cover it).
+  if (!(slotMicrovolts > 0) || !isFinite(slotMicrovolts)) return;
+
+  const { plotX1, plotY0, plotH } = plotGeometryFor(cssW, cssH);
+  // 4 channels → slotH = plotH / 4. Must match the renderer's slotH
+  // computation: see traces.js where slotH = plotH / Math.min(maxVisible, nCh).
+  const nCh = 4;
+  const slotH = plotH / nCh;
+
+  const geom = TraceRenderer._computeScaleBarGeometry(slotMicrovolts, slotH, plotX1, plotY0, plotH);
+  // Geometry returns null when the bar would be too small; skip the test
+  // in that case rather than fail (the shim's own null-branch tests
+  // cover that contract).
+  if (!geom) return;
+
+  const xWant = geom.x + 0.5;
+  // The moveTo(x+0.5, yTop) MUST be present. Strict equality on x — the
+  // renderer uses literal `x + 0.5`. y has accumulated float arithmetic
+  // (yBottom - px) so a 1px tolerance is appropriate.
+  const moveTop = calls.find(c =>
+    c.op === 'moveTo' && c.args[0] === xWant && Math.abs(c.args[1] - geom.yTop) <= 1);
+  assert.ok(moveTop,
+    `expected moveTo(${xWant}, ${geom.yTop.toFixed(2)}) for scale bar vertical line top`);
+
+  // The matching lineTo(x+0.5, yBottom) closes the vertical line.
+  const lineBottom = calls.find(c =>
+    c.op === 'lineTo' && c.args[0] === xWant && Math.abs(c.args[1] - geom.yBottom) <= 1);
+  assert.ok(lineBottom,
+    `expected lineTo(${xWant}, ${geom.yBottom.toFixed(2)}) for scale bar vertical line bottom`);
+});
+
+test('drawScaleBar: top/bottom tick caps drawn with horizontal moveTo+lineTo', async () => {
+  // drawScaleBar:234-237 draws two horizontal caps:
+  //   moveTo(x - 3, yTop + 0.5);    lineTo(x + 4, yTop + 0.5);
+  //   moveTo(x - 3, yBottom + 0.5); lineTo(x + 4, yBottom + 0.5);
+  // Mutants on the -3 / +4 / +0.5 constants change where these caps land.
+  // We pin all four endpoints.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(4, 200));
+  const calls = canvas._ctx.calls;
+
+  const slotMicrovolts = TraceRenderer.lastSlotMicrovolts;
+  if (!(slotMicrovolts > 0) || !isFinite(slotMicrovolts)) return;
+  const { plotX1, plotY0, plotH } = plotGeometryFor(cssW, cssH);
+  const slotH = plotH / 4;
+  const geom = TraceRenderer._computeScaleBarGeometry(slotMicrovolts, slotH, plotX1, plotY0, plotH);
+  if (!geom) return;
+
+  const topCapY = geom.yTop + 0.5;
+  const botCapY = geom.yBottom + 0.5;
+  const leftX = geom.x - 3;
+  const rightX = geom.x + 4;
+
+  // Top cap.
+  const moveTopCap = calls.find(c =>
+    c.op === 'moveTo' && c.args[0] === leftX && Math.abs(c.args[1] - topCapY) <= 1);
+  assert.ok(moveTopCap,
+    `expected moveTo(${leftX}, ${topCapY.toFixed(2)}) for top scale-bar tick cap`);
+  const lineTopCap = calls.find(c =>
+    c.op === 'lineTo' && c.args[0] === rightX && Math.abs(c.args[1] - topCapY) <= 1);
+  assert.ok(lineTopCap,
+    `expected lineTo(${rightX}, ${topCapY.toFixed(2)}) for top scale-bar tick cap`);
+
+  // Bottom cap.
+  const moveBotCap = calls.find(c =>
+    c.op === 'moveTo' && c.args[0] === leftX && Math.abs(c.args[1] - botCapY) <= 1);
+  assert.ok(moveBotCap,
+    `expected moveTo(${leftX}, ${botCapY.toFixed(2)}) for bottom scale-bar tick cap`);
+  const lineBotCap = calls.find(c =>
+    c.op === 'lineTo' && c.args[0] === rightX && Math.abs(c.args[1] - botCapY) <= 1);
+  assert.ok(lineBotCap,
+    `expected lineTo(${rightX}, ${botCapY.toFixed(2)}) for bottom scale-bar tick cap`);
+});
+
+test('drawScaleBar: fillText label uses _formatScale(targetMv) at (x+8, midpoint)', async () => {
+  // drawScaleBar:242 — ctx.fillText(formatScale(targetMv), x + 8, (yTop + yBottom) / 2).
+  // The text content is locked to _formatScale's output. Mutants on the
+  // +8 offset, the / 2 midpoint formula, or the targetMv argument are
+  // all caught here.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(4, 200));
+  const calls = canvas._ctx.calls;
+
+  const slotMicrovolts = TraceRenderer.lastSlotMicrovolts;
+  if (!(slotMicrovolts > 0) || !isFinite(slotMicrovolts)) return;
+  const { plotX1, plotY0, plotH } = plotGeometryFor(cssW, cssH);
+  const slotH = plotH / 4;
+  const geom = TraceRenderer._computeScaleBarGeometry(slotMicrovolts, slotH, plotX1, plotY0, plotH);
+  if (!geom) return;
+
+  const expectedLabel = TraceRenderer._formatScale(geom.targetMv);
+  const expectedX = geom.x + 8;
+  const expectedY = (geom.yTop + geom.yBottom) / 2;
+
+  const call = calls.find(c => c.op === 'fillText' && c.args[0] === expectedLabel);
+  assert.ok(call,
+    `expected fillText "${expectedLabel}" for scale bar label`);
+  assert.equal(call.args[1], expectedX,
+    `scale-bar label x=${call.args[1]} should be ${expectedX} (geom.x + 8)`);
+  assert.ok(Math.abs(call.args[2] - expectedY) <= 1.5,
+    `scale-bar label y=${call.args[2]} should be ≈ ${expectedY.toFixed(2)} ((yTop+yBottom)/2)`);
+});
