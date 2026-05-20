@@ -25,11 +25,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # incremental needs git history
+          fetch-depth: 50  # Stryker incremental needs the diff base, not full history
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
       - run: npm ci
 
@@ -37,7 +38,10 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: reports/stryker-incremental.json
-          key: stryker-incremental-${{ github.event.pull_request.base.sha }}
+          # Nightly save uses the stable key `stryker-incremental-main`;
+          # we restore from that single key. restore-keys fallback covers
+          # the first-PR-after-init case where no nightly has saved yet.
+          key: stryker-incremental-main
           restore-keys: |
             stryker-incremental-
 

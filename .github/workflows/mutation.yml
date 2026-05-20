@@ -41,7 +41,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: reports/stryker-incremental.json
-          key: stryker-incremental-${{ github.sha }}
+          key: stryker-incremental-main
       - name: Upload mutation report
         if: always()
         uses: actions/upload-artifact@v4
