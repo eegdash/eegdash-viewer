@@ -643,3 +643,137 @@ test('draw: trace moveTo Y-coordinates land within the plot area (mutation 2 gua
     assert.ok(y <= 600, `moveTo y=${y} exceeds canvas height`);
   }
 });
+
+// ── Iteration-4 pagination boundary tests ────────────────────────────────────
+//
+// These attack the lines-500-549 pagination tail cluster called out in
+// docs/mutation-survivors-2026-05.md iteration-4. The earlier pagination
+// tests (offset=10, offset=30) exercised the mid-range; the survivors live
+// on the OUTER boundaries: offset exactly at (totalCh - maxVisible), offset
+// at (totalCh - 1) where only one slot is visible, and offset > totalCh
+// where the clamp at traces.js:509 fires.
+//
+// Geometry constants for these tests at 800x600:
+//   PAD_TOP=8, PAD_BOTTOM=28 → plotH=564.
+//   MIN_SLOT_PX=16 → maxVisible = floor(564/16) = 35.
+//   With nCh=50: tail boundary at offset = 50 - 35 = 15.
+
+test('draw: pagination — offset = totalCh - maxVisible (exact tail boundary)', async (t) => {
+  // The boundary at offset = totalCh - maxVisible: visibleN should equal
+  // maxVisible exactly (35), and the last visible label should be Ch50.
+  // Mutants that flip `totalCh - offset` to `totalCh + offset` would
+  // produce visibleN = min(35, 50+15) = 35 — same count, but the slice
+  // would still start at offset=15, so labels would still be Ch16..Ch50.
+  // The kill comes from any OTHER pagination mutant that shifts the slice
+  // start (e.g. mutating `slice(offset, offset+visibleN)` to
+  // `slice(0, visibleN)` would put Ch1..Ch35 here).
+  const nCh = 50;
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  const offsetBoundary = nCh - TraceRenderer.PAD_TOP; // placeholder; recompute below
+  // Recompute the boundary against the actual maxVisible:
+  // plotH = cssH - PAD_TOP - PAD_BOTTOM = 600 - 8 - 28 = 564
+  // maxVisible = floor(564 / 16) = 35; offsetBoundary = 50 - 35 = 15.
+  TraceRenderer.draw(canvas, buildOpts(nCh, 100, { channel_offset: 15 }));
+
+  const labelCalls = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .map(c => String(c.args[0]));
+
+  const maxVisible = TraceRenderer.lastMaxVisibleChannels;
+  assert.equal(maxVisible, 35, `maxVisible should be 35 at 800x600 with MIN_SLOT_PX=16`);
+  assert.equal(labelCalls.length, maxVisible,
+    `at the exact tail boundary, expected ${maxVisible} labels, got ${labelCalls.length}`);
+  assert.equal(labelCalls[0], 'Ch16',
+    `first visible at boundary offset=15 should be Ch16, got ${labelCalls[0]}`);
+  assert.equal(labelCalls[labelCalls.length - 1], 'Ch50',
+    `last visible at boundary should be Ch50, got ${labelCalls[labelCalls.length - 1]}`);
+
+  // Bookkeeping check: the renderer did NOT clamp here (offset=15 is valid).
+  assert.equal(TraceRenderer.lastChannelOffset, 15);
+});
+
+test('draw: pagination — offset = totalCh - 1 (single visible channel at tail)', async (t) => {
+  // Extreme tail: only one channel slot visible, at the bottom of the
+  // recording. visibleN = min(maxVisible=35, totalCh - offset = 1) = 1.
+  // The single label rendered must be Ch{totalCh}. Mutants that flip
+  // the totalCh-offset subtraction sign (515 family) would give
+  // visibleN = min(35, totalCh+49) = 35, but slice clamps to length-1
+  // = [49,50). So the kill comes from asserting count == 1 (not 35).
+  const nCh = 50;
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(nCh, 100, { channel_offset: nCh - 1 }));
+
+  const labelCalls = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .map(c => String(c.args[0]));
+
+  // Exactly one label, and it must be Ch50.
+  assert.equal(labelCalls.length, 1,
+    `at offset=totalCh-1 expected exactly 1 visible label, got ${labelCalls.length}`);
+  assert.equal(labelCalls[0], `Ch${nCh}`,
+    `the single visible label should be Ch${nCh}, got ${labelCalls[0]}`);
+
+  // Bookkeeping: offset is valid, no clamp.
+  assert.equal(TraceRenderer.lastChannelOffset, nCh - 1);
+  assert.equal(TraceRenderer.lastTotalChannels, nCh);
+});
+
+test('draw: pagination — offset = totalCh (off-by-one beyond) clamps to totalCh-1', async (t) => {
+  // Drives the clamp at traces.js:509:
+  //   offset = Math.max(0, Math.min(Math.max(0, totalCh - 1), offsetRaw));
+  // With offsetRaw=totalCh, the inner Math.min picks (totalCh-1), so the
+  // effective offset is totalCh-1 → still one visible channel (the last).
+  //
+  // Mutants on either `totalCh - 1` (e.g. `totalCh + 1`) or the Math.min
+  // pivot would change which channel becomes the single visible one — or
+  // would cause an out-of-range slice. We assert the post-clamp invariants:
+  //   - exactly 1 label visible
+  //   - that label is Ch{totalCh}
+  //   - bookkeeping reports the CLAMPED offset, not the raw one
+  const nCh = 50;
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(nCh, 100, { channel_offset: nCh }));
+
+  const labelCalls = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .map(c => String(c.args[0]));
+
+  assert.equal(labelCalls.length, 1,
+    `at offset=totalCh (clamped), expected 1 label, got ${labelCalls.length}`);
+  assert.equal(labelCalls[0], `Ch${nCh}`,
+    `single label after clamp should be Ch${nCh}, got ${labelCalls[0]}`);
+
+  // The clamp must report the effective offset (nCh - 1), not the raw input.
+  assert.equal(TraceRenderer.lastChannelOffset, nCh - 1,
+    `clamped offset should be ${nCh - 1}, got ${TraceRenderer.lastChannelOffset}`);
+});
+
+test('draw: pagination — offset way beyond totalCh still clamps to totalCh-1 (no NaN)', async (t) => {
+  // Stress the clamp with a pathological input: offset=9999 with totalCh=50.
+  // Outcome must be identical to offset=49 — single Ch50 visible, no
+  // exception thrown, no NaN moveTo positions.
+  // Catches mutants on the outer Math.max (the lower-bound clamp) and on
+  // either of the two Math.max(0, ...) calls in the clamp chain.
+  const nCh = 50;
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(nCh, 100, { channel_offset: 9999 }));
+
+  const labelCalls = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .map(c => String(c.args[0]));
+
+  assert.equal(labelCalls.length, 1,
+    `extreme offset clamps to single visible label, got ${labelCalls.length}`);
+  assert.equal(labelCalls[0], `Ch${nCh}`);
+  assert.equal(TraceRenderer.lastChannelOffset, nCh - 1);
+
+  // Defensive: no NaN coordinates leaked into the moveTo stream.
+  const nanMoveTo = canvas._ctx.calls.find(
+    c => c.op === 'moveTo' && (Number.isNaN(c.args[0]) || Number.isNaN(c.args[1])),
+  );
+  assert.ok(!nanMoveTo, `extreme offset produced a NaN moveTo: ${JSON.stringify(nanMoveTo)}`);
+});
