@@ -158,3 +158,36 @@ test('RAPID-3: viewport resize while streaming does not leave dead pixels', asyn
   expect(errors).toHaveLength(0);
   expect(after).toBeGreaterThan(500);
 });
+
+test('RAPID-4: tab visibility throttle does not leave stale frame on resume', async ({ page, context }) => {
+  const dir = evidenceDir('rapid-4-visibility');
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text());
+  });
+
+  await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
+  await waitForLoad(page);
+  await page.waitForTimeout(500);
+
+  // Emulate tab going to background by emitting a visibilitychange event.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', writable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+
+  for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight');
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', writable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+
+  const after = await settle(page);
+  await page.screenshot({ path: path.join(dir, 'after-visibility.png') });
+  fs.writeFileSync(path.join(dir, 'pixel-counts.json'), JSON.stringify({ after }, null, 2));
+
+  expect(errors).toHaveLength(0);
+  expect(after).toBeGreaterThan(500);
+});
