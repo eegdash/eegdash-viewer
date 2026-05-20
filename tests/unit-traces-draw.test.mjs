@@ -777,3 +777,194 @@ test('draw: pagination — offset way beyond totalCh still clamps to totalCh-1 (
   );
   assert.ok(!nanMoveTo, `extreme offset produced a NaN moveTo: ${JSON.stringify(nanMoveTo)}`);
 });
+
+// ── Iteration-5 ctx-conformance tests ────────────────────────────────────────
+//
+// PR 9 (iteration 4) added `_computeTimeAxisLayout` and `_computeScaleBarGeometry`
+// debug-export shims and pinned their CONTRACT with 24 unit tests. The mutation
+// score moved +2.13pp — short of expectations — because the shim proved only
+// that the helpers return the correct numbers, NOT that the original
+// `drawTimeAxis` / `drawScaleBar` / `drawEventMarkers` functions faithfully
+// forward those numbers into the ctx call stream. A mutation that swaps a
+// `moveTo(x, y)` for `moveTo(y, x)` in drawTimeAxis still survives.
+//
+// These tests close that gap by recording the actual `moveTo` / `lineTo` /
+// `fillText` calls emitted during a `draw()` and asserting their coordinates
+// match what the corresponding shim says they SHOULD be. The shim is the
+// ground truth; the renderer is the system under test. Each test below pins
+// one slice of the bridge:
+//
+//   - axis baseline moveTo x positions ↔ _computeTimeAxisLayout(...).major[i].x
+//   - axis label fillText (x, y) ↔ shim major[i].x and the y = baseline + 6
+//   - minor-tick moveTo x positions ↔ shim minor[i].x
+//   - scale-bar moveTo / lineTo coords ↔ _computeScaleBarGeometry(...) output
+//   - event-marker moveTo x positions ↔ explicit onset_fraction × plotW formula
+//
+// Per docs/mutation-survivors-2026-05.md iteration-4 summary the targeted
+// clusters are: lines 350-399 (43 survivors), 200-249 (37), 250-299 (26).
+
+// Window helpers reused across iteration-5 tests so the geometry expression
+// stays in one place — accidentally diverging the test's view of the window
+// from the renderer's would hide mutants instead of killing them.
+function makeAxisWindow() {
+  // 100 samples at 250 Hz → window length 0.4 s, plenty of major ticks at
+  // step=0.05 to exercise both the major and minor paths.
+  return { start_sec: 0, fs: 250, n_samples_visible: 100 };
+}
+
+function plotGeometryFor(cssW, cssH) {
+  // Lives here (NOT inline) so all three iteration-5 tests agree on the
+  // exact rectangle. If a future renderer change shifts PAD_*, this single
+  // function updates and the tests track.
+  const PAD_LEFT = TraceRenderer.PAD_LEFT;
+  const PAD_RIGHT = TraceRenderer.PAD_RIGHT;
+  const PAD_TOP = TraceRenderer.PAD_TOP;
+  const PAD_BOTTOM = TraceRenderer.PAD_BOTTOM;
+  const plotX0 = PAD_LEFT;
+  const plotX1 = cssW - PAD_RIGHT;
+  const plotY0 = PAD_TOP;
+  const plotH = cssH - PAD_TOP - PAD_BOTTOM;
+  // drawTimeAxis is called with y = plotY0 + plotH + 4 (see traces.js:536).
+  const axisBaselineY = plotY0 + plotH + 4;
+  return { plotX0, plotX1, plotY0, plotH, axisBaselineY };
+}
+
+test('drawTimeAxis: major-tick moveTo x positions match _computeTimeAxisLayout', async () => {
+  // Renderer must call ctx.moveTo for every major tick at the x position
+  // _computeTimeAxisLayout reports. This bridges the PR-9 shim contract to
+  // the actual ctx side effects so the ~40-mutant cluster in lines 350-399
+  // becomes mutation-killable. Mutants that swap (x,y) args, sign-flip
+  // (t-t0Sec), or skip a tick all change one of these x values.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  const winOpts = makeAxisWindow();
+  TraceRenderer.draw(canvas, buildOpts(2, winOpts.n_samples_visible, winOpts));
+  const calls = canvas._ctx.calls;
+
+  const { plotX0, plotX1, axisBaselineY } = plotGeometryFor(cssW, cssH);
+  const layout = TraceRenderer._computeTimeAxisLayout(
+    plotX0, plotX1,
+    winOpts.start_sec,
+    winOpts.start_sec + winOpts.n_samples_visible / winOpts.fs,
+    'relative', null,
+  );
+
+  // Axis moveTos are the ONLY moveTos whose y === axisBaselineY exactly.
+  // Trace moveTos use yCenter values (very different); minor/major tick
+  // lineTos go to baselineY+2 or baselineY+4 but those are lineTos, not
+  // moveTos. We deliberately use a strict-equality y filter so the test
+  // would fail if the renderer started routing the baseline through
+  // a different y.
+  const axisMoveTos = calls
+    .filter(c => c.op === 'moveTo' && c.args[1] === axisBaselineY)
+    .map(c => c.args[0]);
+
+  for (const tick of layout.major) {
+    const found = axisMoveTos.some(x => Math.abs(x - tick.x) <= 1);
+    assert.ok(found,
+      `expected major-tick moveTo at x=${tick.x.toFixed(2)} (t=${tick.t}); ` +
+      `${axisMoveTos.length} axis moveTos found`);
+  }
+});
+
+test('drawTimeAxis: fillText labels at expected (x, y) for every major tick', async () => {
+  // drawTimeAxis:369 — ctx.fillText(useClock ? label : label + ' s', x, y + 6).
+  // The label string is the shim's major[i].label + ' s' for relative mode.
+  // We verify BOTH the x coordinate (must equal major[i].x) and the y
+  // coordinate (must equal axisBaselineY + 6) for every major tick.
+  // Mutants on the ` s` suffix, the +6 offset, or x→y swap are all killed.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  const winOpts = makeAxisWindow();
+  TraceRenderer.draw(canvas, buildOpts(2, winOpts.n_samples_visible, winOpts));
+  const calls = canvas._ctx.calls;
+
+  const { plotX0, plotX1, axisBaselineY } = plotGeometryFor(cssW, cssH);
+  const layout = TraceRenderer._computeTimeAxisLayout(
+    plotX0, plotX1,
+    winOpts.start_sec,
+    winOpts.start_sec + winOpts.n_samples_visible / winOpts.fs,
+    'relative', null,
+  );
+
+  const expectedLabelY = axisBaselineY + 6;
+  for (const tick of layout.major) {
+    const wantLabel = tick.label + ' s';
+    const call = calls.find(c => c.op === 'fillText' && c.args[0] === wantLabel);
+    assert.ok(call, `expected fillText "${wantLabel}" for major tick at t=${tick.t}`);
+    assert.ok(Math.abs(call.args[1] - tick.x) <= 1,
+      `fillText "${wantLabel}" x=${call.args[1]} should be ≈ ${tick.x.toFixed(2)}`);
+    assert.equal(call.args[2], expectedLabelY,
+      `fillText "${wantLabel}" y=${call.args[2]} should be ${expectedLabelY} (baselineY + 6)`);
+  }
+});
+
+test('drawTimeAxis: minor-tick moveTo x positions match _computeTimeAxisLayout.minor', async () => {
+  // _computeTimeAxisLayout(...).minor lists the minor-tick x positions the
+  // renderer SHOULD emit. Each must appear as a moveTo at y=axisBaselineY.
+  // Mutants on minorStep (step/5), firstMinor (Math.ceil), or the
+  // skip-at-major epsilon (1e-6) shift these positions.
+  //
+  // We require ≥80% to hit because floating-point accumulation in
+  // `for (let t = firstMinor; t <= t1Sec + 1e-9; t += minorStep)` can drift
+  // by ε from the shim's same loop, and a small handful of minors near a
+  // major boundary may round into the major's moveTo within 1px — both
+  // implementations are valid. The 80% floor still falls hard if the
+  // renderer stops emitting minors entirely (a common mutation outcome).
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  const winOpts = makeAxisWindow();
+  TraceRenderer.draw(canvas, buildOpts(2, winOpts.n_samples_visible, winOpts));
+  const calls = canvas._ctx.calls;
+
+  const { plotX0, plotX1, axisBaselineY } = plotGeometryFor(cssW, cssH);
+  const layout = TraceRenderer._computeTimeAxisLayout(
+    plotX0, plotX1,
+    winOpts.start_sec,
+    winOpts.start_sec + winOpts.n_samples_visible / winOpts.fs,
+    'relative', null,
+  );
+
+  const axisMoveTos = calls
+    .filter(c => c.op === 'moveTo' && c.args[1] === axisBaselineY)
+    .map(c => c.args[0]);
+
+  let hits = 0;
+  for (const minor of layout.minor) {
+    if (axisMoveTos.some(x => Math.abs(x - minor.x) <= 1)) hits++;
+  }
+  const total = Math.max(1, layout.minor.length);
+  const ratio = hits / total;
+  assert.ok(ratio >= 0.8,
+    `only ${hits}/${total} minor-tick x positions matched a moveTo (${(ratio*100).toFixed(0)}%); ` +
+    `axis moveTos: ${axisMoveTos.length}`);
+});
+
+test('drawTimeAxis: horizontal baseline drawn from plotX0 to plotX1', async () => {
+  // The axis baseline (the horizontal line at y=baselineY) is drawn first
+  // in drawTimeAxis (lines 340-343): moveTo(x0, y) + lineTo(x1, y). Catches
+  // mutants that swap the moveTo/lineTo endpoints or shift the baseline
+  // start/end off the plot region.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(2, 100));
+  const calls = canvas._ctx.calls;
+
+  const { plotX0, plotX1, axisBaselineY } = plotGeometryFor(cssW, cssH);
+  // The very first moveTo on axisBaselineY must be at plotX0 (the start
+  // of the horizontal baseline). The matching lineTo within ~4 calls must
+  // land at plotX1.
+  const idxStart = calls.findIndex(c =>
+    c.op === 'moveTo' && c.args[1] === axisBaselineY && c.args[0] === plotX0);
+  assert.ok(idxStart >= 0,
+    `expected moveTo(${plotX0}, ${axisBaselineY}) at start of drawTimeAxis baseline`);
+  // The immediate next lineTo (same beginPath..stroke block) goes to plotX1.
+  const nextLineTo = calls.slice(idxStart + 1, idxStart + 4)
+    .find(c => c.op === 'lineTo');
+  assert.ok(nextLineTo,
+    `expected a lineTo right after baseline moveTo; got ${JSON.stringify(calls.slice(idxStart+1, idxStart+4))}`);
+  assert.equal(nextLineTo.args[0], plotX1,
+    `baseline lineTo x should be plotX1=${plotX1}, got ${nextLineTo.args[0]}`);
+  assert.equal(nextLineTo.args[1], axisBaselineY,
+    `baseline lineTo y should be axisBaselineY=${axisBaselineY}, got ${nextLineTo.args[1]}`);
+});
