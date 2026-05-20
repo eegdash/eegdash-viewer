@@ -211,6 +211,61 @@ test('rapid-pan stress: 50 pans, only the last one resolves to full data', async
   assert.equal(last.partial, false, 'final chunk must be terminal (partial:false)');
 });
 
+test('filter+pan interleave: toggling hp/lp/notch mid-pan aborts in-flight stream cleanly', async () => {
+  // GAP: STREAMING-E2E-3 covers filter-after-pan (settled state), and the
+  // abort-cascade tests cover pan-pan-pan. But filter+pan INTERLEAVE — where
+  // the user pans, then toggles a filter while the first pan stream is still
+  // emitting chunks, then pans again, then toggles another filter — is not
+  // covered. Every filter toggle issues a fresh fetch and must abort the
+  // currently in-flight stream (whether it's a pan stream or an earlier
+  // filter stream). This is the protocol-level invariant: no leaked
+  // pendingRequests after the sequence settles, and exactly N-1 entries
+  // marked cancelled when N total fetches are issued.
+  const client = makeStreamingClient();
+  const operations = [
+    { kind: 'pan',    label: 'pan-right-1' },
+    { kind: 'filter', label: 'hp-on'       },
+    { kind: 'pan',    label: 'pan-right-2' },
+    { kind: 'filter', label: 'lp-on'       },
+    { kind: 'pan',    label: 'pan-left-1'  },
+    { kind: 'filter', label: 'notch-on'    },
+    { kind: 'pan',    label: 'pan-right-3' },
+  ];
+
+  const controllers = [];
+  const consumers = [];
+  let prevCtrl = null;
+
+  for (const op of operations) {
+    if (prevCtrl) prevCtrl.abort();
+    const ctrl = new AbortController();
+    controllers.push(ctrl);
+    // Each op kicks off a worker stream. Filter ops would use a single chunk
+    // (filter path collapses to one chunk in the real worker) but the abort
+    // contract is identical so we use the same shape here.
+    const total = op.kind === 'filter' ? 800 : 1200;
+    const nChunks = op.kind === 'filter' ? 1 : 4;
+    const stream = client.fetchStream(total, nChunks, 8, ctrl.signal);
+    consumers.push(consumeStream(stream, ctrl.signal));
+    prevCtrl = ctrl;
+  }
+
+  // Let only the FINAL operation complete.
+  await consumers[consumers.length - 1];
+  await new Promise(r => setTimeout(r, 100));
+
+  assert.equal(
+    client.pendingRequests.size, 0,
+    `filter+pan interleave must leave no leaked pendingRequests; got ${client.pendingRequests.size}. ` +
+    `If non-zero, a filter or pan path is not cancelling its in-flight stream.`,
+  );
+  assert.equal(
+    client.cancelledRequests.size, operations.length - 1,
+    `expected ${operations.length - 1} cancelled requests (every op except the last); ` +
+    `got ${client.cancelledRequests.size}.`,
+  );
+});
+
 test('prefetch gate: prefetch is skipped while worker has in-flight requests', async () => {
   // Mirrors viewer.js prefetchNeighbours() gate:
   //   if (pendingRequests.size > 0) return;
