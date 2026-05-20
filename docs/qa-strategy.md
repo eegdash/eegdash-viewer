@@ -173,3 +173,36 @@ Run all rapid-input tests:
 ```bash
 npm run test:e2e:rapid
 ```
+
+## Coverage Gate
+
+The repo enforces a minimum coverage floor via c8 (V8-native, node:test-compatible).
+
+Configuration: `.c8rc.json`. Source patterns: format readers, render path,
+worker, filter, topo2d, BIDS loader. Test patterns and bench/scripts are
+excluded so they don't inflate the score.
+
+Thresholds derived from 2026-05-20 baseline:
+
+- lines: 52% (baseline 57.18%)
+- branches: 77% (baseline 82.50%)
+- functions: 70% (baseline 75.82%)
+- statements: 52% (baseline 57.18%)
+
+Each is the baseline value minus 5% (rounded down) or an absolute floor
+(60% lines/functions/statements, 50% branches), whichever is higher.
+Lines and statements sit below the 60% floor because `worker.js`,
+`formats/fiff.js`, and most of `viewer.js` are browser-only render code
+not driven by `node:test`. Pinning those metrics to (baseline − 5)
+reflects the testable surface today rather than aspirational headroom.
+
+This gate rejects PRs that regress coverage by >5% without forcing
+green-coverage cargo culting.
+
+Tighten quarterly: each quarter, re-baseline against the latest main and
+raise the thresholds by 2–3%. Don't chase 100%.
+
+Run locally: `npm run test:coverage`. HTML report at `coverage/index.html`.
+The coverage script intentionally runs only the deterministic unit set
+(same files as `npm run test:unit`) so the gate doesn't drift with
+NEMAR / OpenNeuro network flakes.
