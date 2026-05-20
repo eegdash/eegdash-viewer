@@ -419,6 +419,61 @@ test('draw: channel label Y-coordinates are evenly spaced by slotH (kills mutant
   }
 });
 
+test('draw: event marker label x-position matches plotX0 + onset_fraction*plotW (kills mutant 234)', async (t) => {
+  // MUTATION 234 guard at traces.js:276 inside drawEventMarkers.
+  // Original: `const x = Math.round(plotX0 + ((ev.onset - t0) / span) * (plotX1 - plotX0));`
+  // Mutant:   `const x = Math.round(plotX0 - ((ev.onset - t0) / span) * (plotX1 - plotX0));`
+  //
+  // The mutant flips the x-position to the LEFT of plotX0 (negative offset),
+  // putting the event label in the channel-label gutter or off-canvas. The
+  // existing "event markers when events non-empty" test only checks that
+  // SOME label text appears — it doesn't constrain x. We do.
+  //
+  // Window: fs=250, n_samples_visible=100 → window length 0.4s. Events at
+  // onset=0.1 (25% of window) and 0.3 (75% of window).
+  const cssW = 800, cssH = 600;
+  const plotX0 = TraceRenderer.PAD_LEFT;
+  const plotX1 = cssW - TraceRenderer.PAD_RIGHT;
+  const plotW  = plotX1 - plotX0;
+
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(2, 100, {
+    events: [{ onset: 0.1, label: 'E1' }, { onset: 0.3, label: 'E2' }],
+    start_sec: 0,
+    fs: 250,
+  }));
+
+  // drawEventMarkers calls ctx.fillText(label, x + 3, plotY0 + 1).
+  // So actual_x_text = round(plotX0 + onset/span * plotW) + 3.
+  const expectedX_E1 = Math.round(plotX0 + 0.25 * plotW) + 3;
+  const expectedX_E2 = Math.round(plotX0 + 0.75 * plotW) + 3;
+
+  const textCalls = canvas._ctx.calls.filter(c => c.op === 'fillText');
+  const e1 = textCalls.find(c => String(c.args[0]) === 'E1');
+  const e2 = textCalls.find(c => String(c.args[0]) === 'E2');
+  assert.ok(e1, 'E1 fillText must be issued');
+  assert.ok(e2, 'E2 fillText must be issued');
+
+  // Tight (≤2px) bound on x. The mutant would put E1 at
+  // round(plotX0 - 0.25*plotW) + 3, which differs from expected by 2*0.25*plotW ≈ 317px.
+  assert.ok(
+    Math.abs(e1.args[1] - expectedX_E1) <= 2,
+    `E1 x=${e1.args[1]} vs expected ${expectedX_E1} (mutant 234 would put it at ${Math.round(plotX0 - 0.25 * plotW) + 3})`,
+  );
+  assert.ok(
+    Math.abs(e2.args[1] - expectedX_E2) <= 2,
+    `E2 x=${e2.args[1]} vs expected ${expectedX_E2}`,
+  );
+
+  // Critical structural assertion: both event labels MUST land in
+  // [plotX0, plotX1] (well, [plotX0+3, plotX1+3] after the +3 label offset).
+  // The mutant flips x to the LEFT of plotX0 — this catches it even if the
+  // tight bound check above were loosened.
+  assert.ok(e1.args[1] > plotX0, `E1 x=${e1.args[1]} must be > plotX0=${plotX0} (mutant flips to left)`);
+  assert.ok(e2.args[1] > plotX0, `E2 x=${e2.args[1]} must be > plotX0=${plotX0}`);
+  assert.ok(e1.args[1] < plotX1 + 10, `E1 x=${e1.args[1]} must be near or inside plotX1=${plotX1}`);
+});
+
 test('draw: trace moveTo Y-coordinates land within the plot area (mutation 2 guard)', async (t) => {
   // MUTATION 2 guard: negating the sign in yCenter = plotY0 + (c+0.5)*slotH
   // pushes all trace moveTos to negative Y values (above the canvas). This
