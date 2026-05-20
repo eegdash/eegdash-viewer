@@ -474,6 +474,129 @@ test('draw: event marker label x-position matches plotX0 + onset_fraction*plotW 
   assert.ok(e1.args[1] < plotX1 + 10, `E1 x=${e1.args[1]} must be near or inside plotX1=${plotX1}`);
 });
 
+test('draw: pagination — labels start at channel_offset, not at 0 (kills mutant 515 cluster)', async (t) => {
+  // MUTATION 515 guard at traces.js:510.
+  // Original: `const visibleN = Math.min(maxVisible, totalCh - offset);`
+  // Mutant:   `const visibleN = Math.min(maxVisible, totalCh + offset);`
+  //
+  // Every existing draw test runs with the default channel_offset = 0,
+  // so `totalCh - 0` === `totalCh + 0` and the mutation is invisible.
+  // We drive channel_offset > 0 and assert:
+  //   (a) visible labels are 'Ch{offset+1}'..'Ch{offset+maxVisible}'
+  //       (NOT 'Ch1'..). This kills any pagination-OFF mutant.
+  //   (b) when offset is large enough that totalCh - offset < maxVisible,
+  //       the trailing slice shape is observable via the bookkeeping
+  //       fields lastChannelOffset / lastTotalChannels.
+  const nCh = 50;        // exceeds maxVisible (35 at default geometry)
+  const cssW = 800, cssH = 600;
+
+  // Sub-case (a): offset=10, expect maxVisible (35) labels starting at Ch11.
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(nCh, 100, { channel_offset: 10 }));
+  const labelCalls = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .map(c => String(c.args[0]));
+
+  // maxVisible at 800×600 with MIN_SLOT_PX=16 → floor(564/16) = 35.
+  const maxVisible = TraceRenderer.lastMaxVisibleChannels;
+  assert.equal(labelCalls.length, maxVisible,
+    `expected ${maxVisible} visible labels at offset=10, got ${labelCalls.length}`);
+
+  // First visible label must be Ch11 (offset+1), not Ch1.
+  assert.equal(labelCalls[0], 'Ch11', `first label should be Ch11 (offset+1), got ${labelCalls[0]}`);
+  // Last visible label must be Ch{10 + maxVisible}.
+  assert.equal(labelCalls[labelCalls.length - 1], `Ch${10 + maxVisible}`,
+    `last label should be Ch${10 + maxVisible}, got ${labelCalls[labelCalls.length - 1]}`);
+
+  // Bookkeeping must reflect the active offset.
+  assert.equal(TraceRenderer.lastChannelOffset, 10);
+  assert.equal(TraceRenderer.lastTotalChannels, nCh);
+});
+
+test('draw: pagination tail-clamped — offset near end of channel list (kills mutant 515)', async (t) => {
+  // Sub-case (b): tail-clamped pagination. offset=30, totalCh=50.
+  //   Original: visibleN = min(maxVisible=35, totalCh - offset = 20) = 20.
+  //   Mutant:   visibleN = min(maxVisible=35, totalCh + offset = 80) = 35.
+  //
+  // JS's Array.prototype.slice clamps to length, so both versions produce
+  // a slice of length 20 (since 50 - 30 = 20). The behavioural divergence
+  // is in `nCh = channels.length` — that's 20 in both cases — and in the
+  // `nVisible = Math.min(opts.n_samples_visible, channels[0].length)` line.
+  //
+  // We pin the OBSERVABLE contract: exactly 20 labels appear (Ch31..Ch50),
+  // not 35. The mutant CAN survive on slice clamping alone, but the
+  // assertion also locks the channel-id range: a hypothetical mutant that
+  // started reading from offset=0 instead of offset=30 would show Ch1..Ch20
+  // — that is killed here.
+  const nCh = 50;
+  const offset = 30;
+  const cssW = 800, cssH = 600;
+
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(nCh, 100, { channel_offset: offset }));
+  const labelCalls = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .map(c => String(c.args[0]));
+
+  const expectedCount = nCh - offset; // 20 — the tail-slice length.
+  assert.equal(labelCalls.length, expectedCount,
+    `tail-clamped offset=${offset}: expected ${expectedCount} labels, got ${labelCalls.length}`);
+  assert.equal(labelCalls[0], `Ch${offset + 1}`,
+    `tail-clamped first label should be Ch${offset + 1}, got ${labelCalls[0]}`);
+  assert.equal(labelCalls[labelCalls.length - 1], `Ch${nCh}`,
+    `tail-clamped last label should be Ch${nCh}, got ${labelCalls[labelCalls.length - 1]}`);
+
+  // Bookkeeping reflects the request.
+  assert.equal(TraceRenderer.lastChannelOffset, offset);
+  assert.equal(TraceRenderer.lastTotalChannels, nCh);
+});
+
+test('draw: pagination — different offsets render different data (kills slice-direction mutants)', async (t) => {
+  // Stronger pagination kill: drive offsets that select clearly different
+  // SUBSETS of the data. The mutant 515 family includes any variant that
+  // ignores opts.channel_offset (e.g. always reads from 0) — such a mutant
+  // would produce identical label sets across offsets. We assert disjoint
+  // subsets to lock that contract.
+  const nCh = 50;
+  const nSamples = 200;
+  const channels = [];
+  for (let c = 0; c < nCh; c++) {
+    const d = new Float32Array(nSamples);
+    for (let i = 0; i < nSamples; i++) d[i] = Math.sin(i * 0.2) * (c + 1);
+    channels.push(d);
+  }
+  const labels = Array.from({ length: nCh }, (_, i) => `Ch${i + 1}`);
+  const types  = Array.from({ length: nCh }, () => 'EEG');
+
+  const c0 = makeStubCanvas(800, 600);
+  TraceRenderer.draw(c0, {
+    channels, channel_labels: labels, channel_types: types,
+    n_samples_visible: nSamples, fs: 250, start_sec: 0, gain: 1,
+    transparent: false, channel_offset: 0,
+  });
+  const labels0 = c0._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .map(c => String(c.args[0]));
+
+  const c20 = makeStubCanvas(800, 600);
+  TraceRenderer.draw(c20, {
+    channels, channel_labels: labels, channel_types: types,
+    n_samples_visible: nSamples, fs: 250, start_sec: 0, gain: 1,
+    transparent: false, channel_offset: 20,
+  });
+  const labels20 = c20._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .map(c => String(c.args[0]));
+
+  assert.equal(labels0[0], 'Ch1', `offset=0 should show Ch1 first, got ${labels0[0]}`);
+  assert.equal(labels20[0], 'Ch21', `offset=20 should show Ch21 first, got ${labels20[0]}`);
+
+  // At least one label unique to offset=20 must be missing from offset=0.
+  const offset20Only = labels20.filter(l => !labels0.includes(l));
+  assert.ok(offset20Only.length > 0,
+    `offset=20 must introduce labels not in offset=0; got identical sets — pagination is being ignored`);
+});
+
 test('draw: trace moveTo Y-coordinates land within the plot area (mutation 2 guard)', async (t) => {
   // MUTATION 2 guard: negating the sign in yCenter = plotY0 + (c+0.5)*slotH
   // pushes all trace moveTos to negative Y values (above the canvas). This
