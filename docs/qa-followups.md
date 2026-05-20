@@ -55,3 +55,26 @@ Not covered by current tests:
 8. Memory growth across N pans — TODO Task 10
 9. Worker queue saturation — TODO Task 5
 10. Streaming chunk monotonicity invariants — TODO Task 2
+
+## Follow-up findings from sleuth agent (2026-05-20)
+
+Independent investigation of the ghost-trace fix surfaced two pre-existing
+hazards in the streaming path that the current fix does NOT address.
+Neither matches the user-reported symptom; both are low priority.
+
+**Finding A — clip rect uses full plotW** (`traces.js:543`):
+The per-channel clip path is `ctx.rect(plotX0, plotY0, plotW, plotH)`. The
+polyline now draws inside `effectivePlotW ≤ plotW`, so the clip is correctly
+permissive today. Risk: if a future change draws past `plotX0 + effectivePlotW`,
+the clip won't catch it. Low priority — defensive tightening only.
+
+**Finding B — interleave race in requestRender** (`viewer.js:730-820`):
+The render loop aborts the previous controller before starting a new stream,
+but the previous `for await` loop only checks `ctrl.signal.aborted` at the
+top of each iteration. Between abort and the next iteration, a chunk that
+was already in flight can complete one final `TraceRenderer.draw(...)`
+call — painting a partial frame from the OLD stream over the NEW stream's
+first chunk. Manifests as a brief one-frame flash, not a persistent ghost.
+Mitigation: synchronously check `ctrl.signal.aborted` BEFORE invoking
+`TraceRenderer.draw(...)` inside the loop body. Low priority — not the
+reported bug, but a real interleaving hazard.
