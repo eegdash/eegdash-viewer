@@ -297,6 +297,11 @@
     }
   }
 
-  // Expose reader
-  window.FiffReader = api;
+  // Expose reader — matches the dual-target pattern used by every other
+  // formats/*.js so the module loads cleanly under both browser globals
+  // and Node (where `window` is undefined and createRequire reads
+  // module.exports). Without this, Node-side property/unit tests cannot
+  // require this file directly.
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (typeof globalThis !== 'undefined') globalThis.FiffReader = api;
 })();

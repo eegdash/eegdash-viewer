@@ -9,30 +9,13 @@
 // We are NOT asserting structure of the returned object: a random
 // 64 KB blob will not look like a FIFF file. The point is that the
 // parser refuses gracefully.
-//
-// ⚠ KNOWN ISSUE surfaced while wiring this test up (not fixed in this
-//   PR): formats/fiff.js:301 references `window.FiffReader = api`
-//   directly. Under Node (any non-browser host) the module fails to
-//   load with `ReferenceError: window is not defined`, so we shim a
-//   global `window` before requiring it. Every other reader uses the
-//   `module.exports + globalThis.X = api` pattern from
-//   formats/_buffers.js. fiff.js should be migrated to match.
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { createRequire } from 'node:module';
 import { fc, uint8Buffer } from './_arbitraries.mjs';
 
 const require = createRequire(import.meta.url);
-
-// fiff.js attaches its API as `window.FiffReader` at module-load
-// time and does not fall back to `globalThis` or `module.exports`.
-// Under node:test there's no `window`, so we shim one before the
-// require and read the API back off it. (See formats/fiff.js:301 —
-// if that ever switches to a `module.exports` / globalThis pattern
-// like the other readers, this shim becomes a no-op.)
-if (typeof globalThis.window === 'undefined') globalThis.window = globalThis;
-require('../formats/fiff.js');
-const FIFFReader = globalThis.window.FiffReader;
+const FIFFReader = require('../formats/fiff.js');
 
 test('property: fiff.read never crashes on arbitrary byte input', () => {
   fc.assert(
