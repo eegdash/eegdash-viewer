@@ -65,3 +65,42 @@ test('cacheKey: tail-clamp produces a shorter window key, not a phantom one', ()
   const k = cacheKey(99, 5, 500, 50_000);
   assert.equal(k, '49500-500');
 });
+
+// GAP: Two distinct startSec values that both land in the tail-clamp region
+// (start beyond the last full-window position) must collapse to the SAME cache
+// key. Without this, rapidly pressing ArrowRight near the end of a recording
+// would re-fetch the same tail window from the worker on every press — wasting
+// network and triggering an unnecessary streaming render cascade (the original
+// ghost-trace failure mode this test suite locks down).
+//
+// Note: this test asserts on the IDEAL contract — that any startSec >=
+// (duration_s - window_sec) collapses to the same key. The live viewer's
+// cacheKey is derived from `Math.round(startSec * fs)` AFTER `clampStart`,
+// so we must apply clampStart first when forming the key for tail-region
+// requests. We model both: the raw formula (which would diverge on different
+// in-tail startSec values) and the post-clamp formula (which collapses).
+function clampedCacheKey(startSec, windowSec, fs, totalSamples, durationSec) {
+  const clamped = clampStart(startSec, durationSec, windowSec);
+  return cacheKey(clamped, windowSec, fs, totalSamples);
+}
+
+test('cacheKey: distinct in-tail startSec values collapse to the same key (cache hit)', () => {
+  // 100s / 500Hz / 50000 samples. window_sec=5 → maxStart = 95s.
+  // Three distinct user-input startSec values all live in the tail-clamp
+  // region: 96, 98, 200. After clampStart they all become 95s, so the
+  // cache key MUST be identical. Without this, rapid panning past the end
+  // would never hit the read cache and would re-stream every keypress.
+  const k96  = clampedCacheKey(96,  5, 500, 50_000, 100);
+  const k98  = clampedCacheKey(98,  5, 500, 50_000, 100);
+  const k200 = clampedCacheKey(200, 5, 500, 50_000, 100);
+  assert.equal(k96, k98,
+    `tail-clamped startSec=96 and startSec=98 must produce the same key — ` +
+    `otherwise the cache misses on every press near end-of-recording. Got ${k96} vs ${k98}.`);
+  assert.equal(k98, k200,
+    `pan-past-end (startSec=200) must clamp to the same tail key as startSec=98. ` +
+    `Got ${k200} vs ${k98}.`);
+  // And the key must be the canonical full-window tail key, not a partial.
+  assert.equal(k96, '47500-2500',
+    `tail-clamp key must reflect startSample=95*500=47500 and a FULL window (2500). ` +
+    `Got "${k96}".`);
+});
