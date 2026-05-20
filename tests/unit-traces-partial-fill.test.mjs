@@ -433,3 +433,128 @@ test('streaming: chunk N+1 paints over chunk N (no ghost trace residue)', async 
     `chunk 2 polyline must stay within its data front (${dataFront.toFixed(1)}); got ${maxX.toFixed(1)}.`,
   );
 });
+
+test('property: data front is monotonically non-decreasing across chunks', async () => {
+  // Replay 20 chunks of an arbitrary 5000-sample window in random sizes and
+  // assert that each chunk's polyline maxX is >= the previous chunk's maxX.
+  // Catches regressions where a chunk under-paints (drops a region painted
+  // by an earlier chunk).
+  const total = 5000;
+  const fullCh = buildChannel(total);
+  const cssW = 1000, cssH = 600;
+  const plotX0 = PAD_LEFT;
+  const plotW = (cssW - PAD_RIGHT) - PAD_LEFT;
+  const plotY0 = PAD_TOP;
+  const plotY1 = cssH - PAD_BOTTOM;
+
+  // Deterministic pseudo-random sequence so failures reproduce.
+  let seed = 17;
+  const rand = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+  const { canvas, lineTos } = makeTrackingCanvas(cssW, cssH);
+
+  let cumulative = 0;
+  let prevMaxX = plotX0;
+  for (let k = 0; k < 20; k++) {
+    if (cumulative >= total) break;
+    const remaining = total - cumulative;
+    const chunkSize = Math.min(remaining, 100 + Math.floor(rand() * 400));
+    const newCumulative = cumulative + chunkSize;
+    lineTos.length = 0;
+    TraceRenderer.draw(canvas, {
+      channels: [fullCh.subarray(0, newCumulative)],
+      channel_labels: ['Ch1'],
+      channel_types: ['EEG'],
+      n_samples_visible: newCumulative,
+      fs: 500,
+      start_sec: 0,
+      gain: 1,
+      transparent: false,
+      partial_fill: {
+        sample_start: cumulative,
+        sample_end: newCumulative - 1,
+        total_samples: total,
+        full_clear: k === 0,
+      },
+    });
+    const xs = tracePolylineX(lineTos, plotX0, plotX0 + plotW, plotY0, plotY1);
+    const maxX = Math.max(...xs);
+    assert.ok(
+      maxX >= prevMaxX - 1,
+      `chunk ${k}: data front receded — prev=${prevMaxX.toFixed(1)} new=${maxX.toFixed(1)}`,
+    );
+    prevMaxX = maxX;
+    cumulative = newCumulative;
+  }
+});
+
+test('property: drawing the same opts twice produces the same lineTo trace', async () => {
+  // Idempotence: a deterministic draw must produce the SAME canvas op log on
+  // a fresh canvas. Catches mutation-leak bugs where module-scope scratch
+  // buffers in traces.js (e.g. _scratchMn/_scratchMx) corrupt subsequent
+  // renders.
+  const ch = buildChannel(2000);
+  const opts = {
+    channels: [ch],
+    channel_labels: ['Ch1'],
+    channel_types: ['EEG'],
+    n_samples_visible: 2000,
+    fs: 250,
+    start_sec: 1.0,
+    gain: 1.5,
+    transparent: false,
+  };
+
+  const { canvas: c1, lineTos: l1 } = makeTrackingCanvas(800, 600);
+  const { canvas: c2, lineTos: l2 } = makeTrackingCanvas(800, 600);
+  TraceRenderer.draw(c1, opts);
+  TraceRenderer.draw(c2, opts);
+
+  assert.equal(l1.length, l2.length, 'lineTo count must be deterministic');
+  for (let i = 0; i < l1.length; i++) {
+    assert.equal(l1[i].x, l2[i].x, `lineTo[${i}].x differs: ${l1[i].x} vs ${l2[i].x}`);
+    assert.equal(l1[i].y, l2[i].y, `lineTo[${i}].y differs: ${l1[i].y} vs ${l2[i].y}`);
+  }
+});
+
+test('property: changing devicePixelRatio scales backing store but does not stretch polyline', async () => {
+  // Set DPR=2 and confirm: (a) canvas.width/height doubles, (b) lineTo x
+  // coordinates are unchanged (we use the CSS-pixel transform), (c) the
+  // polyline still stays within partial_fill bounds.
+  const prev = globalThis.window.devicePixelRatio;
+  try {
+    globalThis.window.devicePixelRatio = 2;
+    const total = 1000;
+    const partial = 250;
+    const ch = buildChannel(total).subarray(0, partial);
+    const cssW = 800, cssH = 600;
+    const { canvas, lineTos } = makeTrackingCanvas(cssW, cssH);
+
+    TraceRenderer.draw(canvas, {
+      channels: [ch],
+      channel_labels: ['Ch1'],
+      channel_types: ['EEG'],
+      n_samples_visible: partial,
+      fs: 250,
+      start_sec: 0,
+      gain: 1,
+      transparent: false,
+      partial_fill: { sample_start: 0, sample_end: partial - 1, total_samples: total },
+    });
+
+    // Backing store doubles.
+    assert.equal(canvas.width, cssW * 2);
+    assert.equal(canvas.height, cssH * 2);
+
+    // X coords still in CSS-pixel space.
+    const plotX0 = PAD_LEFT;
+    const plotW = (cssW - PAD_RIGHT) - PAD_LEFT;
+    const plotY0 = PAD_TOP;
+    const plotY1 = cssH - PAD_BOTTOM;
+    const xs = tracePolylineX(lineTos, plotX0, plotX0 + plotW, plotY0, plotY1);
+    const maxX = Math.max(...xs);
+    const limit = plotX0 + (partial / total) * plotW + 4;
+    assert.ok(maxX <= limit, `DPR=2 partial polyline must stay within band ≤${limit.toFixed(1)}; got ${maxX.toFixed(1)}.`);
+  } finally {
+    globalThis.window.devicePixelRatio = prev;
+  }
+});
