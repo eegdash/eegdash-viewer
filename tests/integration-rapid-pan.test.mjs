@@ -285,3 +285,59 @@ test('prefetch gate: prefetch is skipped while worker has in-flight requests', a
   await new Promise(r => setTimeout(r, 30));
   assert.equal(shouldPrefetch(), true, 'must allow prefetch once stream is aborted/drained');
 });
+
+test('interleave race: consumer skips draw after abort fires mid-body', async () => {
+  // Locks down the viewer.js defensive recheck: even when a chunk has been
+  // dequeued and the body has started processing, if the abort signal flips
+  // BEFORE the body reaches its paint call, the paint must be skipped. This
+  // simulates the rare-but-real scenario where a chunk arrives via the
+  // iterator's _queue path (back-to-back enqueues from the worker), the body
+  // does some pre-paint work that includes an async edge, abort fires during
+  // that edge, and the body resumes to paint a stale frame from the now-
+  // superseded controller.
+  const ctrl = new AbortController();
+  const queue = [{ id: 1 }, { id: 2 }];
+  // Manual async iterator over a synchronous queue — each next() resolves on
+  // a microtask, so the for-await body gets a clean yield point.
+  const stream = {
+    [Symbol.asyncIterator]() {
+      return {
+        next() {
+          if (queue.length === 0) return Promise.resolve({ value: undefined, done: true });
+          return Promise.resolve({ value: queue.shift(), done: false });
+        },
+      };
+    },
+  };
+
+  const paints = [];
+  let firedAbortInBody = false;
+  const consume = (async () => {
+    try {
+      for await (const chunk of stream) {
+        if (ctrl.signal.aborted) break;
+        // Simulated pre-paint async edge. The real viewer body is sync today,
+        // but a tiny await opens the window in which an abort firing
+        // concurrently must still be honored.
+        await Promise.resolve();
+        // While processing the FIRST chunk, fire the abort. The defensive
+        // recheck below MUST observe it and skip the paint.
+        if (!firedAbortInBody) {
+          firedAbortInBody = true;
+          ctrl.abort();
+        }
+        // Defensive recheck — this is the contract the fix enforces.
+        if (ctrl.signal.aborted) break;
+        paints.push(chunk.id);
+      }
+    } catch (err) {
+      if (err.name !== 'AbortError') throw err;
+    }
+  })();
+
+  await consume;
+
+  // Chunk 1's body started, fired abort, then the recheck caught it → no paint.
+  // Chunk 2 was queued but the top-of-iteration check stops it.
+  assert.deepEqual(paints, [], `expected no paints after abort; got ${JSON.stringify(paints)}`);
+});

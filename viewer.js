@@ -787,6 +787,14 @@
                 total_samples: windowSamples,
                 full_clear: firstChunk,
               };
+              // Defensive abort recheck immediately before paint. The top-of-
+              // iteration check at the for-await guards against abort BETWEEN
+              // chunks, but a chunk delivered via the iterator's `_queue` path
+              // (rapid back-to-back enqueues) can be observed AFTER the
+              // controller has already been replaced by a newer render. Without
+              // this check the old stream paints one final stale frame on top
+              // of the new stream's first chunk → brief one-frame ghost flash.
+              if (ctrl.signal.aborted) break;
               TraceRenderer.draw(tracesCanvas, drawOpts);
               if (firstChunk) firstChunk = false;
               updateGainReadout();
