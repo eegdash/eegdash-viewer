@@ -122,3 +122,80 @@ hit every branch. The survivors below highlight the biggest gaps.
   estimated 25–40 mutants — both code paths today are mutation-blind.
 - A gain-scaling test (mutant 572) would kill another cluster around
   lines 540–600 (vToPx, halfSlotPx, ampl).
+
+## Iteration 2 (PR 5, 2026-05-20)
+
+Score: 43.76% (killed: 278 / total: 649, with 6 timeouts and 365 survivors)
+
+Delta vs baseline: **+6.47 percentage points** (37.29% → 43.76%), 42 additional
+mutants killed.
+
+Tests added:
+
+- `tests/unit-traces-nice-round.test.mjs` (new file, 11 tests) — direct
+  unit tests against the newly exposed `_niceRound` debug export. Kills
+  mutant 131 and its cluster around the 1/2/5×10^N ternary boundaries
+  (1.5, 3.5, 7.5).
+- `tests/unit-traces-draw.test.mjs` (+4 tests):
+  - Channel label y-spacing (slotH invariant): kills mutant 103 plus
+    the divide-vs-multiply cluster on `(c+0.5)*slotH`.
+  - Event marker x-position: kills mutant 234 (sign-flip on the onset
+    fraction) plus surrounding ArithmeticOperator mutants in
+    `drawEventMarkers`.
+  - Pagination — labels start at offset, tail-clamped offset, and
+    different-offset-different-data: together cover mutant 515 and the
+    surrounding `channel_offset` mutation cluster.
+- `tests/unit-traces-partial-fill.test.mjs` (+1 test) — gain slope
+  assertion at gain=0.5/1/2. Kills mutant 572 and the surrounding
+  ArithmeticOperator mutants on `vToPx = (halfSlotPx * gain) / (ampl/2)`.
+
+Source change (only one):
+
+- `traces.js` — added `_niceRound: niceRound` to the api export so the
+  module-private helper can be unit-tested directly. This is the single
+  source modification allowed by this iteration; no behavioural change.
+
+Stryker config:
+
+- `stryker.conf.json` testRunner command updated to include the new
+  `unit-traces-nice-round.test.mjs` file.
+- Break threshold lifted from 32 → 38 (new floor — anchored 5 pts below
+  the new score so honest regressions fail CI but trivial fluctuations
+  do not).
+
+### Remaining survivor clusters (next iteration targets)
+
+Survivors by 50-line bucket of `traces.js` (top buckets):
+
+| Lines     | Survivors | What lives here                                                |
+|-----------|----------:|----------------------------------------------------------------|
+| 300-349   |        56 | `computeTimeTicks` + `drawTimeAxis` (tick math, label format)  |
+| 200-249   |        49 | `drawScaleBar` (geometry + label format) + niceRound boundary |
+| 350-399   |        43 | `drawTimeAxis` + clock-mode HH:MM:SS branches                  |
+| 250-299   |        38 | `drawEventMarkers` + `secToHHMMSS`/`isoToSecOfDay`             |
+| 500-549   |        35 | Pagination tail (still has slice-edge mutants)                 |
+| 600-649   |        34 | IIFE-export noise (mostly equivalent, see Acceptable below)    |
+
+By mutator (top survivors):
+
+| Mutator              | Killed | Survived |
+|---------------------|-------:|---------:|
+| ArithmeticOperator  |     56 |       98 |
+| ConditionalExpression |   83 |       94 |
+| EqualityOperator    |     44 |       63 |
+| StringLiteral       |      3 |       37 |
+| ArrayDeclaration    |      2 |       13 |
+
+**Next iteration should target:**
+- `computeTimeTicks` / `drawTimeAxis` (lines 300-399, ~100 survivors).
+  Add tests that exercise the `niceSteps` table edges, the clock-mode
+  vs numeric-mode branch, and the `Math.ceil(t0Sec / step) * step`
+  first-tick alignment.
+- `drawScaleBar` geometry (lines 215-244). Drive it directly with a
+  known slotMicrovolts and assert the resulting moveTo/lineTo geometry.
+- `secToHHMMSS` / `isoToSecOfDay` (lines 286-305). Pure functions —
+  expose them via the same `_secToHHMMSS` / `_isoToSecOfDay` debug
+  pattern used for `_niceRound` and add boundary-case unit tests.
+- StringLiteral survivors (37 of them) are mostly font/color constants
+  that the visual tests don't actually verify. Either accept-document
+  them or add a pixel-level visual diff.
