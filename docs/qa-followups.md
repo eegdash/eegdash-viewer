@@ -81,38 +81,42 @@ reported bug, but a real interleaving hazard.
 
 ## fiff.js: rejects all real FIFF files (2026-05-20, surfaced by fixture work)
 
-**Status: OPEN**
+**Status: FIXED** (PR 10)
+
+Three correctness bugs in `formats/fiff.js` resolved by a tag-stream
+rewrite:
+
+1. Magic-bytes check at the old line 66 replaced with a real
+   `FIFF_FILE_ID` tag read (kind=100, big-endian int32 at offset 0).
+2. All `DataView.getInt32(*, true)` / `getFloat32(*, true)` calls
+   switched to `false` (big-endian — FIFF spec).
+3. Block detection switched from the broken
+   `"(tag.kind >> 16) === block_id"` heuristic to a proper
+   `FIFF_BLOCK_START` (kind=104) / `FIFF_BLOCK_END` (kind=105) walk
+   with a nesting stack — the block id lives in the first int32 of
+   each delimiter's data, not in `tag.kind`.
+
+`api.read` now walks the tag stream from offset 0, maintains a
+`blockStack`, and surfaces every encountered block id via
+`meas.blocks` (plus `meas.has_projections` for FIFFB_PROJ).
+Files that contain no `meas_info` block (events, annotations) parse
+cleanly and return `{ nchan: 0, sfreq: null, … }` instead of crashing.
+
+Regression coverage in `tests/unit-fiff.test.mjs` (7 tests against
+the three real BSD-licensed MNE-Python fixtures + boundary cases:
+too-small input, wrong-kind first tag, synthetic FIFF_FILE_ID-only
+buffer).
+
+Original investigation notes (kept for historical context):
 
 When committing real FIFF fixtures from MNE-Python (BSD-3 licensed test
 data — `meg/test-proj.fif`, `meg/test_raw-annot.fif`, `meg/test-eve.fif`),
-discovered that `formats/fiff.js:66` rejects every single one of them
-with `Error: Not a valid FIFF file`.
-
-Root cause: the parser validates input by reading the first 4 bytes and
-requiring them to spell ASCII `"FIFF"` (`46 49 46 46`). Real FIFF files
-do NOT have that magic — they start with a TAG (typically
-`FIFF_FILE_ID`, `kind=100`), so the first 4 bytes are `00 00 00 64`.
-Reference: [MNE-Python source](https://github.com/mne-tools/mne-python/blob/main/mne/io/fiff/raw.py)
-shows the standard validation reads `FIFF_FILE_ID` tag, not a magic
-string.
-
-Impact:
-- The viewer cannot actually open any real-world FIFF/MEG recording
-  today, even though the format reader is plumbed end-to-end.
-- The existing `tests/prop-fiff.test.mjs` did not catch this because
-  it fuzzes with synthetic random bytes that never accidentally start
-  with `46 49 46 46` either — so every input legitimately throws and
-  the no-crash property still holds.
-
-Fix path (not part of this fixture PR):
-1. Replace the magic-check with a proper TAG read: confirm first 16 bytes
-   parse as a `FIFF_FILE_ID` tag (`kind=100, type=31, size=20, next=0`).
-2. Add a regression test using `tests/fixtures/meg/test-proj.fif` that
-   asserts `read()` returns a non-null result.
-3. Tighten `prop-fiff.test.mjs` to also seed with the real fixture
-   (already wired into `fuzz-formats.test.mjs`'s corpus).
-
-Tracked under PR-9 mutation iteration as a debug-export-only PR; the
-parser fix is out of scope. The fixtures still seed fuzz usefully —
-they exercise the defensive-throw path under realistic byte
-distributions instead of pure noise.
+discovered that `formats/fiff.js:66` rejected every single one of them
+with `Error: Not a valid FIFF file`. Root cause: the parser validated
+input by reading the first 4 bytes and requiring them to spell ASCII
+`"FIFF"` (`46 49 46 46`). Real FIFF files do NOT have that magic — they
+start with a TAG (typically `FIFF_FILE_ID`, `kind=100`), so the first
+4 bytes are `00 00 00 64`. The existing `tests/prop-fiff.test.mjs` did
+not catch this because random bytes never accidentally start with the
+expected magic either — every input legitimately threw and the no-crash
+property still held.
