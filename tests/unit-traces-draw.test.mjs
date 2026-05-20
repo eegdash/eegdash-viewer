@@ -1470,3 +1470,134 @@ test('pagination ctx-conformance: per-row setLineDash matches sliced channel_typ
     `first non-empty dash should be EOG's [5,2] (visible row 0 = abs ch ${offset}); got ${JSON.stringify(firstNonEmpty)}`);
 });
 
+test('pagination ctx-conformance: slot-divider count equals visibleN - 1 (offset > 0)', async () => {
+  // drawSlotDividers (traces.js:158-168) draws (nCh-1) horizontal hairlines.
+  // After pagination, nCh = visibleN, so the divider count must equal
+  // visibleN - 1. A mutant flipping `c = 1` to `c = 0` would add one extra
+  // divider at y = plotY0 + 0 (the top edge); flipping `c < nCh` to
+  // `c <= nCh` would add one at y = plotY0 + visibleN*slotH = plotY0 + plotH
+  // (the bottom). Both are caught here.
+  const totalCh = 50;
+  const offset = 5;
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(totalCh, 100, { channel_offset: offset }));
+
+  const PAD_LEFT = TraceRenderer.PAD_LEFT;
+  const PAD_RIGHT = TraceRenderer.PAD_RIGHT;
+  const PAD_TOP = TraceRenderer.PAD_TOP;
+  const PAD_BOTTOM = TraceRenderer.PAD_BOTTOM;
+  const plotX0 = PAD_LEFT;
+  const plotX1 = cssW - PAD_RIGHT;
+  const plotY0 = PAD_TOP;
+  const plotH = cssH - PAD_TOP - PAD_BOTTOM;
+  const maxVisible = TraceRenderer.lastMaxVisibleChannels;
+  const visibleN = Math.min(maxVisible, totalCh - offset);
+
+  // A slot divider is a (moveTo at plotX0, plotY0 < y < plotY0+plotH) followed
+  // by a (lineTo at plotX1, same y). The half-pixel snap in drawSlotDividers
+  // (line 163) emits y values like Math.round(plotY0 + c*slotH) + 0.5; the
+  // y is the same on both moveTo and lineTo so we match by x extents and the
+  // strict-inside-band y check.
+  const calls = canvas._ctx.calls;
+  const dividerYs = new Set();
+  for (let i = 0; i < calls.length - 1; i++) {
+    const a = calls[i], b = calls[i + 1];
+    if (
+      a.op === 'moveTo' && b.op === 'lineTo' &&
+      a.args[0] === plotX0 && b.args[0] === plotX1 &&
+      a.args[1] === b.args[1] &&            // horizontal line
+      a.args[1] > plotY0 + 0.5 && a.args[1] < plotY0 + plotH - 0.5
+    ) {
+      // Round to integer to dedup (.5 snap means the y is x.5 — Math.round
+      // would lose information, so use the raw value as the key string).
+      dividerYs.add(a.args[1]);
+    }
+  }
+
+  assert.equal(dividerYs.size, visibleN - 1,
+    `expected ${visibleN - 1} slot dividers under offset=${offset}; got ${dividerYs.size}`);
+});
+
+test('pagination ctx-conformance: visibleN = min(maxVisible, totalCh - offset) at tight tail', async () => {
+  // The pagination spec at traces.js:510 — visibleN = min(maxVisible, totalCh - offset).
+  // When totalCh - offset SMALLER than maxVisible (e.g. totalCh=40,
+  // offset=37 → only 3 channels remain), the renderer must render exactly
+  // 3 rows. The iter-4 single-row tail tests already cover offset=totalCh-1;
+  // this test pins the 2..3-row tight tails which expose the Math.min
+  // direction. A mutant `Math.max(maxVisible, totalCh-offset)` would
+  // produce maxVisible (35) rows here — easily distinguished from 3.
+  const totalCh = 40;
+  const offset = 37;
+  const canvas = makeStubCanvas(800, 600);
+  TraceRenderer.draw(canvas, buildOpts(totalCh, 100, { channel_offset: offset }));
+
+  const labelCalls = canvas._ctx.calls.filter(c =>
+    c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])));
+  assert.equal(labelCalls.length, totalCh - offset,
+    `tight tail offset=${offset} totalCh=${totalCh}: expected ${totalCh - offset} labels; got ${labelCalls.length}`);
+
+  // And the labels must be Ch38, Ch39, Ch40 in that order — pinning that
+  // both the slice start AND the slice length are correct.
+  const labelStrs = labelCalls.map(c => String(c.args[0])).sort(
+    (a, b) => parseInt(a.slice(2), 10) - parseInt(b.slice(2), 10)
+  );
+  assert.deepEqual(labelStrs, ['Ch38', 'Ch39', 'Ch40'],
+    `tight-tail labels must be exactly Ch38..Ch40 in order; got ${labelStrs.join(',')}`);
+});
+
+test('pagination ctx-conformance: trace polyline moveTos appear at per-row yCenter for offset > 0', async () => {
+  // The trace's first moveTo for visible row `c` happens via
+  // drawChannelPolyline / drawChannelDecimated, which both start at
+  // (plotX0, yCenter +/- something) and step through samples. The
+  // BAND of moveTo y values for row c must straddle
+  //   yCenter[c] = plotY0 + (c + 0.5) * slotH
+  // with offset > 0, slotH and yCenter are based on the post-slice
+  // visibleN. We assert that AT LEAST one trace moveTo lands within
+  // ±halfSlotPx of yCenter[0] = plotY0 + 0.5 * slotH — the first
+  // visible row's center band — and similarly for the LAST visible
+  // row. Both conditions failing simultaneously is impossible unless
+  // the per-row yCenter formula is wrong.
+  const totalCh = 40;
+  const offset = 5;
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(totalCh, 100, { channel_offset: offset }));
+
+  const PAD_LEFT = TraceRenderer.PAD_LEFT;
+  const PAD_TOP = TraceRenderer.PAD_TOP;
+  const PAD_BOTTOM = TraceRenderer.PAD_BOTTOM;
+  const PAD_RIGHT = TraceRenderer.PAD_RIGHT;
+  const plotX0 = PAD_LEFT;
+  const plotX1 = cssW - PAD_RIGHT;
+  const plotY0 = PAD_TOP;
+  const plotH = cssH - PAD_TOP - PAD_BOTTOM;
+  const maxVisible = TraceRenderer.lastMaxVisibleChannels;
+  const visibleN = Math.min(maxVisible, totalCh - offset);
+  const slotH = plotH / visibleN;
+  const halfSlotPx = slotH * 0.45;
+
+  // Filter moveTos to those inside the plot X band — these are trace moveTos
+  // (axis baseline is at y = plotY0 + plotH + 4, way below).
+  const traceMoveYs = canvas._ctx.calls
+    .filter(c => c.op === 'moveTo'
+      && c.args[0] >= plotX0 && c.args[0] <= plotX1
+      && c.args[1] >= plotY0 && c.args[1] <= plotY0 + plotH)
+    .map(c => c.args[1]);
+
+  assert.ok(traceMoveYs.length > 0, 'expected at least one trace moveTo inside the plot band');
+
+  // Check first and last visible row's band membership. The polyline's
+  // first moveTo at row c equals yCenter[c] - sample0_offset; with mild
+  // ramp signals the deflection stays within ±halfSlotPx of yCenter.
+  const checkRowBand = (visibleIdx) => {
+    const yC = plotY0 + (visibleIdx + 0.5) * slotH;
+    const hits = traceMoveYs.filter(y => Math.abs(y - yC) <= halfSlotPx + 2);
+    assert.ok(hits.length > 0,
+      `expected trace moveTos within ±${(halfSlotPx + 2).toFixed(1)}px of yCenter[${visibleIdx}]=${yC.toFixed(2)}; ` +
+      `none of ${traceMoveYs.length} moveTos qualified`);
+  };
+  checkRowBand(0);
+  checkRowBand(visibleN - 1);
+});
+
