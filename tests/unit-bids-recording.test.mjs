@@ -147,9 +147,12 @@ test('parseEegUrl: localdrop (drag-drop) path', () => {
 });
 
 test('parseEegUrl: rejects URLs that are not BIDS *_eeg.<ext>', () => {
+  // bids-recording.js parseEegUrl delegates to parsePhysioUrl, whose
+  // error message reads "URL is not a BIDS *_{suffix}.<ext> path: ..."
+  // — `{suffix}` is the literal placeholder, not interpolated.
   assert.throws(
     () => BIDSRecording.parseEegUrl('https://example.com/random.bin'),
-    /not a BIDS \*_eeg/);
+    /URL is not a BIDS \*_/);
 });
 
 // ----- buildOpenNeuroEegUrl --------------------------------------

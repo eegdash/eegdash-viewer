@@ -5,7 +5,7 @@
   "reporters": ["html", "clear-text", "progress", "json"],
   "testRunner": "command",
   "commandRunner": {
-    "command": "node --test --test-skip-pattern='rejects URLs that are not BIDS' tests/unit-traces-draw.test.mjs tests/unit-traces-partial-fill.test.mjs tests/unit-traces-nice-round.test.mjs tests/unit-traces-time-axis.test.mjs tests/unit-traces-scalebar-axis.test.mjs tests/traces.test.mjs tests/unit-filters.test.mjs tests/unit-topo2d.test.mjs tests/unit-bids-recording.test.mjs tests/unit-bids-recording-assemble.test.mjs"
+    "command": "node --test tests/unit-traces-draw.test.mjs tests/unit-traces-partial-fill.test.mjs tests/unit-traces-nice-round.test.mjs tests/unit-traces-time-axis.test.mjs tests/unit-traces-scalebar-axis.test.mjs tests/traces.test.mjs tests/unit-filters.test.mjs tests/unit-topo2d.test.mjs tests/unit-bids-recording.test.mjs tests/unit-bids-recording-assemble.test.mjs"
   },
   "coverageAnalysis": "off",
   "mutate": [
