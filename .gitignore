@@ -12,3 +12,6 @@ reports/mutation/
 # tinybench raw outputs — CI artifacts, not source of truth.
 bench/results-*.json
 bench/results-all-gab.json
+reports/stryker-incremental.json
+# Stryker incremental cache grew to 54 MB after iter-8 scope expansion.
+# Local-only now; nightly CI rebuilds cold (~9 min). Saves repo bloat.

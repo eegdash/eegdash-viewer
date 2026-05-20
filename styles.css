@@ -14,8 +14,8 @@
   --surface:   #ffffff;       /* elevated card */
   --ink:       #17181a;
   --ink-2:     #3a3d42;
-  --ink-3:     #b5b8bd;
-  --muted:     #8b8e94;
+  --ink-3:     #797d83;       /* darkened from #b5b8bd for WCAG AA contrast on --paper */
+  --muted:     #6a6e74;       /* darkened from #8b8e94 to clear the 4.5:1 AA threshold */
   --line:      #dddddd;
   --line-2:    #e8e8e8;
   --accent:    oklch(0.55 0.15 240);
