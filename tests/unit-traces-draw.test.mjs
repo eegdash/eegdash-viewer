@@ -1088,3 +1088,174 @@ test('drawScaleBar: fillText label uses _formatScale(targetMv) at (x+8, midpoint
   assert.ok(Math.abs(call.args[2] - expectedY) <= 1.5,
     `scale-bar label y=${call.args[2]} should be ≈ ${expectedY.toFixed(2)} ((yTop+yBottom)/2)`);
 });
+
+test('drawEventMarkers: each visible event emits moveTo at expected x and y=plotY0', async () => {
+  // drawEventMarkers:265-266:
+  //   const x = Math.round(plotX0 + ((ev.onset - t0) / span) * (plotX1 - plotX0)) + 0.5;
+  //   ctx.moveTo(x, plotY0);
+  // Each event's moveTo MUST appear at this exact x and at y=plotY0.
+  // Mutants on plotX0/+0.5/Math.round/span all change x; mutants that
+  // swap (x, plotY0) for (plotY0, x) flip the marker into an invisible
+  // band — both killed.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  const winOpts = makeAxisWindow(); // 0..0.4 s window
+  // Three events INSIDE the visible window at 25%, 50%, 75% of span.
+  const events = [
+    { onset: 0.1, label: 'E1' },
+    { onset: 0.2, label: 'E2' },
+    { onset: 0.3, label: 'E3' },
+  ];
+  TraceRenderer.draw(canvas, buildOpts(2, winOpts.n_samples_visible, { ...winOpts, events }));
+  const calls = canvas._ctx.calls;
+
+  const { plotX0, plotX1, plotY0 } = plotGeometryFor(cssW, cssH);
+  const t0 = winOpts.start_sec;
+  const t1 = t0 + winOpts.n_samples_visible / winOpts.fs;
+  const span = t1 - t0;
+  const plotW = plotX1 - plotX0;
+
+  // Filter to moveTos at y === plotY0 exactly. Trace moveTos use yCenter
+  // (much larger Y); axis moveTos use axisBaselineY. plotY0 = 8 is
+  // distinctive enough that a strict-equality filter is robust.
+  const eventMoveTos = calls.filter(c => c.op === 'moveTo' && c.args[1] === plotY0);
+  assert.ok(eventMoveTos.length >= events.length,
+    `expected ≥${events.length} event moveTos at y=${plotY0}, got ${eventMoveTos.length}`);
+
+  for (const ev of events) {
+    const expectedX = Math.round(plotX0 + ((ev.onset - t0) / span) * plotW) + 0.5;
+    const found = eventMoveTos.some(c => Math.abs(c.args[0] - expectedX) <= 1);
+    assert.ok(found,
+      `event "${ev.label}" at onset=${ev.onset} should produce moveTo(${expectedX}, ${plotY0}); ` +
+      `got moveTos at x=${eventMoveTos.map(c=>c.args[0]).join(',')}`);
+  }
+});
+
+test('drawEventMarkers: each visible event emits lineTo at (x, plotY0 + plotH)', async () => {
+  // Companion to the moveTo test: drawEventMarkers:267 — ctx.lineTo(x, plotY0 + plotH).
+  // The marker is a vertical line from plotY0 to plotY0+plotH. Mutants on
+  // the `+ plotH` arithmetic or the lineTo arguments are caught here.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  const winOpts = makeAxisWindow();
+  const events = [
+    { onset: 0.1, label: 'E1' },
+    { onset: 0.3, label: 'E2' },
+  ];
+  TraceRenderer.draw(canvas, buildOpts(2, winOpts.n_samples_visible, { ...winOpts, events }));
+  const calls = canvas._ctx.calls;
+
+  const { plotX0, plotX1, plotY0, plotH } = plotGeometryFor(cssW, cssH);
+  const t0 = winOpts.start_sec;
+  const t1 = t0 + winOpts.n_samples_visible / winOpts.fs;
+  const span = t1 - t0;
+  const plotW = plotX1 - plotX0;
+
+  // lineTos at exactly y = plotY0 + plotH are the event-marker bottoms.
+  const eventLineTos = calls.filter(c =>
+    c.op === 'lineTo' && c.args[1] === plotY0 + plotH);
+  assert.ok(eventLineTos.length >= events.length,
+    `expected ≥${events.length} event lineTos at y=${plotY0 + plotH}, got ${eventLineTos.length}`);
+
+  for (const ev of events) {
+    const expectedX = Math.round(plotX0 + ((ev.onset - t0) / span) * plotW) + 0.5;
+    const found = eventLineTos.some(c => Math.abs(c.args[0] - expectedX) <= 1);
+    assert.ok(found,
+      `event "${ev.label}" lineTo at x=${expectedX}, y=${plotY0+plotH} missing`);
+  }
+});
+
+test('drawEventMarkers: events outside window produce no moveTo, no lineTo, no fillText', async () => {
+  // Window-filter guard at drawEventMarkers:256:
+  //   if (ev.onset < t0 || ev.onset > t1) continue;
+  // Mutants flipping the < or > operators would admit far-past or
+  // far-future events. The strongest kill is to assert no ctx call carries
+  // their label (we already had a fillText test; this adds the moveTo +
+  // lineTo channels too).
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  const winOpts = makeAxisWindow();
+  const events = [
+    { onset: 100,  label: 'FAR_FUTURE' },
+    { onset: -5,   label: 'FAR_PAST' },
+  ];
+  TraceRenderer.draw(canvas, buildOpts(2, winOpts.n_samples_visible, { ...winOpts, events }));
+  const calls = canvas._ctx.calls;
+
+  // No fillText with these labels (existing test already covers this).
+  const hasFutureLabel = calls.some(c => c.op === 'fillText' && c.args[0] === 'FAR_FUTURE');
+  const hasPastLabel = calls.some(c => c.op === 'fillText' && c.args[0] === 'FAR_PAST');
+  assert.ok(!hasFutureLabel, 'far-future event must not produce a fillText label');
+  assert.ok(!hasPastLabel,   'far-past event must not produce a fillText label');
+
+  // And no event moveTo at y=plotY0 either. plotY0=8 is unique to events
+  // and axis-baseline drawing (axis baseline at y=576 is different). A
+  // mutant that admitted the out-of-window event would emit a moveTo at
+  // an x far from plotX0 (onset=100 with span=0.4 → x = plotX0 + 250*plotW).
+  const { plotY0 } = plotGeometryFor(cssW, cssH);
+  const eventMoveTos = calls.filter(c => c.op === 'moveTo' && c.args[1] === plotY0);
+  assert.equal(eventMoveTos.length, 0,
+    `out-of-window events must not emit moveTos at y=${plotY0}; got ${eventMoveTos.length}`);
+});
+
+test('drawEventMarkers: dense events within 32px label-collision band — only first labelled', async () => {
+  // drawEventMarkers:277 — `if (x - lastLabelX < 32) continue;`. Three
+  // events packed tightly (Δx < 32 between consecutive onsets) must
+  // result in only the FIRST getting a fillText label; the next two
+  // are dropped to avoid text overlap. Their moveTo+lineTo still appear
+  // (lines are never collision-skipped — only labels). Mutants flipping
+  // `< 32` to `<= 32` or `< 0` change which labels appear.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  const winOpts = makeAxisWindow();
+  // 0.4 s / 634 px → 0.000631 s per px. 32 px → ~0.0202 s. Three onsets
+  // at 0.10, 0.105, 0.11 are spaced ~3 px each (very dense).
+  const events = [
+    { onset: 0.10, label: 'A' },
+    { onset: 0.105, label: 'B' },
+    { onset: 0.11, label: 'C' },
+  ];
+  TraceRenderer.draw(canvas, buildOpts(2, winOpts.n_samples_visible, { ...winOpts, events }));
+  const calls = canvas._ctx.calls;
+
+  // All three should have moveTos (vertical lines drawn regardless).
+  const { plotY0 } = plotGeometryFor(cssW, cssH);
+  const eventMoveTos = calls.filter(c => c.op === 'moveTo' && c.args[1] === plotY0);
+  assert.ok(eventMoveTos.length >= 3,
+    `all 3 dense events should emit moveTos; got ${eventMoveTos.length}`);
+
+  // Exactly one label fillText survives the collision filter.
+  const labelText = (s) => ['A', 'B', 'C'].includes(String(s));
+  const labelFills = calls.filter(c => c.op === 'fillText' && labelText(c.args[0]));
+  assert.equal(labelFills.length, 1,
+    `dense burst should yield 1 label (collision filter), got ${labelFills.length}: ${labelFills.map(c=>c.args[0]).join(',')}`);
+  // First event (A) must be the surviving label — the renderer iterates
+  // events in order, accepts the first, and rejects all that fall within
+  // 32 px of `lastLabelX`. Pinning this order kills mutants that flip
+  // the loop direction or the lastLabelX assignment.
+  assert.equal(labelFills[0].args[0], 'A',
+    `first event "A" should win the collision; got "${labelFills[0].args[0]}"`);
+});
+
+test('drawEventMarkers: long label is truncated to 14 chars via slice(0, 14)', async () => {
+  // drawEventMarkers:279 — `ctx.fillText(String(ev.label).slice(0, 14), …)`.
+  // A 20-char label must be drawn truncated. Mutants on the 14 literal
+  // (e.g. 14 → 13 or 14 → 15) change the truncation length.
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  const winOpts = makeAxisWindow();
+  const longLabel = 'abcdefghijklmnopqrst'; // 20 chars
+  const events = [{ onset: 0.2, label: longLabel }];
+  TraceRenderer.draw(canvas, buildOpts(2, winOpts.n_samples_visible, { ...winOpts, events }));
+  const calls = canvas._ctx.calls;
+
+  // The full 20-char label must NOT appear.
+  const fullMatch = calls.find(c => c.op === 'fillText' && c.args[0] === longLabel);
+  assert.ok(!fullMatch, `untruncated label "${longLabel}" must not appear`);
+
+  // The 14-char prefix must appear.
+  const truncated = longLabel.slice(0, 14);
+  const truncMatch = calls.find(c => c.op === 'fillText' && c.args[0] === truncated);
+  assert.ok(truncMatch,
+    `truncated label "${truncated}" (14 chars) should appear; got fillTexts: ${calls.filter(c=>c.op==='fillText').slice(0,5).map(c=>c.args[0]).join(',')}`);
+});
