@@ -268,6 +268,7 @@
   // Underscore prefix marks "stable for tests, not for production
   // callers". Production code consumes `open()` only.
   api._classifyDurationMismatch = classifyDurationMismatch;
+  api._sliceColumnMajor = sliceColumnMajor;
 
   // Streaming decode for EEGLAB .fdt (channel-interleaved Float32).
   // Yields { firstSampleIdx, lastSampleIdx, channels } as bytes arrive.
