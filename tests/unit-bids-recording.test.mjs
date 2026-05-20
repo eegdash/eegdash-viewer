@@ -882,3 +882,141 @@ test('loadNemarRecording: manifest too large (content-length) → throws byte ca
   }
 });
 
+
+// ============================================================
+// Iteration 9 (PR 15): kill `iX >= 0` → `iX > 0` survivors
+// ============================================================
+// 12 EqualityOperator mutants on parseChannelsTsv / parseEventsTsv
+// (`iType >= 0` etc.) survived because every existing test puts
+// `name` (or `onset`) as the FIRST column, so optional columns land
+// at index ≥ 1 — where `>= 0` and `> 0` behave identically. The tests
+// below put each optional column at index 0 so the boundary matters.
+
+test('iter9 parseChannelsTsv: type at col 0 (iType=0) — kills `iType >= 0` → `iType > 0`', () => {
+  // Header order is intentionally `type, name`. iName=1, iType=0.
+  // Under the mutated `iType > 0 ? bidsCell(c[iType]) : null`, type
+  // would be NULL because iType=0 fails `> 0` — but the correct code
+  // returns 'EEG'.
+  const tsv = 'type\tname\nEEG\tFp1';
+  const channels = BIDSRecording.parseChannelsTsv(tsv);
+  assert.equal(channels.length, 1, 'one data row → one channel');
+  assert.equal(channels[0].name, 'Fp1', 'name from col 1');
+  assert.equal(channels[0].type, 'EEG',
+    'type at col 0 must be picked up; mutant `iType > 0` would yield null');
+});
+
+test('iter9 parseChannelsTsv: units at col 0 (iUnits=0) — kills `iUnits >= 0` → `iUnits > 0`', () => {
+  const tsv = 'units\tname\nuV\tFp1';
+  const channels = BIDSRecording.parseChannelsTsv(tsv);
+  assert.equal(channels[0].units, 'uV',
+    'units at col 0 must be picked up; mutant `iUnits > 0` would yield null');
+});
+
+test('iter9 parseChannelsTsv: status at col 0 (iStatus=0) — kills `iStatus >= 0` → `iStatus > 0`', () => {
+  // status absent → defaults to 'good'. status at col 0 with value 'bad'
+  // must produce status='bad'. Under the mutated guard, status would
+  // fall to the default 'good' instead.
+  const tsv = 'status\tname\nbad\tFp1';
+  const channels = BIDSRecording.parseChannelsTsv(tsv);
+  assert.equal(channels[0].status, 'bad',
+    'status at col 0 must override the "good" default; mutant would return "good"');
+});
+
+test('iter9 parseChannelsTsv: low_cutoff at col 0 (iLow=0) — kills `iLow >= 0` → `iLow > 0`', () => {
+  const tsv = 'low_cutoff\tname\n0.5\tFp1';
+  const channels = BIDSRecording.parseChannelsTsv(tsv);
+  assert.equal(channels[0].low_cutoff, 0.5,
+    'low_cutoff at col 0 must be parsed; mutant would yield null');
+});
+
+test('iter9 parseChannelsTsv: high_cutoff + sampling_frequency at col 0 in two TSVs', () => {
+  // Cover the remaining two `>= 0` guards (iHigh, iFs).
+  const tsv1 = 'high_cutoff\tname\n70\tFp1';
+  assert.equal(BIDSRecording.parseChannelsTsv(tsv1)[0].high_cutoff, 70,
+    'high_cutoff at col 0 must be parsed');
+
+  const tsv2 = 'sampling_frequency\tname\n512\tFp1';
+  assert.equal(BIDSRecording.parseChannelsTsv(tsv2)[0].sampling_frequency, 512,
+    'sampling_frequency at col 0 must be parsed');
+});
+
+test('iter9 parseEventsTsv: duration at col 0 (iDur=0) — kills `iDur >= 0` → `iDur > 0`', () => {
+  // Header `duration, onset`. iOnset=1, iDur=0. Under mutant, duration
+  // would fall to 0 instead of 0.75.
+  const tsv = 'duration\tonset\n0.75\t2.0';
+  const events = BIDSRecording.parseEventsTsv(tsv);
+  assert.equal(events.length, 1);
+  assert.equal(events[0].onset, 2.0, 'onset still parsed (col 1)');
+  assert.equal(events[0].duration, 0.75,
+    'duration at col 0 must be parsed; mutant would default to 0');
+});
+
+test('iter9 parseEventsTsv: trial_type at col 0 (iLabel=0) — kills `iLabel >= 0` → `iLabel > 0`', () => {
+  // Header `trial_type, onset`. iOnset=1, iLabel=0. Under mutant, label
+  // would be null.
+  const tsv = 'trial_type\tonset\nStim\t1.0';
+  const events = BIDSRecording.parseEventsTsv(tsv);
+  assert.equal(events[0].label, 'Stim',
+    'trial_type at col 0 must be picked up; mutant would yield null');
+});
+
+test('iter9 parseEventsTsv: sample at col 0 (iSample=0) — kills `iSample >= 0` → `iSample > 0`', () => {
+  const tsv = 'sample\tonset\n512\t2.0';
+  const events = BIDSRecording.parseEventsTsv(tsv);
+  assert.equal(events[0].sample, 512,
+    'sample at col 0 must be parsed; mutant would yield null');
+});
+
+test('iter9 parseEventsTsv: value at col 0 (iLabel=0 via value-fallback)', () => {
+  // No trial_type, value at col 0. Tests the iLabel fallback chain plus
+  // the boundary on idx('value').
+  const tsv = 'value\tonset\nresponse\t1.0';
+  const events = BIDSRecording.parseEventsTsv(tsv);
+  assert.equal(events[0].label, 'response',
+    'value-as-iLabel at col 0 must be picked up');
+});
+
+// ---- TSV plumbing: whitespace vs tab separator -----
+
+test('iter9 parseTsv: header without tab uses whitespace split (kills sep ternary mutant)', () => {
+  // `const sep = lines[0].includes('\t') ? /\t/ : /\s+/;`  The "false"
+  // branch (whitespace fallback) is documented for ds002336 but no
+  // existing test confirms it parses correctly. Mutant flipping to
+  // always-tab would treat the multi-space line as ONE cell.
+  const tsv = 'name type\nFp1 EEG\nFp2 EEG';   // space-separated, no tabs
+  const channels = BIDSRecording.parseChannelsTsv(tsv);
+  assert.equal(channels.length, 2, 'whitespace fallback should give 2 channels');
+  assert.equal(channels[0].name, 'Fp1');
+  assert.equal(channels[0].type, 'EEG');
+  assert.equal(channels[1].name, 'Fp2');
+  assert.equal(channels[1].type, 'EEG');
+});
+
+test('iter9 parseTsv: comment lines (#) are dropped before sep detection', () => {
+  // `lines.filter(l => l.length > 0 && !l.startsWith('#'))`. Mutant
+  // changing the filter would either keep the # line (parse error) or
+  // drop the header (different parse error).
+  const tsv = '# this is a comment\nname\tunits\nFp1\tuV';
+  const channels = BIDSRecording.parseChannelsTsv(tsv);
+  assert.equal(channels.length, 1);
+  assert.equal(channels[0].name, 'Fp1');
+  assert.equal(channels[0].units, 'uV');
+});
+
+test('iter9 parseTsv: stripQuotes handles single and double quotes', () => {
+  // `stripQuotes` is module-private but tested via the parsers.
+  // Mutant `s.length >= 2` → `s.length > 2` would fail to strip 2-char
+  // tokens like `""`; mutant on the q-character set would miss `'` or `"`.
+  // Below: single-quoted Fp1, double-quoted Fp2.
+  const tsv = "name\tunits\n'Fp1'\t'uV'\n\"Fp2\"\t\"uV\"";
+  const channels = BIDSRecording.parseChannelsTsv(tsv);
+  assert.equal(channels.length, 2);
+  assert.equal(channels[0].name, 'Fp1', 'single quotes stripped');
+  assert.equal(channels[0].units, 'uV');
+  assert.equal(channels[1].name, 'Fp2', 'double quotes stripped');
+  assert.equal(channels[1].units, 'uV');
+});
+
+// ============================================================
+// End iteration 9 additions
+// ============================================================

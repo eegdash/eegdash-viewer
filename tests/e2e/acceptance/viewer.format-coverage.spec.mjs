@@ -25,7 +25,12 @@ import { test, expect } from '@playwright/test';
 import { FIXTURES } from '../../fixtures/index.mjs';
 
 const FORMAT_CASES = [
-  { key: 'eeglab_inline', desc: 'EEGLAB inline .set (NEMAR nm000121)' },
+  // Swapped from eeglab_inline (NEMAR nm000121) on 2026-05-21: NEMAR
+  // returns 404 'Version not published' for nm000121/latest, making the
+  // test flake on every run. eeglab_split (OpenNeuro ds002893) covers the
+  // same SET-format path via a stable provider. NEMAR coverage moved to
+  // tests/e2e/nemar-smoke.spec.mjs which is allowed to skip on 404.
+  { key: 'eeglab_split',  desc: 'EEGLAB split .set+.fdt (OpenNeuro ds002893)' },
   { key: 'edf',           desc: 'EDF (OpenNeuro ds002034)'             },
   { key: 'brainvision',   desc: 'BrainVision .vhdr (OpenNeuro ds002336)' },
 ];
