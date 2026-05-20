@@ -287,3 +287,47 @@ random byte overwrites only — could add format-aware mutations like
 "corrupt the num_data_records header field", "truncate at chunk
 boundary", "duplicate a section"). Also: commit a small set of real
 fixture files so the corpus is non-synthetic.
+
+## Statistical Benchmarks
+
+Microbenchmarks for hot paths (filter convolutions, parse-matv5,
+readWindow, worker-cache) run through tinybench, which samples each
+task repeatedly and reports `mean ± RME` (Relative Margin of Error)
+plus p75 and p99. This replaces the previous single-number bench
+scripts that couldn't distinguish noise from a real regression.
+
+Configuration: `bench/_harness.mjs`. Per-suite scripts:
+`bench/{filter,parse-matv5,readwindow,worker-cache}.tinybench.mjs`.
+Aggregator: `bench/run-all.tinybench.mjs`.
+
+Local:
+- `npm run test:bench` — runs all suites with the default 1 s/task.
+- `BENCH_TIME=3000 npm run test:bench` — 3 s/task for tighter CI-style numbers.
+- `SKIP_NETWORK=1 npm run test:bench` — skips readwindow (offline).
+- `npm run test:bench:{filter,parse,cache,readwindow}` — single suite.
+
+CI: `.github/workflows/bench.yml` runs on every PR and main-branch push.
+It uses [benchmark-action/github-action-benchmark](https://github.com/benchmark-action/github-action-benchmark)
+with `customSmallerIsBetter`, storing historical results on the
+`gh-pages` branch and commenting on PRs where any metric regresses
+≥10%. The alert is informational (`fail-on-alert: false`) — shared
+GitHub runners have ~2–3% noise on CPU-bound benches and readwindow
+runs even higher (5–30% RME) due to network jitter, so PR-blocking
+on jitter would generate noise. Tighten the threshold once historical
+data shows the per-metric noise floor.
+
+Result schema (`bench/results-*.json`):
+- `name`     — task name
+- `mean_ms`  — sample mean
+- `rme_pct`  — relative margin of error (the meaningful "± X%" figure)
+- `p75_ms`, `p99_ms` — percentile latencies
+- `samples`  — sample count
+- `hz`       — operations per second
+
+Result schema (`bench/results-all-gab.json`) is the github-action-benchmark
+`customSmallerIsBetter` shape: `[{ name, unit: 'ms', value, range, extra }]`.
+
+The previous bench scripts (`bench/*.bench.mjs`) are still runnable via
+`npm run test:perf` but are deprecated. They will be removed once the
+tinybench equivalents have ~30 days of CI history confirming the
+metrics are comparable.
