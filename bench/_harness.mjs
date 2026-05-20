@@ -21,6 +21,7 @@
 //   [{ name, unit: 'ms', value: mean_ms, range: '±<rme_pct>%', extra: '<p99=Xms, n=Ysamples>' }]
 
 import { Bench } from 'tinybench';
+import { withCodSpeed } from '@codspeed/tinybench-plugin';
 import fs from 'node:fs';
 
 /**
@@ -106,5 +107,9 @@ export async function runAndEmit(bench, outRich, outGAB) {
  */
 export function makeBench(extra = {}) {
   const time = parseInt(process.env.BENCH_TIME || '1000', 10);
-  return new Bench({ time, warmupTime: Math.max(50, Math.floor(time / 4)), ...extra });
+  const bench = new Bench({ time, warmupTime: Math.max(50, Math.floor(time / 4)), ...extra });
+  // CodSpeed instrument: enabled when CSE_PERF=1, otherwise plain tinybench.
+  // Local runs (CSE_PERF unset) → wall-clock measurement.
+  // CI runs (CSE_PERF=1) → Callgrind-based CPU simulation, 0.56% CoV.
+  return process.env.CSE_PERF ? withCodSpeed(bench) : bench;
 }
