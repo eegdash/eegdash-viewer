@@ -1259,3 +1259,214 @@ test('drawEventMarkers: long label is truncated to 14 chars via slice(0, 14)', a
   assert.ok(truncMatch,
     `truncated label "${truncated}" (14 chars) should appear; got fillTexts: ${calls.filter(c=>c.op==='fillText').slice(0,5).map(c=>c.args[0]).join(',')}`);
 });
+
+// ── Iteration-6 pagination ctx-conformance tests ─────────────────────────────
+//
+// Iteration 5 closed the axis/scalebar/event-marker geometry-→-ctx bridge and
+// gained +7.46pp; but the lines-500-549 pagination tail cluster only shed 1
+// of its 35 survivors. The remaining 34 live in the per-channel rendering
+// LOOP BODY (traces.js:550-594) where pagination's offset interacts with the
+// per-visible-row geometry. The iteration-4 tests already pinned label COUNT
+// and label IDENTITY at the outer boundaries; what is still mutation-blind
+// is:
+//
+//   - the per-row `yCenter = plotY0 + (c + 0.5) * slotH` arithmetic where
+//     `c` is the VISIBLE index after slicing (not the absolute channel id),
+//   - the bad-channel slot fillRect at `(plotX0, plotY0 + c*slotH, plotW, slotH)`
+//     which uses the SAME visible `c`,
+//   - the sliced `colors[c]` / `types[c]` / `badMask[c]` parallel arrays —
+//     mutants that swap any one of them for the unsliced original would
+//     pull the wrong color/dash/bad-flag onto a visible row,
+//   - the divider loop `for (c = 1; c < nCh; c++)` at line 162: nCh is the
+//     POST-SLICE visible count, so divider count must equal visibleN-1.
+//
+// Each test below pins ONE of those invariants while pagination is active.
+// Geometry constants used throughout: at 800×600,
+//   PAD_TOP=8, PAD_BOTTOM=28 → plotH=564; MIN_SLOT_PX=16 → maxVisible=35.
+
+test('pagination ctx-conformance: per-row label y-spacing equals slotH (offset > 0)', async () => {
+  // Pins `y = y0 + (c + 0.5) * slotH` in drawChannelLabels (traces.js:174)
+  // where `c` is the VISIBLE-row index. With offset=5 and totalCh=50, the
+  // first visible label is Ch6 and consecutive label y-positions must be
+  // spaced by exactly slotH = plotH / maxVisible. Mutants on the `+0.5`
+  // offset, the `* slotH` factor, or the visible-row indexing all change
+  // the y-spacing here.
+  const totalCh = 50;
+  const offset = 5;
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(totalCh, 100, { channel_offset: offset }));
+
+  const labelCalls = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .sort((a, b) => parseInt(String(a.args[0]).slice(2), 10) - parseInt(String(b.args[0]).slice(2), 10));
+
+  assert.equal(String(labelCalls[0].args[0]), `Ch${offset + 1}`,
+    `first visible label must be Ch${offset + 1}; got ${labelCalls[0].args[0]}`);
+
+  const PAD_TOP = TraceRenderer.PAD_TOP;
+  const PAD_BOTTOM = TraceRenderer.PAD_BOTTOM;
+  const plotH = cssH - PAD_TOP - PAD_BOTTOM;
+  const maxVisible = TraceRenderer.lastMaxVisibleChannels;
+  const visibleN = Math.min(maxVisible, totalCh - offset);
+  const slotH = plotH / visibleN;
+  const expectedFirstY = PAD_TOP + 0.5 * slotH;
+
+  // First label y must equal the per-row formula at visible idx 0.
+  assert.ok(Math.abs(labelCalls[0].args[2] - expectedFirstY) <= 1,
+    `first label y=${labelCalls[0].args[2].toFixed(2)} should be ≈ ${expectedFirstY.toFixed(2)} = plotY0 + 0.5*slotH`);
+
+  // Y-spacing between consecutive labels equals slotH (within rounding).
+  for (let i = 1; i < labelCalls.length; i++) {
+    const dy = labelCalls[i].args[2] - labelCalls[i - 1].args[2];
+    assert.ok(Math.abs(dy - slotH) <= 1,
+      `label[${i}] (${labelCalls[i].args[0]}) y-spacing ${dy.toFixed(2)} should be ≈ slotH=${slotH.toFixed(2)}`);
+  }
+});
+
+test('pagination ctx-conformance: bad-channel slot fillRect tracks VISIBLE row (offset > 0)', async () => {
+  // traces.js:576 — `ctx.fillRect(plotX0, plotY0 + c * slotH, plotW, slotH)`.
+  // The `c` here is the POST-SLICE visible index. With offset=5 and a
+  // bad_mask making absolute channel #8 bad, the bad-slot fillRect must
+  // appear at visible row 3 (since 8 - 5 = 3), i.e. at
+  // y = plotY0 + 3 * slotH. A mutant that read bad_mask[c] from the
+  // unsliced array (or fillRect'd at the absolute index 8) would land
+  // at y = plotY0 + 8*slotH (or below the plot). Either way, ≠ row 3.
+  const totalCh = 50;
+  const offset = 5;
+  const badAbsIdx = 8;   // visible row = 8 - 5 = 3
+  const cssW = 800, cssH = 600;
+  const bad_mask = Array.from({ length: totalCh }, (_, i) => i === badAbsIdx);
+
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(totalCh, 100, {
+    channel_offset: offset, bad_mask,
+  }));
+
+  const calls = canvas._ctx.calls;
+  // Find the fillRect immediately following a `set:fillStyle '#c8c8c8'`
+  // (BAD_SLOT_COLOR). There must be exactly ONE such pair (one bad channel).
+  let badFillRect = null;
+  let badFillRectCount = 0;
+  for (let i = 0; i < calls.length; i++) {
+    if (calls[i].op === 'set:fillStyle' && calls[i].args[0] === '#c8c8c8') {
+      for (let j = i + 1; j < Math.min(i + 10, calls.length); j++) {
+        if (calls[j].op === 'fillRect') {
+          if (!badFillRect) badFillRect = calls[j];
+          badFillRectCount++;
+          break;
+        }
+      }
+    }
+  }
+  assert.equal(badFillRectCount, 1,
+    `exactly 1 bad-slot fillRect expected (one bad channel under offset); got ${badFillRectCount}`);
+
+  const PAD_TOP = TraceRenderer.PAD_TOP;
+  const PAD_BOTTOM = TraceRenderer.PAD_BOTTOM;
+  const plotH = cssH - PAD_TOP - PAD_BOTTOM;
+  const maxVisible = TraceRenderer.lastMaxVisibleChannels;
+  const visibleN = Math.min(maxVisible, totalCh - offset);
+  const slotH = plotH / visibleN;
+  const visibleRow = badAbsIdx - offset;
+  const expectedY = PAD_TOP + visibleRow * slotH;
+
+  // y argument of fillRect is the 2nd positional arg.
+  assert.ok(Math.abs(badFillRect.args[1] - expectedY) <= 1,
+    `bad-slot fillRect y=${badFillRect.args[1].toFixed(2)} should be ≈ ${expectedY.toFixed(2)} ` +
+    `(plotY0 + visibleRow=${visibleRow} * slotH). A mutant reading bad_mask without slice ` +
+    `would put it at row ${badAbsIdx} (y=${(PAD_TOP + badAbsIdx * slotH).toFixed(2)}).`);
+
+  // Height of the bad-slot rect must equal slotH.
+  assert.ok(Math.abs(badFillRect.args[3] - slotH) <= 1,
+    `bad-slot fillRect height=${badFillRect.args[3].toFixed(2)} should be ≈ slotH=${slotH.toFixed(2)}`);
+});
+
+test('pagination ctx-conformance: per-row strokeStyle matches sliced channel_colors[visibleIdx]', async () => {
+  // The renderer reads `colors[c]` where colors is sliced from
+  // channel_colors by `slice(offset, offset+visibleN)`. With offset=5 and
+  // distinct per-channel colors, the FIRST strokeStyle set to a
+  // channel-color (i.e. not BAD_COLOR/SLOT_COLOR/AXIS_COLOR/LABEL_COLOR
+  // /EVENT_*) must equal channel_colors[offset]. A mutant that drops the
+  // colors slice would set the first channel-color to channel_colors[0].
+  const totalCh = 10;  // ≤ maxVisible so no pagination slice on data either way
+  const offset = 5;
+  // 10 channels ≤ maxVisible=35, so the `totalCh > maxVisible` guard skips
+  // the slice block — pagination only really activates when totalCh > maxVisible.
+  // To make pagination apply to the slices, totalCh MUST exceed maxVisible.
+  // Re-do with totalCh=40 (still small enough to keep the test fast).
+  const totalCh2 = 40;
+  const offset2 = 5;
+  const channel_colors = Array.from({ length: totalCh2 }, (_, i) => {
+    // 6-digit hex per channel: '#0c0001', '#0c0002', ..., distinct strings.
+    const tag = String(i + 1).padStart(2, '0');
+    return `#0c00${tag}`;
+  });
+  const channels = Array.from({ length: totalCh2 }, () => {
+    const d = new Float32Array(100);
+    for (let i = 0; i < 100; i++) d[i] = Math.sin(i * 0.1) * 10;
+    return d;
+  });
+  const canvas = makeStubCanvas(800, 600);
+  TraceRenderer.draw(canvas, {
+    channels,
+    channel_labels: Array.from({ length: totalCh2 }, (_, i) => `Ch${i + 1}`),
+    channel_types:  Array.from({ length: totalCh2 }, () => 'EEG'),
+    channel_colors,
+    n_samples_visible: 100,
+    fs: 250, start_sec: 0, gain: 1, transparent: false,
+    channel_offset: offset2,
+  });
+
+  // Collect strokeStyle sets whose value matches our channel_colors palette.
+  const channelStrokeSets = canvas._ctx.calls
+    .filter(c => c.op === 'set:strokeStyle' && /^#0c00\d{2}$/.test(String(c.args[0])))
+    .map(c => String(c.args[0]));
+
+  assert.ok(channelStrokeSets.length > 0,
+    'expected at least one per-channel strokeStyle set from channel_colors palette');
+
+  // The FIRST channel-color strokeStyle must equal channel_colors[offset],
+  // not channel_colors[0]. Mutant on the colors slice surfaces here.
+  assert.equal(channelStrokeSets[0], channel_colors[offset2],
+    `first per-channel stroke color should be channel_colors[${offset2}]=` +
+    `${channel_colors[offset2]}; got ${channelStrokeSets[0]}. A slice-drop mutant would yield ` +
+    `channel_colors[0]=${channel_colors[0]}.`);
+});
+
+test('pagination ctx-conformance: per-row setLineDash matches sliced channel_types[visibleIdx]', async () => {
+  // Companion to the color test: TYPE_DASH['EOG'] = [5,2]; the sliced
+  // types array must apply the offset-th type to visible row 0. Set
+  // absolute channel #5 to EOG (the rest EEG) and verify the FIRST
+  // non-empty setLineDash call carries [5,2] — which can only happen
+  // if the renderer reads types[c] from a slice starting at offset=5
+  // (because visible row 0 == abs channel 5).
+  const totalCh = 40;  // > maxVisible
+  const offset = 5;
+  const channel_types = Array.from({ length: totalCh }, () => 'EEG');
+  channel_types[offset] = 'EOG';   // exactly at visible row 0
+
+  const canvas = makeStubCanvas(800, 600);
+  TraceRenderer.draw(canvas, buildOpts(totalCh, 100, {
+    channel_offset: offset,
+    channel_types,
+  }));
+
+  // Find all setLineDash calls during per-channel rendering and collect
+  // their args[0] in the order they appear.
+  const dashSets = canvas._ctx.calls
+    .filter(c => c.op === 'setLineDash')
+    .map(c => Array.isArray(c.args[0]) ? c.args[0] : []);
+
+  assert.ok(dashSets.length > 0, 'expected at least one setLineDash call');
+
+  // The FIRST setLineDash with a non-empty array must be [5, 2] (EOG).
+  // A mutant that dropped the types slice would have visible row 0 read
+  // channel_types[0]='EEG' → empty dash, and the first non-empty dash
+  // would shift to a later row (or never appear).
+  const firstNonEmpty = dashSets.find(arr => arr.length > 0);
+  assert.ok(firstNonEmpty, 'expected at least one non-empty dash (EOG at offset)');
+  assert.deepEqual(firstNonEmpty, [5, 2],
+    `first non-empty dash should be EOG's [5,2] (visible row 0 = abs ch ${offset}); got ${JSON.stringify(firstNonEmpty)}`);
+});
+
