@@ -363,7 +363,25 @@
     // Pending FETCH_WINDOW requests: request_id → { resolve, reject, sentAt }
     const pendingRequests = new Map();
     // Cancelled request_ids (aborted before WINDOW arrived)
+    // Cancelled-request bookkeeping. The set entry is normally cleared
+    // by the cancelled chunk's WINDOW_CHUNK handler (line 433) when the
+    // final chunk lands. BUT: if the worker is aborted mid-stream and
+    // never sends a final !partial chunk for that request_id, the entry
+    // leaks. Across a long session of rapid panning that's unbounded
+    // growth. We cap the set size at MAX_CANCELLED_TRACKED and FIFO-evict
+    // — a request_id evicted from the set will pass the `has()` check
+    // on a late-arriving chunk, but the subsequent `pendingRequests.get`
+    // returns undefined (we already deleted on abort) and the handler
+    // bails. So eviction is correctness-safe. (Sleuth finding C.)
     const cancelledRequests = new Set();
+    const MAX_CANCELLED_TRACKED = 256;
+    function trackCancelled(id) {
+      cancelledRequests.add(id);
+      while (cancelledRequests.size > MAX_CANCELLED_TRACKED) {
+        const oldest = cancelledRequests.values().next().value;
+        cancelledRequests.delete(oldest);
+      }
+    }
     let _nextRequestId = 1;
 
     // Stat helpers: write to window.__viewerWorkerStats so they land
@@ -498,7 +516,7 @@
             if (pendingRequests.has(id)) {
               pendingRequests.delete(id);
             }
-            cancelledRequests.add(id);
+            trackCancelled(id);
             reject(new DOMException('aborted', 'AbortError'));
           }, { once: true });
         }
@@ -568,7 +586,7 @@
       if (abortSignal) {
         abortSignal.addEventListener('abort', () => {
           if (pendingRequests.has(id)) pendingRequests.delete(id);
-          cancelledRequests.add(id);
+          trackCancelled(id);
           signalError(new DOMException('aborted', 'AbortError'));
         }, { once: true });
       }
@@ -615,7 +633,16 @@
                                              // needed now prefetch is single
                                              // -target and idle-gated.
     const readCache = new Map();             // "start-n" → Promise<channels>
-    function clearReadCache() { readCache.clear(); }
+    // Cache-generation counter. Every clearReadCache() bumps it. The
+    // streaming render captures the generation when it starts; before
+    // writing the final assembled-channel cache entry, it confirms the
+    // generation still matches. This prevents a streaming render that
+    // started PRE-filter-toggle from writing its unfiltered data back
+    // into the cache POST-filter-toggle — which would cause subsequent
+    // foreground fetches at the same window to read stale unfiltered
+    // data and render it as if filtered. (Sleuth finding B.)
+    let _cacheGen = 0;
+    function clearReadCache() { readCache.clear(); _cacheGen++; }
 
     // readCachedWindow now delegates to the worker (or fallbackReader
     // in Node). The abort signal is forwarded so a superseded pan
@@ -748,6 +775,12 @@
         const cacheHit = readCache.has(cacheKey);
         const filtersOn = hasActiveFilters();
         const useStreaming = worker && !cacheHit && !filtersOn;
+        // Snapshot the cache generation at render start. The streaming
+        // writeback at the end of the for-await loop only commits to
+        // readCache if this still matches _cacheGen — otherwise a
+        // filter toggle that ran during the render would be silently
+        // undone. (Sleuth finding B.)
+        const startCacheGen = _cacheGen;
 
         if (useStreaming) {
           // Streaming render: first chunk clears canvas and paints, subsequent chunks
@@ -806,15 +839,23 @@
                 lastWindowSec = view.window_sec;
                 if (lastPointerEvent) refreshCursor();
                 // Populate the main-thread read cache promise so future
-                // FETCH_WINDOW requests hit immediately.
-                const channelsCopy = assembledChannels.map(ch => {
-                  const a = new Float32Array(ch.length);
-                  a.set(ch);
-                  return a;
-                });
-                readCache.set(cacheKey, Promise.resolve(channelsCopy));
-                while (readCache.size > READ_CACHE_MAX) {
-                  readCache.delete(readCache.keys().next().value);
+                // FETCH_WINDOW requests hit immediately — BUT only if
+                // no clearReadCache() ran since this render started. A
+                // filter toggle, window-sec change, or drop-load fires
+                // clearReadCache(); writing stale (pre-filter) data into
+                // the freshly-cleared cache would poison every
+                // subsequent foreground read for that window.
+                // (Sleuth finding B.)
+                if (_cacheGen === startCacheGen) {
+                  const channelsCopy = assembledChannels.map(ch => {
+                    const a = new Float32Array(ch.length);
+                    a.set(ch);
+                    return a;
+                  });
+                  readCache.set(cacheKey, Promise.resolve(channelsCopy));
+                  while (readCache.size > READ_CACHE_MAX) {
+                    readCache.delete(readCache.keys().next().value);
+                  }
                 }
               }
             }
@@ -1112,6 +1153,19 @@
         dragging = false;
         try { tracesCanvas.releasePointerCapture(e.pointerId); } catch {}
       });
+      // `pointercancel` + `lostpointercapture` cover the cases where the
+      // OS or browser interrupts the drag without firing pointerup —
+      // examples: Cmd-Tab during drag, gesture cancel, alert popup,
+      // browser scroll chaining. Without these resets, `dragging` stays
+      // true and the next stray pointermove (even a hover) yanks
+      // `view.start_sec` by the cumulative delta from the stale anchor.
+      // (Sleuth finding D.)
+      const endDrag = (e) => {
+        dragging = false;
+        try { tracesCanvas.releasePointerCapture(e.pointerId); } catch {}
+      };
+      tracesCanvas.addEventListener('pointercancel', endDrag);
+      tracesCanvas.addEventListener('lostpointercapture', endDrag);
       tracesCanvas.addEventListener('pointermove', (e) => {
         lastPointerEvent = e;
         updateCursor(e.clientX, e.clientY);
@@ -1382,7 +1436,13 @@
             // If initial render fails, proceed normally — requestRender() below
             // will retry via the rAF path.
           }
-          inFlight = null;
+          // CRITICAL: only null `inFlight` if it still refers to OUR controller.
+          // Between L1359 (await) and here, the user may have triggered a
+          // requestRender() that aborted our ctrl and installed a fresh
+          // AbortController. Clobbering it to null would break the next
+          // requestRender's `if (inFlight) inFlight.abort()` check and let
+          // two streaming renders race onto the canvas. (Sleuth finding E.)
+          if (inFlight === ctrl) inFlight = null;
         }
 
         // Stage caption becomes visible after the initial render, so tests
