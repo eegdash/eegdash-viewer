@@ -150,3 +150,26 @@ Rules for acceptance specs:
 
 The smoke spec is the only spec that hits the live `https://eegdash.github.io`
 URL. All other specs run against `localhost:8011` via the local static server.
+
+## Rapid-Input Behaviour Suite
+
+Rapid keyboard / pointer input on the viewer exercises the streaming render
+path (worker → assembled chunks → partial_fill draw) and the abort cascade
+(every new pan aborts the in-flight stream). This suite locks down the
+class of bugs reported on 2026-05-20 where fast left/right scrolling left
+ghost trace residue on the canvas.
+
+| Layer | File | Covers |
+|---|---|---|
+| Unit | tests/unit-traces-partial-fill.test.mjs | polyline x-mapping during partial_fill, full_clear flag, monotonic data-front, idempotent re-draw, DPR invariance |
+| Unit | tests/unit-viewer-render-loop.test.mjs | clampStart formula, cache-key formula, tail-clamp keys |
+| Integration | tests/integration-rapid-pan.test.mjs | abort cascade, no-delivery-after-abort, 50-pan stress, prefetch gate |
+| E2E | tests/e2e/streaming.spec.mjs | STREAMING-E2E-1..5 |
+| E2E | tests/e2e/rapid-scroll.spec.mjs | RAPID-1..5 (gain, DPR, resize, visibility, heap) |
+| Bench | bench/ghost-pixel-bench.mjs | per-pixel diff before/after stress |
+
+Run all rapid-input tests:
+
+```bash
+npm run test:e2e:rapid
+```
