@@ -59,6 +59,26 @@ let currentReaderEpoch = 0;
 // Updated on APPLY_FILTER messages; applied to each channel in FETCH_WINDOW.
 let activeFilterCoefs = [];
 
+// Cancellation registry for in-flight FETCH_WINDOW(_STREAM) requests.
+// The viewer can send `{ type: 'CANCEL_REQUEST', request_id }` to mark a
+// request as abandoned. Long-running streams check between iterator steps
+// and bail without further postMessage. Saves bandwidth + main-thread
+// message overhead during rapid panning. Bounded with FIFO eviction to
+// prevent unbounded growth — matches the viewer-side `trackCancelled`
+// pattern. (Worker sleuth finding 5.)
+const cancelledRequestIds = new Set();
+const MAX_CANCELLED_REQUEST_IDS = 256;
+function markRequestCancelled(id) {
+  cancelledRequestIds.add(id);
+  while (cancelledRequestIds.size > MAX_CANCELLED_REQUEST_IDS) {
+    const oldest = cancelledRequestIds.values().next().value;
+    cancelledRequestIds.delete(oldest);
+  }
+}
+function isRequestCancelled(id) {
+  return cancelledRequestIds.has(id);
+}
+
 // Perf: raw (unfiltered) window cache, keyed by `${start}-${n}`. The
 // viewer's main-thread cache holds FILTERED Float32Arrays (their bytes
 // are transferred to the main thread, zero-copy, so the worker doesn't
@@ -211,6 +231,7 @@ self.onmessage = async function (evt) {
           ?? await awaitInflight(cacheKey,
                                   () => localReader.readWindow(start_sample, n_samples));
         if (epoch !== currentReaderEpoch) return;  // recording switched; drop
+        if (isRequestCancelled(request_id)) return;  // viewer cancelled — bail
         // Apply the snapshot filter chain to a fresh OUTPUT buffer per
         // channel — never mutate the cached raw. Each output buffer
         // is owned + transferable.
@@ -243,6 +264,20 @@ self.onmessage = async function (evt) {
         break;
       }
 
+      // Viewer-initiated cancellation. Marks the request as cancelled so
+      // any in-flight FETCH_WINDOW(_STREAM) loop body checking
+      // isRequestCancelled() bails before paying further bandwidth +
+      // postMessage cost. The viewer's main-thread cancelledRequests
+      // already drops responses for cancelled IDs, but without this the
+      // worker happily streams the full window for an abandoned request.
+      // (Worker sleuth finding 5.)
+      case 'CANCEL_REQUEST': {
+        if (typeof msg.request_id !== 'undefined') {
+          markRequestCancelled(msg.request_id);
+        }
+        break;
+      }
+
       // 1C: Streaming window fetch.
       // When filter chain is active, streaming is unsafe (filtfilt needs full signal):
       // collect all chunks, apply filter, then send ONE final WINDOW_CHUNK with partial:false.
@@ -271,6 +306,7 @@ self.onmessage = async function (evt) {
             ?? await awaitInflight(cacheKey,
                                     () => localReader.readWindow(start_sample, n_samples));
           if (!isStillCurrent()) return;  // recording switched mid-fetch — drop result
+          if (isRequestCancelled(request_id)) return;  // viewer cancelled — bail before paint
           const owned = rawChannels.map(rawCh => {
             if (filterSnapshot.length > 0) {
               return globalThis.Filters.applyChain(rawCh, filterSnapshot);
@@ -357,6 +393,7 @@ self.onmessage = async function (evt) {
             let totalSamples = 0;
             for await (const chunk of localReader.readWindowStreaming(start_sample, n_samples)) {
               if (!isStillCurrent()) { resolveInflight([]); return; }
+              if (isRequestCancelled(request_id)) { resolveInflight([]); return; }
               if (!assembledChannels) {
                 assembledChannels = chunk.channels.map(ch => {
                   const a = new Float32Array(n_samples);
@@ -396,6 +433,7 @@ self.onmessage = async function (evt) {
             let totalSamples = 0;
             for await (const chunk of localReader.readWindowStreaming(start_sample, n_samples)) {
               if (!isStillCurrent()) { resolveInflight([]); return; }
+              if (isRequestCancelled(request_id)) { resolveInflight([]); return; }
               const chunkLen = chunk.channels[0].length;
               if (!assembledChannels) {
                 assembledChannels = chunk.channels.map(() => new Float32Array(n_samples));

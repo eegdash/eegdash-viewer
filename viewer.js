@@ -517,6 +517,12 @@
               pendingRequests.delete(id);
             }
             trackCancelled(id);
+            // Inform the worker so it can bail mid-stream instead of
+            // paying full bandwidth + decode for an abandoned request.
+            // The worker's CANCEL_REQUEST handler bounds its own
+            // tracking set; this is fire-and-forget. (Worker sleuth
+            // finding 5.)
+            if (worker) worker.postMessage({ type: 'CANCEL_REQUEST', request_id: id });
             reject(new DOMException('aborted', 'AbortError'));
           }, { once: true });
         }
@@ -587,6 +593,10 @@
         abortSignal.addEventListener('abort', () => {
           if (pendingRequests.has(id)) pendingRequests.delete(id);
           trackCancelled(id);
+          // Worker-side cancellation — same pattern as workerFetchWindow.
+          // Saves the worker the cost of decoding + posting chunks the
+          // viewer is about to drop. (Worker sleuth finding 5.)
+          if (worker) worker.postMessage({ type: 'CANCEL_REQUEST', request_id: id });
           signalError(new DOMException('aborted', 'AbortError'));
         }, { once: true });
       }
