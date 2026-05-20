@@ -634,6 +634,11 @@
   const api = {
     draw, decimateMinMax, meanStd,
     PAD_LEFT, PAD_RIGHT, PAD_TOP, PAD_BOTTOM, MIN_SLOT_PX,
+    // Test-surface export: niceRound is module-private but its boundary
+    // at v<=0 was mutation-blind (mutant 131). Promoting it here lets a
+    // direct unit test pin the contract without exposing more surface
+    // than necessary — the leading underscore marks it as debug-only.
+    _niceRound: niceRound,
     lastDrawnXLabels: [],
     lastSlotMicrovolts: 0,
     lastMaxVisibleChannels: 0,
