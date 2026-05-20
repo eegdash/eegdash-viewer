@@ -61,6 +61,10 @@ test('fuzz: EDF parseHeader survives 10k corpus-mutated rounds', () => {
   fc.assert(
     fc.property(corpusFuzzedBuffer([
       'eeg/sub-01_ses-01_task-offline_run-01_eeg.edf',
+      // BDF is binary-compatible with EDF for header parsing (24-bit
+      // sample width vs 16-bit affects only data records). Seeding the
+      // EDF parser with BDF bytes is a useful cross-format mutation.
+      'eeg/sub-001_ses-01_task-meditation_eeg.bdf',
     ]), (bytes) => {
       const ab = bytes.buffer.slice(
         bytes.byteOffset,
@@ -112,23 +116,24 @@ test('fuzz: EDF parseTAL survives 10k corpus-mutated rounds', () => {
 // "parse INI text" routine; parseHeader is the higher-level
 // "extract recording metadata from .vhdr" wrapper that calls into it.
 
-// Read the .vhdr corpus seed once and mix it into the string-fuzz: 10%
-// of the time we hand parseIni the real INI text verbatim or with a few
-// byte flips applied; 90% pure random strings.
-const _bvHeaderText = (() => {
+// Read the .vhdr corpus seeds once and mix into the string-fuzz: 10% of
+// the time we hand parseIni a real .vhdr file (one EEG, one iEEG —
+// different channel counts, different acquisition modalities); 90% pure
+// random strings.
+const _bvHeaders = (() => {
   try {
     const fs = require('node:fs');
     const path = require('node:path');
-    return fs.readFileSync(
-      path.resolve('tests/fixtures/eeg/sub-xp101_task-motorloc_eeg.vhdr'),
-      'utf-8',
-    );
-  } catch { return null; }
+    return [
+      fs.readFileSync(path.resolve('tests/fixtures/eeg/sub-xp101_task-motorloc_eeg.vhdr'), 'utf-8'),
+      fs.readFileSync(path.resolve('tests/fixtures/ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vhdr'), 'utf-8'),
+    ];
+  } catch { return []; }
 })();
-const bvFuzzText = _bvHeaderText
+const bvFuzzText = _bvHeaders.length
   ? fc.oneof(
       { weight: 9, arbitrary: fc.string({ minLength: 0, maxLength: 8192 }) },
-      { weight: 1, arbitrary: fc.constant(_bvHeaderText) },
+      { weight: 1, arbitrary: fc.constantFrom(..._bvHeaders) },
     )
   : fc.string({ minLength: 0, maxLength: 8192 });
 
@@ -221,10 +226,17 @@ test('fuzz: EEGLAB sliceColumnMajor survives 10k typed-array fuzz', () => {
 test('fuzz: FIFF read survives 10k corpus-mutated rounds', () => {
   fc.assert(
     fc.property(corpusFuzzedBuffer([
-      // No small CC0/BSD FIFF fixture committed yet — see
-      // tests/fixtures/eeg/LICENSE-ATTRIBUTION.md "TODO" section.
-      // Until one lands, the helper falls back to a synthetic 1 KB
-      // seed which is sufficient to fuzz the DataView bounds.
+      // BSD-3 licensed test fixtures from mne-tools/mne-python.
+      // Three complementary FIFF subtypes: projection vectors, raw
+      // annotations, events. The current fiff.js parser rejects these
+      // (it expects literal ASCII "FIFF" magic that real files lack —
+      // see LICENSE-ATTRIBUTION.md "Known parser issues"). The fuzz
+      // still benefits: mutated bytes around real FIFF tag structure
+      // exercise the parser's defensive-throw path under realistic
+      // shapes rather than pure random noise.
+      'meg/test-proj.fif',
+      'meg/test_raw-annot.fif',
+      'meg/test-eve.fif',
     ]), (bytes) => {
       const ab = bytes.buffer.slice(
         bytes.byteOffset,

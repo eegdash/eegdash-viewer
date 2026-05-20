@@ -78,3 +78,41 @@ first chunk. Manifests as a brief one-frame flash, not a persistent ghost.
 Mitigation: synchronously check `ctrl.signal.aborted` BEFORE invoking
 `TraceRenderer.draw(...)` inside the loop body. Low priority — not the
 reported bug, but a real interleaving hazard.
+
+## fiff.js: rejects all real FIFF files (2026-05-20, surfaced by fixture work)
+
+**Status: OPEN**
+
+When committing real FIFF fixtures from MNE-Python (BSD-3 licensed test
+data — `meg/test-proj.fif`, `meg/test_raw-annot.fif`, `meg/test-eve.fif`),
+discovered that `formats/fiff.js:66` rejects every single one of them
+with `Error: Not a valid FIFF file`.
+
+Root cause: the parser validates input by reading the first 4 bytes and
+requiring them to spell ASCII `"FIFF"` (`46 49 46 46`). Real FIFF files
+do NOT have that magic — they start with a TAG (typically
+`FIFF_FILE_ID`, `kind=100`), so the first 4 bytes are `00 00 00 64`.
+Reference: [MNE-Python source](https://github.com/mne-tools/mne-python/blob/main/mne/io/fiff/raw.py)
+shows the standard validation reads `FIFF_FILE_ID` tag, not a magic
+string.
+
+Impact:
+- The viewer cannot actually open any real-world FIFF/MEG recording
+  today, even though the format reader is plumbed end-to-end.
+- The existing `tests/prop-fiff.test.mjs` did not catch this because
+  it fuzzes with synthetic random bytes that never accidentally start
+  with `46 49 46 46` either — so every input legitimately throws and
+  the no-crash property still holds.
+
+Fix path (not part of this fixture PR):
+1. Replace the magic-check with a proper TAG read: confirm first 16 bytes
+   parse as a `FIFF_FILE_ID` tag (`kind=100, type=31, size=20, next=0`).
+2. Add a regression test using `tests/fixtures/meg/test-proj.fif` that
+   asserts `read()` returns a non-null result.
+3. Tighten `prop-fiff.test.mjs` to also seed with the real fixture
+   (already wired into `fuzz-formats.test.mjs`'s corpus).
+
+Tracked under PR-9 mutation iteration as a debug-export-only PR; the
+parser fix is out of scope. The fixtures still seed fuzz usefully —
+they exercise the defensive-throw path under realistic byte
+distributions instead of pure noise.
