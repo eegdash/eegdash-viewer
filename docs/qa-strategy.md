@@ -206,3 +206,46 @@ Run locally: `npm run test:coverage`. HTML report at `coverage/index.html`.
 The coverage script intentionally runs only the deterministic unit set
 (same files as `npm run test:unit`) so the gate doesn't drift with
 NEMAR / OpenNeuro network flakes.
+
+## Mutation Testing
+
+Stryker (via `@stryker-mutator/core`'s built-in `command` runner driving
+`node:test`) measures the *kill ratio* of the test suite against
+synthetic code mutations. A mutant is "killed" if at least one test
+fails against the mutated source.
+
+Configuration: `stryker.conf.json`. Scope (v1): `traces.js` only — the
+strongest-tested file in the repo. viewer.js is excluded because its
+IIFE depends on DOM globals that node:test cannot provide.
+
+Baseline (2026-05-20):
+- Mutation score: 37.29%
+- Killed: 236 / Survived: 407 / Timed out: 6 / Total: 649
+- Surviving mutants documented at `docs/mutation-survivors-2026-05.md`
+
+Thresholds (in `stryker.conf.json`):
+- break: 32 (baseline − 5; CI exit non-zero if score drops below)
+- low: 34 (baseline − 3; non-blocking warning band)
+- high: 80 (aspirational)
+
+The baseline sits below 50 because most of traces.js renders into a
+canvas and the existing harness records only a subset of the ctx call
+stream — visual-correctness mutants survive node:test by design. The
+break floor is set to baseline − 5 (not 50) so the gate catches
+regression without rejecting today's reality.
+
+Run locally: `npm run mutation` (full) or `npm run mutation:incremental`
+(reuses `reports/stryker-incremental.json` to skip mutants on unchanged
+code; typically <30 s after the first full run). HTML report at
+`reports/mutation/html/index.html` (gitignored) and JSON at
+`reports/mutation/mutation.json`.
+
+CI: runs nightly at 03:00 UTC (`.github/workflows/mutation.yml`). Not
+per-PR because a full run is ~2–15 minutes (cold cache: ~2.5 min
+locally, longer on shared CI runners). To trigger manually: GitHub
+Actions → "Mutation testing (nightly)" → Run workflow.
+
+Tightening cadence: once `traces.js` is above 50%, expand `mutate` to
+add `filters.js`, `topo2d.js`, `bids-recording.js`. Do not expand to
+`viewer.js` until it can be tested under `node:test` (see the
+"eventually-modularize" thread in `docs/qa-followups.md`).
