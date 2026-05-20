@@ -192,6 +192,59 @@ test('RAPID-4: tab visibility throttle does not leave stale frame on resume', as
   expect(after).toBeGreaterThan(500);
 });
 
+test('RAPID-6: channel offset paging (PgDn) during pan stays clean', async ({ page }) => {
+  // GAP: PgUp/PgDn changes view.channel_offset (viewer.js ~L1154-1160), which
+  // forces requestRender(). If issued mid-pan the in-flight streaming render
+  // aborts and a new one starts — but with a different set of channels. The
+  // ghost-trace bug class extends to channel changes: previously-painted
+  // channel rows must be fully cleared, NOT just the partial_fill x-band.
+  //
+  // We pan-right, then immediately PgDn to advance the channel page mid-stream,
+  // and assert the canvas settles to a non-blank state with no JS errors.
+  const dir = evidenceDir('rapid-6-pgdn');
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text());
+  });
+
+  await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
+  await waitForLoad(page);
+  await page.waitForTimeout(500);
+  const baseline = await countNonBgPixels(page);
+
+  // Start a streaming pan, then immediately page channels (PgDn). Repeat
+  // a few times to exercise the abort cascade between pan and channel-paging
+  // re-renders.
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(30);  // partial stream in flight
+    await page.keyboard.press('PageDown');
+    await page.waitForTimeout(30);
+  }
+  // PgUp back to the original channel page.
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press('PageUp');
+  }
+  // And pan back to the original time window.
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press('ArrowLeft');
+  }
+
+  const after = await settle(page);
+  await page.screenshot({ path: path.join(dir, 'after-pgdn-pan.png') });
+  fs.writeFileSync(path.join(dir, 'pixel-counts.json'), JSON.stringify({ baseline, after }, null, 2));
+
+  expect(errors).toHaveLength(0);
+  // Canvas must be non-blank.
+  expect(after).toBeGreaterThan(500);
+  // And after returning to the same time + channel offset, pixel count should
+  // be in the same ballpark as baseline (no accumulated channel-row residue
+  // from the abort cascade).
+  expect(after).toBeGreaterThan(baseline * 0.5);
+  expect(after).toBeLessThan(baseline * 1.5);
+});
+
 test('RAPID-5: 200 sequential pans do not leak heap memory', async ({ page }) => {
   const dir = evidenceDir('rapid-5-heap');
   const errors = [];
