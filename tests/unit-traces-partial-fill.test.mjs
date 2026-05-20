@@ -584,6 +584,78 @@ test('partial_fill: tail-clamped window (end of recording) bounds polyline corre
   );
 });
 
+test('gain: doubling gain doubles polyline Y-range (kills mutant 572 vToPx slope)', async () => {
+  // MUTATION 572 guard at traces.js:559.
+  // Original: `const vToPx = (halfSlotPx * gain) / (ampl / 2);`
+  // Mutant:   `const vToPx = halfSlotPx / gain;`
+  //
+  // No existing test asserts the SLOPE of polyline Y values w.r.t. gain.
+  // The mutant inverts the gain dependency: gain=2 should DOUBLE the
+  // deflection, but the mutant HALVES it. We seed a known sine wave,
+  // render at three gain levels, and assert the Y-range ratios.
+  //
+  // Single-channel render: lineTo Y range = peak-to-peak pixel deflection
+  // of the sine wave. range ∝ gain (original) or range ∝ 1/gain (mutant).
+  const nSamples = 500;
+  const channel = new Float32Array(nSamples);
+  // Pure sine, amplitude 30 µV — gives a non-zero std so vToPx is finite.
+  for (let i = 0; i < nSamples; i++) channel[i] = Math.sin(i * 0.05) * 30;
+
+  const cssW = 800, cssH = 600;
+  const plotX0 = PAD_LEFT;
+  const plotW  = (cssW - PAD_RIGHT) - PAD_LEFT;
+  const plotY0 = PAD_TOP;
+  const plotY1 = cssH - PAD_BOTTOM;
+
+  function drawAtGain(gain) {
+    const { canvas, lineTos } = makeTrackingCanvas(cssW, cssH);
+    TraceRenderer.draw(canvas, {
+      channels: [channel],
+      channel_labels: ['Ch1'],
+      channel_types: ['EEG'],
+      n_samples_visible: nSamples,
+      fs: 250,
+      start_sec: 0,
+      gain,
+      transparent: false,
+    });
+    // Only Y values from polyline lineTos inside the plot band.
+    const ys = lineTos
+      .filter(p => p.x >= plotX0 - 1 && p.x <= plotX0 + plotW + 1 &&
+                   p.y >= plotY0 - 1 && p.y <= plotY1 + 1)
+      .map(p => p.y);
+    assert.ok(ys.length > 10, `expected many lineTo Y samples at gain=${gain}, got ${ys.length}`);
+    return Math.max(...ys) - Math.min(...ys);
+  }
+
+  const range1   = drawAtGain(1);
+  const range2   = drawAtGain(2);
+  const range05  = drawAtGain(0.5);
+
+  // Ratios must reflect the linear vToPx scaling. Allow ±10% tolerance
+  // for any rounding/snap inside the renderer.
+  const ratio2to1   = range2  / range1;
+  const ratio05to1  = range05 / range1;
+
+  // Sanity: ranges are finite and positive.
+  assert.ok(range1 > 0 && Number.isFinite(range1), `gain=1 range invalid: ${range1}`);
+  assert.ok(range2 > 0 && Number.isFinite(range2), `gain=2 range invalid: ${range2}`);
+
+  // Original: ratio ≈ 2.0. Mutant `halfSlotPx / gain`: gain=2 HALVES the
+  // deflection AND drops the std dependency, so ratio falls way below 1.0.
+  assert.ok(
+    Math.abs(ratio2to1 - 2.0) < 0.2,
+    `range2/range1 = ${ratio2to1.toFixed(3)}, expected ≈2.0 ` +
+    `(mutant 572 \`halfSlotPx / gain\` produces ratio ≈ 0.5)`,
+  );
+  // Original: ratio ≈ 0.5. Mutant: ratio ≈ 2.0 (inverted).
+  assert.ok(
+    Math.abs(ratio05to1 - 0.5) < 0.1,
+    `range0.5/range1 = ${ratio05to1.toFixed(3)}, expected ≈0.5 ` +
+    `(mutant 572 produces ratio ≈ 2.0)`,
+  );
+});
+
 test('property: changing devicePixelRatio scales backing store but does not stretch polyline', async () => {
   // Set DPR=2 and confirm: (a) canvas.width/height doubles, (b) lineTo x
   // coordinates are unchanged (we use the CSS-pixel transform), (c) the
