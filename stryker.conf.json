@@ -5,7 +5,7 @@
   "reporters": ["html", "clear-text", "progress", "json"],
   "testRunner": "command",
   "commandRunner": {
-    "command": "node --test tests/unit-traces-draw.test.mjs tests/unit-traces-partial-fill.test.mjs tests/unit-traces-nice-round.test.mjs tests/traces.test.mjs"
+    "command": "node --test tests/unit-traces-draw.test.mjs tests/unit-traces-partial-fill.test.mjs tests/unit-traces-nice-round.test.mjs tests/unit-traces-time-axis.test.mjs tests/traces.test.mjs"
   },
   "coverageAnalysis": "off",
   "mutate": ["traces.js"],
