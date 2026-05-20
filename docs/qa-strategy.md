@@ -214,25 +214,36 @@ Stryker (via `@stryker-mutator/core`'s built-in `command` runner driving
 synthetic code mutations. A mutant is "killed" if at least one test
 fails against the mutated source.
 
-Configuration: `stryker.conf.json`. Scope (v1): `traces.js` only — the
-strongest-tested file in the repo. viewer.js is excluded because its
-IIFE depends on DOM globals that node:test cannot provide.
+Configuration: `stryker.conf.json`. Scope (v2): `traces.js` (render
+path) + `filters.js` (signal processing) + `topo2d.js` (electrode-
+position layout) + `bids-recording.js` (metadata loader). viewer.js is
+excluded because its IIFE depends on DOM globals node:test cannot
+provide; worker.js is excluded for the same reason.
 
-Baseline (2026-05-20):
-- Mutation score: 37.29%
-- Killed: 236 / Survived: 407 / Timed out: 6 / Total: 649
-- Surviving mutants documented at `docs/mutation-survivors-2026-05.md`
+Baseline (2026-05-20, iteration 7 — multi-file scope):
+- Aggregate mutation score: 47.79%
+- Killed: 1062 / Survived: 1181 / Timed out: 19 / Total: 2262
+- Per-file: traces 66.39%, filters 66.95%, topo2d 37.36%, bids-recording 36.71%
+- Surviving-mutant analysis: `docs/mutation-survivors-2026-05.md` (iter-7 section)
 
 Thresholds (in `stryker.conf.json`):
-- break: 32 (baseline − 5; CI exit non-zero if score drops below)
-- low: 34 (baseline − 3; non-blocking warning band)
+- break: 42 (aggregate − 5; CI exit non-zero if score drops below)
+- low: 45 (warning band, just above break)
 - high: 80 (aspirational)
 
-The baseline sits below 50 because most of traces.js renders into a
-canvas and the existing harness records only a subset of the ctx call
-stream — visual-correctness mutants survive node:test by design. The
-break floor is set to baseline − 5 (not 50) so the gate catches
-regression without rejecting today's reality.
+The aggregate sits below 50 because three of the four mutated files
+expose node:test's blindness to DOM state, exact error-message strings,
+and regex round-trips. topo2d.js carries 253 StringLiteral survivors on
+DOM-attribute / SVG-namespace strings unkillable in this harness;
+bids-recording.js carries 110 StringLiteral + 49 Regex survivors on
+parser error paths exercised by the happy-path tests only. These are
+the same equivalent-mutant class documented for traces.js's IIFE
+export tail (iter-1) but at larger scale. c8 line coverage ≥90% is
+not a guarantee of mutation kill ratio ≥50%. The break floor is set
+to aggregate − 5 (not 50) so the gate catches regression without
+rejecting today's honest reality. See the iter-7 section of
+`docs/mutation-survivors-2026-05.md` for the per-file improvement
+plan.
 
 Run locally: `npm run mutation` (full) or `npm run mutation:incremental`
 (reuses `reports/stryker-incremental.json` to skip mutants on unchanged
@@ -245,10 +256,13 @@ per-PR because a full run is ~2–15 minutes (cold cache: ~2.5 min
 locally, longer on shared CI runners). To trigger manually: GitHub
 Actions → "Mutation testing (nightly)" → Run workflow.
 
-Tightening cadence: once `traces.js` is above 50%, expand `mutate` to
-add `filters.js`, `topo2d.js`, `bids-recording.js`. Do not expand to
-`viewer.js` until it can be tested under `node:test` (see the
-"eventually-modularize" thread in `docs/qa-followups.md`).
+Tightening cadence: the v1 → v2 scope expansion (PR 13, 2026-05-20)
+added `filters.js`, `topo2d.js`, and `bids-recording.js`. Next steps
+target the specific survivor clusters per file (see iter-7 plan in
+`docs/mutation-survivors-2026-05.md`) to lift the aggregate to ~55%
+and the break to 50. Do not expand to `viewer.js` or `worker.js`
+until they can be tested under `node:test` (see the "eventually-
+modularize" thread in `docs/qa-followups.md`).
 
 ## Fuzz Testing
 
