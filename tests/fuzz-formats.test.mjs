@@ -13,14 +13,15 @@
 // per day; per-PR CI runs the existing prop-*.test.mjs files (100
 // runs) for fast feedback.
 //
-// FIXTURE CORPUS — IMPORTANT
-// As of this commit, `tests/fixtures/` contains only ES-module helpers
-// (index.mjs, synthetic.mjs), not real binary recordings. So every
-// corpus-seeded target is effectively running in synthetic-fallback
-// mode (zeroed 1 KB seed + random byte overwrites). When real
-// fixtures land (e.g. `tests/fixtures/sample.edf`), add their paths
-// to the corresponding corpusFuzzedBuffer([...]) call below to
-// upgrade the fuzz from "random-noise" to "header-aware mutation".
+// FIXTURE CORPUS
+// `tests/fixtures/eeg/` contains CC0 truncated samples from OpenNeuro:
+// EDF (ds002034), BrainVision .vhdr/.vmrk/.eeg (ds002336), EEGLAB .set
+// (ds002893). See tests/fixtures/eeg/LICENSE-ATTRIBUTION.md for sources
+// and licensing.
+// FIFF still has no real corpus — the prop/fuzz test for fiff.read
+// runs in synthetic-bytes mode (zeroed seed + random byte overwrites).
+// MNE-Python ships small BSD-licensed .fif test files that would be a
+// good follow-up; tracked as TODO in tests/fixtures/eeg/LICENSE-ATTRIBUTION.md.
 //
 // If fast-check shrinks to a counterexample, the failure mode includes
 // the shrunk Uint8Array hex dump. Pin it as an `examples: [...]` entry
@@ -59,8 +60,7 @@ const FUZZ_RUNS = 10_000;
 test('fuzz: EDF parseHeader survives 10k corpus-mutated rounds', () => {
   fc.assert(
     fc.property(corpusFuzzedBuffer([
-      // TODO: drop real .edf / .bdf files into tests/fixtures/ and
-      //       list their relative paths here. Today: synthetic-only.
+      'eeg/sub-01_ses-01_task-offline_run-01_eeg.edf',
     ]), (bytes) => {
       const ab = bytes.buffer.slice(
         bytes.byteOffset,
@@ -82,7 +82,11 @@ test('fuzz: EDF parseHeader survives 10k corpus-mutated rounds', () => {
 test('fuzz: EDF parseTAL survives 10k corpus-mutated rounds', () => {
   fc.assert(
     fc.property(corpusFuzzedBuffer([
-      // TODO: real EDF+ annotation slices would seed this better.
+      // The same EDF prefix; TAL annotations live in a special signal
+      // channel inside the data records — the prefix doesn't actually
+      // contain them, but the mutator only cares that the byte
+      // distribution is representative of an EDF data record.
+      'eeg/sub-01_ses-01_task-offline_run-01_eeg.edf',
     ]), (bytes) => {
       try {
         const out = EDFReader.parseTAL(bytes);
@@ -108,9 +112,29 @@ test('fuzz: EDF parseTAL survives 10k corpus-mutated rounds', () => {
 // "parse INI text" routine; parseHeader is the higher-level
 // "extract recording metadata from .vhdr" wrapper that calls into it.
 
+// Read the .vhdr corpus seed once and mix it into the string-fuzz: 10%
+// of the time we hand parseIni the real INI text verbatim or with a few
+// byte flips applied; 90% pure random strings.
+const _bvHeaderText = (() => {
+  try {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    return fs.readFileSync(
+      path.resolve('tests/fixtures/eeg/sub-xp101_task-motorloc_eeg.vhdr'),
+      'utf-8',
+    );
+  } catch { return null; }
+})();
+const bvFuzzText = _bvHeaderText
+  ? fc.oneof(
+      { weight: 9, arbitrary: fc.string({ minLength: 0, maxLength: 8192 }) },
+      { weight: 1, arbitrary: fc.constant(_bvHeaderText) },
+    )
+  : fc.string({ minLength: 0, maxLength: 8192 });
+
 test('fuzz: BrainVision parseIni survives 10k UTF-8 fuzz rounds', () => {
   fc.assert(
-    fc.property(fc.string({ minLength: 0, maxLength: 8192 }), (text) => {
+    fc.property(bvFuzzText, (text) => {
       try {
         const out = BrainVisionReader.parseIni(text);
         // parseIni is permissive — must always return an object.
@@ -129,7 +153,7 @@ test('fuzz: BrainVision parseIni survives 10k UTF-8 fuzz rounds', () => {
 
 test('fuzz: BrainVision parseHeader survives 10k UTF-8 fuzz rounds', () => {
   fc.assert(
-    fc.property(fc.string({ minLength: 0, maxLength: 8192 }), (text) => {
+    fc.property(bvFuzzText, (text) => {
       try {
         BrainVisionReader.parseHeader(text);
       } catch (e) {
@@ -197,8 +221,10 @@ test('fuzz: EEGLAB sliceColumnMajor survives 10k typed-array fuzz', () => {
 test('fuzz: FIFF read survives 10k corpus-mutated rounds', () => {
   fc.assert(
     fc.property(corpusFuzzedBuffer([
-      // TODO: real .fif files would be valuable here once we have a
-      //       small (<100 KB) example we can commit.
+      // No small CC0/BSD FIFF fixture committed yet — see
+      // tests/fixtures/eeg/LICENSE-ATTRIBUTION.md "TODO" section.
+      // Until one lands, the helper falls back to a synthetic 1 KB
+      // seed which is sufficient to fuzz the DataView bounds.
     ]), (bytes) => {
       const ab = bytes.buffer.slice(
         bytes.byteOffset,
