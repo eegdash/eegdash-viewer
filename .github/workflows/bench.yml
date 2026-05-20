@@ -1,0 +1,66 @@
+name: Benchmarks (statistical)
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+# github-action-benchmark@v1 still pins its action.yml runtime to an older
+# Node ABI. This env var lets newer runners host it without a deprecation
+# crash.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      # github-action-benchmark needs contents:write to push to gh-pages
+      # and pull-requests:write to leave a regression comment.
+      contents: write
+      pull-requests: write
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run tinybench suites
+        # 2s/task on shared CI runners gives ~1-3% RME on CPU-bound tasks;
+        # readwindow stays noisier (network) and that's fine — we widen
+        # the alert threshold below to compensate.
+        run: BENCH_TIME=2000 npm run test:bench
+
+      - name: Store result + alert on regression
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'customSmallerIsBetter'
+          output-file-path: bench/results-all-gab.json
+          # Push results to a gh-pages branch so historical trends are visible.
+          # If gh-pages isn't set up yet, the action will create it.
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          # Alert when a metric is 10% or more SLOWER than the most recent
+          # main-branch baseline. We warn rather than block: shared GitHub
+          # runners have ~2-3% noise on CPU-bound benches, and readwindow
+          # has much higher network noise. Tighten the threshold once
+          # historical data shows the per-metric noise floor.
+          alert-threshold: '110%'
+          fail-on-alert: false
+          comment-on-alert: true
+          summary-always: true
+
+      - name: Upload raw results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-results
+          path: bench/results-*.json
+          retention-days: 30
