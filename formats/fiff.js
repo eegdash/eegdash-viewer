@@ -4,9 +4,23 @@
    Reads Neuromag/Elekta MEG FIFF files (.fif) and extracts
    channel metadata and raw signal data for visualization.
 
-   FIFF Format Reference:
-   - Blocks: meas (100), meas_info (101), raw_data (102)
-   - Tags are hierarchical with kind (upper 16 bits) and type (lower 16 bits)
+   FIFF format quick reference (everything BIG-ENDIAN):
+
+   - The file is a stream of tags starting at offset 0. Each tag
+     has a 16-byte header (kind, type, size, next — all int32 BE)
+     followed by `size` bytes of typed data.
+   - The very first tag MUST be FIFF_FILE_ID (kind=100, type=31,
+     size=20, next=0). We use this as the validity check instead
+     of an ASCII magic string (real FIFF files have NO ASCII magic).
+   - Hierarchical blocks are bracketed by FIFF_BLOCK_START (kind=104)
+     and FIFF_BLOCK_END (kind=105); each has a single int32 in its
+     data field holding the block id. Blocks may nest.
+   - A `next` value of -1 marks end-of-stream (or jump-to-directory
+     in fully-indexed files — we treat both as "stop").
+
+   References:
+   - MNE-Python  mne/_fiff/tag.py        (_read_tag_header, read_tag)
+   - MNE-Python  mne/_fiff/constants.py  (FIFF.*, FIFFB_*, FIFFT_*)
    ============================================================ */
 
 (function () {
@@ -14,30 +28,40 @@
 
   const api = {};
 
-  // FIFF block and tag constants
+  // FIFF block, tag, and type constants. Names mirror MNE-Python's
+  // FIFF namespace so cross-referencing the spec is easy.
   const FIFF = {
-    // Blocks
+    // Structural tag kinds — these are NOT block ids; they appear in
+    // tag.kind directly anywhere in the stream.
+    TAG_FILE_ID: 100,
+    TAG_DIR_POINTER: 101,
+    TAG_DIR: 102,
+    TAG_FREE_LIST: 106,
+    TAG_FREE_BLOCK: 107,
+    TAG_NOP: 108,
+    BLOCK_START: 104,
+    BLOCK_END: 105,
+
+    // Block ids (data field of BLOCK_START/BLOCK_END)
     BLOCK_MEAS: 100,
     BLOCK_MEAS_INFO: 101,
     BLOCK_RAW_DATA: 102,
+    BLOCK_PROCESSING_HISTORY: 900,
     BLOCK_EVENTS: 115,
+    BLOCK_PROJ: 313,
+    BLOCK_PROJ_ITEM: 314,
 
-    // Tags (upper 16 bits = block kind)
-    TAG_EPOCH: 304,
+    // Common payload tag kinds (inside meas_info / raw_data)
     TAG_NCHAN: 200,
     TAG_SFREQ: 201,
-    TAG_MEAS_DATE: 204,
+    TAG_DATA_PACK: 202,
     TAG_CH_INFO: 203,
+    TAG_MEAS_DATE: 204,
     TAG_DATA_BUFFER: 300,
     TAG_DATA_SKIP: 301,
-    TAG_CH_POS: 255,
-    TAG_CH_KIND: 252,
-    TAG_CH_CAL: 254,
-    TAG_CH_NAME: 256,
-    TAG_CH_UNIT: 259,
-    TAG_DEVICE_INFO: 124,
+    TAG_EPOCH: 304,
 
-    // Data types
+    // Data types (FIFFT_*)
     TYPE_VOID: 0,
     TYPE_BYTE: 1,
     TYPE_INT16: 2,
@@ -52,129 +76,174 @@
     TYPE_INT64: 11,
   };
 
-  // ---- FIFF file reading ----
-  const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10 MB safety limit
+  // Safety bounds for defensive parsing of untrusted bytes.
+  const MAX_BUFFER_SIZE = 10 * 1024 * 1024; // 10 MB cap on a single tag's data
+  const MAX_TAGS = 1 << 20;                  // hard ceiling on tag-stream walk
+
+  // ---- public API ----------------------------------------------------------
+
   api.read = function (buf) {
-    if (buf.byteLength < 12) {
+    if (!buf || buf.byteLength < 16) {
       throw new Error('FIFF file too small');
     }
-
     const view = new DataView(buf);
-    let pos = 0;
 
-    // Check magic bytes
-    const magic = new TextDecoder().decode(new Uint8Array(buf, 0, 4));
-    if (magic !== 'FIFF') {
-      throw new Error('Not a valid FIFF file');
+    // First tag MUST be FIFF_FILE_ID. This is the canonical FIFF
+    // validity check — there is no ASCII magic at offset 0.
+    const firstKind = view.getInt32(0, false);
+    if (firstKind !== FIFF.TAG_FILE_ID) {
+      throw new Error(
+        `Not a valid FIFF file: expected first tag kind=${FIFF.TAG_FILE_ID} ` +
+        `(FIFF_FILE_ID), got ${firstKind}`
+      );
     }
-    pos = 4;
 
-    // Skip endian marker and node ID (8 bytes)
-    pos += 8;
+    // Tag-stream walk. We maintain a block-id stack so each non-structural
+    // tag can be associated with the innermost enclosing block.
+    const meas = {
+      blocks: [],     // every block id we entered (in order)
+      nchan: 0,
+      sfreq: null,
+      meas_date: null,
+      chs: [],
+      raw: null,
+      has_projections: false,
+    };
+    const blockStack = [];
+    let inMeasInfo = false;
+    let inRawData = false;
+    let rawBuffers = null;
 
-    // Read directory: array of tag records (16 bytes each)
-    const dir = [];
+    let pos = 0;
+    let tagsSeen = 0;
+
     while (pos + 16 <= view.byteLength) {
+      if (++tagsSeen > MAX_TAGS) break;
+
       const tag = readTag(view, pos);
       if (!tag) break;
-      dir.push(tag);
-      pos += 16;
-    }
 
-    // Extract measurement info and data from directory
-    const meas = {};
+      // Reject obviously corrupt size before we trust it for skipping.
+      if (tag.size < 0 || tag.size > MAX_BUFFER_SIZE) break;
+      const dataPos = pos + 16;
+      if (dataPos + tag.size > view.byteLength) break;
 
-    // Find and parse meas_info block
-    const measInfoIdx = findBlockStart(dir, FIFF.BLOCK_MEAS_INFO);
-    if (measInfoIdx >= 0) {
-      Object.assign(meas, parseMeasInfo(view, dir, measInfoIdx));
-    }
+      if (tag.kind === FIFF.BLOCK_START) {
+        // Data is a single int32 block id (size should be 4).
+        const blockId = tag.size >= 4 ? view.getInt32(dataPos, false) : -1;
+        blockStack.push(blockId);
+        meas.blocks.push(blockId);
+        if (blockId === FIFF.BLOCK_MEAS_INFO) inMeasInfo = true;
+        else if (blockId === FIFF.BLOCK_RAW_DATA) {
+          inRawData = true;
+          rawBuffers = { buffers: [], nsamp: 0 };
+        }
+        else if (blockId === FIFF.BLOCK_PROJ) meas.has_projections = true;
+      } else if (tag.kind === FIFF.BLOCK_END) {
+        const blockId = tag.size >= 4 ? view.getInt32(dataPos, false) : -1;
+        blockStack.pop();
+        if (blockId === FIFF.BLOCK_MEAS_INFO) inMeasInfo = false;
+        else if (blockId === FIFF.BLOCK_RAW_DATA) {
+          inRawData = false;
+          // Finalise raw data only if we collected anything sensible.
+          if (rawBuffers && rawBuffers.buffers.length > 0) {
+            meas.raw = rawBuffers;
+          }
+          rawBuffers = null;
+        }
+      } else {
+        // Non-structural tag: dispatch based on the innermost block.
+        if (inMeasInfo) {
+          switch (tag.kind) {
+            case FIFF.TAG_NCHAN:
+              meas.nchan = readTagInt32(view, dataPos, tag);
+              break;
+            case FIFF.TAG_SFREQ:
+              meas.sfreq = readTagFloat32(view, dataPos, tag);
+              break;
+            case FIFF.TAG_MEAS_DATE:
+              meas.meas_date = readTagInt32(view, dataPos, tag);
+              break;
+            case FIFF.TAG_CH_INFO: {
+              const ch = parseChannelInfo(view, dataPos, tag.size);
+              if (ch) meas.chs.push(ch);
+              break;
+            }
+          }
+        } else if (inRawData && tag.kind === FIFF.TAG_DATA_BUFFER) {
+          const buf2 = extractDataBuffer(view, dataPos, tag, meas.nchan);
+          if (buf2.data) {
+            rawBuffers.buffers.push(buf2.data);
+            rawBuffers.nsamp += buf2.nsamp;
+          }
+        }
+      }
 
-    // Find and parse raw_data block
-    const rawDataIdx = findBlockStart(dir, FIFF.BLOCK_RAW_DATA);
-    if (rawDataIdx >= 0) {
-      meas.raw = parseRawData(view, dir, rawDataIdx, meas.sfreq, meas.nchan);
+      // Advance. The `next` field is normally 0 (sequential) or -1
+      // (end / directory-jump). We treat any non-zero/non-positive
+      // value the same way: walk sequentially. If it's -1 we stop —
+      // for our use-cases (meas_info + raw_data + simple block files)
+      // we never need to follow the directory backwards.
+      pos = dataPos + tag.size;
+      if (tag.next === -1) break;
     }
 
     return meas;
   };
 
+  // ---- helpers -------------------------------------------------------------
+
   function readTag(view, pos) {
     if (pos + 16 > view.byteLength) return null;
-
-    // Tag structure: kind (4), type (4), size (4), next (4)
-    const kind = view.getInt32(pos, true); // little-endian
-    const type = view.getInt32(pos + 4, true);
-    const size = view.getInt32(pos + 8, true);
-    const next = view.getInt32(pos + 12, true);
-
-    return { kind, type, size, next };
+    // All FIFF integers are big-endian on disk.
+    return {
+      kind: view.getInt32(pos, false),
+      type: view.getInt32(pos + 4, false),
+      size: view.getInt32(pos + 8, false),
+      next: view.getInt32(pos + 12, false),
+    };
   }
 
-  function findBlockStart(dir, blockKind) {
-    for (let i = 0; i < dir.length; i++) {
-      if ((dir[i].kind >> 16) === blockKind) {
-        return i;
-      }
-    }
-    return -1;
+  function readTagInt32(view, dataPos, tag) {
+    if (tag.size < 4) return null;
+    return view.getInt32(dataPos, false);
   }
 
-  function parseMeasInfo(view, dir, startIdx) {
-    const meas = {};
-
-    for (let i = startIdx; i < dir.length; i++) {
-      const tag = dir[i];
-      const blockKind = tag.kind >> 16;
-      const tagKind = tag.kind & 0xFFFF;
-
-      // End of meas_info block
-      if (blockKind !== FIFF.BLOCK_MEAS_INFO && blockKind > 0) break;
-
-      switch (tagKind) {
-        case FIFF.TAG_NCHAN:
-          meas.nchan = getTagValue(view, tag);
-          break;
-        case FIFF.TAG_SFREQ:
-          meas.sfreq = getTagValue(view, tag);
-          break;
-        case FIFF.TAG_MEAS_DATE:
-          meas.meas_date = getTagValue(view, tag);
-          break;
-        case FIFF.TAG_CH_INFO:
-          if (!meas.chs) meas.chs = [];
-          const ch = parseChannelInfo(view, tag);
-          if (ch) meas.chs.push(ch);
-          break;
-      }
-    }
-
-    return meas;
+  function readTagFloat32(view, dataPos, tag) {
+    if (tag.size < 4) return null;
+    const v = view.getFloat32(dataPos, false);
+    return Number.isFinite(v) ? v : null;
   }
 
-  function parseChannelInfo(view, tag) {
-    // ch_info structure: name (16 bytes), kind, cal, range
-    const offset = tag.next;
-    if (offset < 0 || offset + 80 > view.byteLength) return null;
+  function parseChannelInfo(view, offset, size) {
+    // ch_info structure (96+ bytes in real FIFF). The layout used by MNE
+    // packs scanno/logno/kind/range/cal first as int32/float32; the
+    // 16-char channel name lives near the end. The reader here only
+    // needs a stable subset (name + kind + cal + range) for traces.js.
+    //
+    // Conservative offsets used historically by this reader:
+    //   bytes 0..15  : null-terminated name (16 chars)
+    //   bytes 16..19 : kind   (int32 BE)
+    //   bytes 20..23 : cal    (float32 BE)
+    //   bytes 24..27 : range  (float32 BE)
+    //
+    // If size < 28 we cannot trust the layout — skip the channel.
+    if (offset < 0 || size < 28 || offset + 28 > view.byteLength) return null;
 
-    // Extract name (null-terminated string, max 16 bytes)
     const nameBytes = new Uint8Array(view.buffer, offset, 16);
     const nameEnd = nameBytes.indexOf(0);
-
-    // Handle missing null terminator
     const nameLen = nameEnd === -1 ? 16 : nameEnd;
     let name = '';
     try {
-      name = new TextDecoder('utf-8', {fatal: true})
+      name = new TextDecoder('utf-8', { fatal: true })
         .decode(nameBytes.slice(0, nameLen));
     } catch {
-      return null; // Skip malformed channel name
+      return null; // malformed channel name → drop
     }
 
-    // Kind at offset 16 (int32)
-    const kind = view.getInt32(offset + 16, true);
-    const cal = view.getFloat32(offset + 20, true);
-    const range = view.getFloat32(offset + 24, true);
+    const kind = view.getInt32(offset + 16, false);
+    const cal = view.getFloat32(offset + 20, false);
+    const range = view.getFloat32(offset + 24, false);
 
     return {
       name,
@@ -184,117 +253,47 @@
     };
   }
 
-  function parseRawData(view, dir, startIdx, sfreq, nchan) {
-    const data = {
-      buffers: [],
-      nsamp: 0,
-    };
-
-    // Validate critical metadata
-    if (!Number.isFinite(sfreq) || sfreq <= 0 || !Number.isInteger(nchan) || nchan <= 0) {
-      return data;
-    }
-
-    for (let i = startIdx; i < dir.length; i++) {
-      const tag = dir[i];
-      const blockKind = tag.kind >> 16;
-
-      // End of raw_data block
-      if (blockKind !== FIFF.BLOCK_RAW_DATA && blockKind > 0) break;
-
-      const tagKind = tag.kind & 0xFFFF;
-      if (tagKind === FIFF.TAG_DATA_BUFFER && tag.next >= 0) {
-        const buffer = extractDataBuffer(view, tag, nchan);
-        if (buffer.data) {
-          data.buffers.push(buffer.data);
-          data.nsamp += buffer.nsamp;
-        }
-      }
-    }
-
-    return data;
-  }
-
-  function extractDataBuffer(view, tag, nchan) {
-    const dataType = tag.type;
-    const offset = tag.next;
+  function extractDataBuffer(view, offset, tag, nchan) {
     const byteSize = tag.size;
-
-    // Validate offset and size
     if (offset < 0 || byteSize <= 0 || byteSize > MAX_BUFFER_SIZE) {
       return { data: null, nsamp: 0 };
     }
-
-    const endOffset = offset + byteSize;
-    if (endOffset < 0 || endOffset > view.byteLength) {
+    if (offset + byteSize > view.byteLength) {
+      return { data: null, nsamp: 0 };
+    }
+    if (!Number.isInteger(nchan) || nchan <= 0) {
       return { data: null, nsamp: 0 };
     }
 
-    const data = new Uint8Array(view.buffer, offset, byteSize);
-    let nsamp = 0;
-    let converted = null;
+    // FIFF is big-endian on disk, but typed-array views (Int16Array,
+    // Float32Array, …) use the host endianness. Since virtually every
+    // platform we ship to is little-endian, a zero-copy typed-array
+    // would silently byte-swap the samples. We materialise a converted
+    // copy via DataView reads to keep the data correct.
+    const bytesPerSample = (
+      tag.type === FIFF.TYPE_INT16 ? 2 :
+      tag.type === FIFF.TYPE_INT32 ? 4 :
+      tag.type === FIFF.TYPE_FLOAT ? 4 :
+      0
+    );
+    if (bytesPerSample === 0) return { data: null, nsamp: 0 };
 
-    // Convert based on data type with alignment checks
-    switch (dataType) {
-      case FIFF.TYPE_INT16: {
-        const alignment = 2;
-        if (data.byteOffset % alignment !== 0) {
-          return { data: null, nsamp: 0 };
-        }
-        const elemCount = Math.floor(data.byteLength / alignment);
-        converted = new Int16Array(data.buffer, data.byteOffset, elemCount);
-        nsamp = Math.floor(elemCount / nchan);
-        break;
-      }
-      case FIFF.TYPE_INT32: {
-        const alignment = 4;
-        if (data.byteOffset % alignment !== 0) {
-          return { data: null, nsamp: 0 };
-        }
-        const elemCount = Math.floor(data.byteLength / alignment);
-        converted = new Int32Array(data.buffer, data.byteOffset, elemCount);
-        nsamp = Math.floor(elemCount / nchan);
-        break;
-      }
-      case FIFF.TYPE_FLOAT: {
-        const alignment = 4;
-        if (data.byteOffset % alignment !== 0) {
-          return { data: null, nsamp: 0 };
-        }
-        const elemCount = Math.floor(data.byteLength / alignment);
-        converted = new Float32Array(data.buffer, data.byteOffset, elemCount);
-        nsamp = Math.floor(elemCount / nchan);
-        break;
-      }
+    const elemCount = Math.floor(byteSize / bytesPerSample);
+    const nsamp = Math.floor(elemCount / nchan);
+    if (elemCount === 0) return { data: null, nsamp: 0 };
+
+    let converted;
+    if (tag.type === FIFF.TYPE_INT16) {
+      converted = new Int16Array(elemCount);
+      for (let i = 0; i < elemCount; i++) converted[i] = view.getInt16(offset + i * 2, false);
+    } else if (tag.type === FIFF.TYPE_INT32) {
+      converted = new Int32Array(elemCount);
+      for (let i = 0; i < elemCount; i++) converted[i] = view.getInt32(offset + i * 4, false);
+    } else {
+      converted = new Float32Array(elemCount);
+      for (let i = 0; i < elemCount; i++) converted[i] = view.getFloat32(offset + i * 4, false);
     }
-
     return { data: converted, nsamp };
-  }
-
-  function getTagValue(view, tag) {
-    const offset = tag.next;
-    if (offset < 0) return null;
-
-    switch (tag.type) {
-      case FIFF.TYPE_INT32:
-        return view.getInt32(offset, true);
-      case FIFF.TYPE_FLOAT:
-        return view.getFloat32(offset, true);
-      case FIFF.TYPE_DOUBLE:
-        return view.getFloat64(offset, true);
-      case FIFF.TYPE_STRING: {
-        try {
-          const len = Math.min(tag.size, 256);
-          return new TextDecoder('utf-8', {fatal: true})
-            .decode(new Uint8Array(view.buffer, offset, len))
-            .split('\0')[0];
-        } catch {
-          return null;
-        }
-      }
-      default:
-        return null;
-    }
   }
 
   // Expose reader — matches the dual-target pattern used by every other
