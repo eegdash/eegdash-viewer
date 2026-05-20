@@ -105,7 +105,7 @@
             <input type="checkbox" id="filter-hp-enable" />
             HP
           </label>
-          <input type="number" id="filter-hp-cutoff" min="0.1" max="100" step="0.1" value="0.5" />
+          <input type="number" id="filter-hp-cutoff" aria-label="High-pass cutoff frequency in Hertz" min="0.1" max="100" step="0.1" value="0.5" />
           <span class="filter-unit">Hz</span>
         </div>
         <div class="filter-row">
@@ -113,7 +113,7 @@
             <input type="checkbox" id="filter-lp-enable" />
             LP
           </label>
-          <input type="number" id="filter-lp-cutoff" min="1" max="500" step="1" value="45" />
+          <input type="number" id="filter-lp-cutoff" aria-label="Low-pass cutoff frequency in Hertz" min="1" max="500" step="1" value="45" />
           <span class="filter-unit">Hz</span>
         </div>
         <div class="filter-row">
@@ -121,7 +121,7 @@
             <input type="checkbox" id="filter-notch-enable" />
             Notch
           </label>
-          <select id="filter-notch-freq">
+          <select id="filter-notch-freq" aria-label="Notch filter frequency (50 or 60 Hz)">
             <option value="50">50 Hz</option>
             <option value="60" selected>60 Hz</option>
           </select>
