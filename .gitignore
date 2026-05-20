@@ -5,3 +5,5 @@ scripts/.cache/
 scripts/cross_check_*.json
 perf-trace.json
 .DS_Store
+coverage/
+.nyc_output/
