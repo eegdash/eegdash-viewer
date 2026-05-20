@@ -1085,3 +1085,546 @@ test('resolveTargets: protocol check applies to ?ieeg=, ?emg=, ?meg=, ?nirs= too
     );
   }
 });
+
+// ======================================================================
+// iter-10: fetch-mocked inheritance walk (kills ConditionalExpression
+// survivors on fetchInheritedSidecar + eegdashFallback)
+// ----------------------------------------------------------------------
+// The walker (bids-recording.js:468-481) fans out Promise.all probes
+// across all candidate paths at each of 4 directory levels and takes
+// the FIRST non-null hit in priority order. Existing real-network
+// tests (tests/sidecars.test.mjs) only cover the happy path where the
+// most-specific path at level 0 returns 200. To kill conditionals
+// like `if (results[i] != null)`, `if (!datasetId) return null`,
+// `if (!Array.isArray(depKeys) || !depKeys.length) return null`, and
+// the variant ordering in eegdashFallback, we drive the walk through
+// scenarios where the hit lives at variant 2/3/4/level-1/level-2 etc.
+//
+// Strategy: monkey-patch globalThis.fetch in beforeEach/afterEach so
+// each test can declare its own response table. The HOST we use is
+// example.org (NOT openneuro.org / cdn.eegdash.org) so the eegdash
+// fallback path is structurally skipped via openNeuroDatasetId() →
+// null. Separate eegdashFallback-targeted tests further down use
+// openneuro hosts to drive that branch.
+// ======================================================================
+
+// EEG URL with non-OpenNeuro host so the eegdash fallback is bypassed
+// by openNeuroDatasetId() → null (kills the `if (!datasetId) return null`
+// false-replacement mutant by also covering the null case below).
+const EXAMPLE_EEG_URL =
+  'https://example.org/ds000001/sub-01/eeg/sub-01_task-rest_eeg.set';
+
+// Pre-computed inheritance walk paths for prefix=sub-01_task-rest in
+// the EEG_URL above. Variants = ['sub-01_task-rest', 'sub-01', 'task-rest'].
+// Stored as an ordered array so tests can refer to walk paths by index.
+const WALK_PATHS_EEG_JSON = [
+  // level 0 (run dir)
+  'https://example.org/ds000001/sub-01/eeg/sub-01_task-rest_eeg.json',  // [0] most specific
+  'https://example.org/ds000001/sub-01/eeg/sub-01_eeg.json',            // [1]
+  'https://example.org/ds000001/sub-01/eeg/task-rest_eeg.json',         // [2]
+  'https://example.org/ds000001/sub-01/eeg/eeg.json',                   // [3] bare
+  // level 1 (sub dir)
+  'https://example.org/ds000001/sub-01/sub-01_task-rest_eeg.json',      // [4]
+  'https://example.org/ds000001/sub-01/sub-01_eeg.json',                // [5]
+  'https://example.org/ds000001/sub-01/task-rest_eeg.json',             // [6]
+  'https://example.org/ds000001/sub-01/eeg.json',                       // [7]
+  // level 2 (dataset root)
+  'https://example.org/ds000001/sub-01_task-rest_eeg.json',             // [8]
+  'https://example.org/ds000001/sub-01_eeg.json',                       // [9]
+  'https://example.org/ds000001/task-rest_eeg.json',                    // [10]
+  'https://example.org/ds000001/eeg.json',                              // [11]
+  // level 3 (origin root)
+  'https://example.org/sub-01_task-rest_eeg.json',                      // [12]
+  'https://example.org/sub-01_eeg.json',                                // [13]
+  'https://example.org/task-rest_eeg.json',                             // [14]
+  'https://example.org/eeg.json',                                       // [15]
+];
+
+const VALID_EEG_JSON_BODY = JSON.stringify({ SamplingFrequency: 256 });
+
+// Make a per-test fetch installer that records every URL fetched
+// (in call order) and returns the supplied response per URL. Any URL
+// not in the table → 404. Use the returned `calls` array to assert
+// the walk visited variants in the expected priority order.
+function installFetch(responsesByUrl, { extraHandler } = {}) {
+  const calls = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    calls.push(u);
+    if (extraHandler) {
+      const handled = await extraHandler(u);
+      if (handled !== undefined) return handled;
+    }
+    const r = responsesByUrl[u];
+    if (r === undefined) return new Response(null, { status: 404 });
+    if (typeof r === 'function') return r(u);
+    return r;
+  };
+  return {
+    calls,
+    restore: () => { globalThis.fetch = original; },
+  };
+}
+
+test('iter10 fetchInheritedSidecar: hit at LEVEL-0 most-specific variant (index 0)', async () => {
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[0]]: new Response(VALID_EEG_JSON_BODY, { status: 200 }),
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(meta.sidecar_sources.eeg_json, WALK_PATHS_EEG_JSON[0]);
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: hit at LEVEL-0 second variant (index 1) when [0] is 404', async () => {
+  // Kills `if (results[i] != null) return ...` survivors: a flipped
+  // condition would either take the 404 at index 0 (and assert at the
+  // wrong URL) or never return.
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[1]]: new Response(VALID_EEG_JSON_BODY, { status: 200 }),
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(meta.sidecar_sources.eeg_json, WALK_PATHS_EEG_JSON[1],
+      'walker must pick index-1 when index-0 is 404');
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: hit at LEVEL-0 LAST variant (index 3, bare)', async () => {
+  // The bare path `eeg.json` is the last candidate at each level (push
+  // after the variants.map). Kills the BlockStatement / array-push
+  // mutants on paths.push(bare) and the level-0 last-index ConditionalExpression.
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[3]]: new Response(VALID_EEG_JSON_BODY, { status: 200 }),
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(meta.sidecar_sources.eeg_json, WALK_PATHS_EEG_JSON[3]);
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: hit at LEVEL-1 (all of level-0 returns 404)', async () => {
+  // Kills the level-bounded for-loop ConditionalExpression mutants
+  // (level < 4 → level < 0/level < 5) and the parent-walk
+  // `if (!parent || parent === here) break` short-circuit. If the
+  // walker stopped after level 0, the test would 404 (stub eeg_json).
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[4]]: new Response(VALID_EEG_JSON_BODY, { status: 200 }),
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(meta.sidecar_sources.eeg_json, WALK_PATHS_EEG_JSON[4]);
+    // Verify the walker actually probed level 0 first (priority order).
+    for (let i = 0; i < 4; i++) {
+      assert.ok(f.calls.includes(WALK_PATHS_EEG_JSON[i]),
+        `level-0 path ${i} should have been probed`);
+    }
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: hit at LEVEL-2 (root) when level-0 and level-1 all 404', async () => {
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[8]]: new Response(VALID_EEG_JSON_BODY, { status: 200 }),
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(meta.sidecar_sources.eeg_json, WALK_PATHS_EEG_JSON[8]);
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: hit at LEVEL-3 (origin root, deepest fallback)', async () => {
+  // The walk MUST reach level 3 (origin root). If the for-loop bound
+  // were mutated to `level < 3`, the walker would stop short and miss
+  // this hit. The level-3 paths only emerge after the parent walk
+  // strips all of /ds000001/sub-01/eeg/ off the dir.
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[12]]: new Response(VALID_EEG_JSON_BODY, { status: 200 }),
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(meta.sidecar_sources.eeg_json, WALK_PATHS_EEG_JSON[12]);
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: all 4 levels return 404 → stub', async () => {
+  // Default = 404 for every URL. Kills the `return eegdashFallback(...)`
+  // BlockStatement mutant on non-openneuro hosts (datasetId is null,
+  // so fallback returns null → loader yields stub).
+  const f = installFetch({});
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, null,
+      'no _eeg.json found → stub (sampling_frequency=null)');
+    assert.equal(meta.sidecar_sources.eeg_json, null);
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: 200 at variant 2 beats 200 at variant 3 (priority order)', async () => {
+  // Two paths at the same level both return 200; the walker MUST take
+  // the first one by paths-array index. Kills `for (let i = 0; i < results.length; i++)`
+  // ConditionalExpression mutants where the loop direction or bounds get flipped.
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[1]]: new Response(JSON.stringify({ SamplingFrequency: 256 }), { status: 200 }),
+    [WALK_PATHS_EEG_JSON[2]]: new Response(JSON.stringify({ SamplingFrequency: 999 }), { status: 200 }),
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, 256,
+      'index-1 must win over index-2 by paths-array priority');
+    assert.equal(meta.sidecar_sources.eeg_json, WALK_PATHS_EEG_JSON[1]);
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: deeper-level hits do NOT override a shallower (level-0) hit', async () => {
+  // Walker takes the FIRST non-null per level. If a level-0 variant
+  // returns 200, the walker must NOT continue to deeper levels even
+  // if those would also 200.
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[2]]: new Response(JSON.stringify({ SamplingFrequency: 256 }), { status: 200 }),
+    [WALK_PATHS_EEG_JSON[8]]: new Response(JSON.stringify({ SamplingFrequency: 777 }), { status: 200 }),
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, 256,
+      'level-0 hit (deepest dir) wins over level-2 hit');
+    assert.equal(meta.sidecar_sources.eeg_json, WALK_PATHS_EEG_JSON[2]);
+    // The walker SHOULD have skipped level-2 entirely after finding
+    // its level-0 hit (early-return).
+    assert.ok(!f.calls.includes(WALK_PATHS_EEG_JSON[8]),
+      'level-2 path should NOT have been probed after a level-0 hit');
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: 500 at any path → throws (not silently swallowed)', async () => {
+  // fetchTextOrNull only nulls on 404; on 500 it throws. The throw
+  // propagates through Promise.all and out of loadRecordingMetadata.
+  // This kills the `if (allowMissing && r.status === 404)` mutants
+  // that would broaden 404 handling to all error codes.
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[0]]: new Response('boom', { status: 500, statusText: 'Internal Server Error' }),
+  });
+  try {
+    await assert.rejects(
+      () => BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL),
+      /500/);
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: 200 with non-JSON body throws "Bad _eeg.json"', async () => {
+  // Walker delivers the text successfully; the assembler's JSON.parse
+  // throws and the surrounding try/catch rethrows as "Bad _eeg.json
+  // at <url>". Kills the StringLiteral and the surrounding try/catch
+  // BlockStatement mutant in assembleRecordingMetadata.
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[0]]: new Response('not json {{ at all', { status: 200 }),
+  });
+  try {
+    await assert.rejects(
+      () => BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL),
+      /Bad _eeg\.json at /);
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: 200 with empty body throws "Bad _eeg.json"', async () => {
+  // Empty string is not valid JSON → JSON.parse throws SyntaxError.
+  // Kills boundary mutants where the parse step might be skipped on
+  // an empty body.
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[0]]: new Response('', { status: 200 }),
+  });
+  try {
+    await assert.rejects(
+      () => BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL),
+      /Bad _eeg\.json at /);
+  } finally { f.restore(); }
+});
+
+test('iter10 fetchInheritedSidecar: variant-stripped path resolves when prefixed variant 404s', async () => {
+  // Specifically targets entityVariants chain-2 (leading-sub strip):
+  // when sub-01_task-rest_eeg.json and sub-01_eeg.json both 404 but
+  // task-rest_eeg.json (the chain-2 variant) returns 200, the walker
+  // must find it. Kills the LogicalOperator mutants in entityVariants.
+  const f = installFetch({
+    [WALK_PATHS_EEG_JSON[2]]: new Response(VALID_EEG_JSON_BODY, { status: 200 }),
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    assert.equal(meta.sidecar_sources.eeg_json, WALK_PATHS_EEG_JSON[2],
+      'chain-2 variant (task-rest-only) must be probed and accepted');
+  } finally { f.restore(); }
+});
+
+// ----------------------------------------------------------------------
+// iter-10: eegdashFallback-targeted tests
+// Use an openneuro host so openNeuroDatasetId() returns a real id and
+// the fallback engages after the inheritance walk fails.
+// ----------------------------------------------------------------------
+
+const ONEURO_BASE = 'https://s3.amazonaws.com/openneuro.org';
+
+// Per-test dataset id so module-scope _eegdashCache misses every time.
+let _iter10DsCounter = 9000;
+function freshDsId() { _iter10DsCounter++; return `dsITER10_${_iter10DsCounter}`; }
+
+test('iter10 eegdashFallback: dep_keys finds file at non-canonical path', async () => {
+  // The inheritance walk 404s everywhere; eegdash dep_keys points
+  // somewhere unexpected. Kills the `for (filename of wanted)` loop
+  // bound mutants and the `if (!key) continue` ConditionalExpression.
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const fallbackUrl = `${ONEURO_BASE}/${ds}/derivatives/quirky/task-rest_eeg.json`;
+  const f = installFetch(
+    { [fallbackUrl]: new Response(VALID_EEG_JSON_BODY, { status: 200 }) },
+    {
+      extraHandler: async (u) => {
+        if (u.includes('data.eegdash.org/api/eegdash/datasets/')) {
+          return new Response(JSON.stringify({
+            success: true,
+            data: { storage: { dep_keys: ['CHANGES', 'derivatives/quirky/task-rest_eeg.json'] } },
+          }), { status: 200 });
+        }
+        return undefined;
+      },
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(meta.sidecar_sources.eeg_json, fallbackUrl);
+  } finally { f.restore(); }
+});
+
+test('iter10 eegdashFallback: variants tried in priority order (most specific first)', async () => {
+  // dep_keys lists BOTH a specific and a bare variant; loader must
+  // pick the specific one (variants.concat([bare]) ordering).
+  // Kills the .map ArrowFunction mutants and the concat-order
+  // ConditionalExpression on `wanted`.
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const specificUrl = `${ONEURO_BASE}/${ds}/some/path/sub-01_task-rest_eeg.json`;
+  const bareUrl = `${ONEURO_BASE}/${ds}/other/path/eeg.json`;
+  const f = installFetch(
+    {
+      [specificUrl]: new Response(JSON.stringify({ SamplingFrequency: 256 }), { status: 200 }),
+      [bareUrl]: new Response(JSON.stringify({ SamplingFrequency: 999 }), { status: 200 }),
+    },
+    {
+      extraHandler: async (u) => {
+        if (u.includes('data.eegdash.org/api/eegdash/datasets/')) {
+          return new Response(JSON.stringify({
+            success: true,
+            data: { storage: { dep_keys: [
+              'other/path/eeg.json',
+              'some/path/sub-01_task-rest_eeg.json',
+            ] } },
+          }), { status: 200 });
+        }
+        return undefined;
+      },
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 256,
+      'most-specific dep_key must win even if bare appears first in dep_keys');
+    assert.equal(meta.sidecar_sources.eeg_json, specificUrl);
+  } finally { f.restore(); }
+});
+
+test('iter10 eegdashFallback: dep_keys matched via exact filename (not endsWith)', async () => {
+  // The find callback is `k === filename || k.endsWith('/' + filename)`.
+  // A dep_key that EQUALS the filename (no path prefix) must match.
+  // Kills the `k === filename` EqualityOperator and the `||` LogicalOperator.
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const fallbackUrl = `${ONEURO_BASE}/${ds}/sub-01_task-rest_eeg.json`;
+  const f = installFetch(
+    { [fallbackUrl]: new Response(VALID_EEG_JSON_BODY, { status: 200 }) },
+    {
+      extraHandler: async (u) => {
+        if (u.includes('data.eegdash.org/api/eegdash/datasets/')) {
+          return new Response(JSON.stringify({
+            success: true,
+            // dep_key with NO directory prefix — bare filename at root.
+            data: { storage: { dep_keys: ['sub-01_task-rest_eeg.json'] } },
+          }), { status: 200 });
+        }
+        return undefined;
+      },
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(meta.sidecar_sources.eeg_json, fallbackUrl);
+  } finally { f.restore(); }
+});
+
+test('iter10 eegdashFallback: dep_keys partial-suffix-only does NOT match (endsWith requires /)', async () => {
+  // `k.endsWith('/' + filename)` — a key that contains the filename
+  // as a substring but not preceded by `/` must NOT match. Kills the
+  // StringLiteral '/' mutant in the endsWith template literal.
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const f = installFetch({}, {
+    extraHandler: async (u) => {
+      if (u.includes('data.eegdash.org/api/eegdash/datasets/')) {
+        return new Response(JSON.stringify({
+          success: true,
+          // Substring match but not /-preceded → must NOT be accepted.
+          data: { storage: { dep_keys: ['fooBARsub-01_task-rest_eeg.json'] } },
+        }), { status: 200 });
+      }
+      return undefined;
+    },
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, null,
+      'substring match without preceding / must not satisfy endsWith(/filename)');
+    assert.equal(meta.sidecar_sources.eeg_json, null);
+  } finally { f.restore(); }
+});
+
+test('iter10 eegdashFallback: dep_keys empty array → null (no key search attempted)', async () => {
+  // `if (!Array.isArray(depKeys) || !depKeys.length) return null` —
+  // covers the empty-array branch which is distinct from the
+  // null-record branch. Kills the `!depKeys.length` BooleanLiteral
+  // and ConditionalExpression mutants.
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const f = installFetch({}, {
+    extraHandler: async (u) => {
+      if (u.includes('data.eegdash.org/api/eegdash/datasets/')) {
+        return new Response(JSON.stringify({
+          success: true,
+          data: { storage: { dep_keys: [] } },
+        }), { status: 200 });
+      }
+      return undefined;
+    },
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, null);
+  } finally { f.restore(); }
+});
+
+test('iter10 eegdashFallback: dep_keys missing → null (covers record.storage missing branch)', async () => {
+  // `const depKeys = record && record.storage && record.storage.dep_keys`
+  // — drives the `record.storage && ...` short-circuit. Kills the
+  // LogicalOperator and BooleanLiteral mutants on those guards.
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const f = installFetch({}, {
+    extraHandler: async (u) => {
+      if (u.includes('data.eegdash.org/api/eegdash/datasets/')) {
+        return new Response(JSON.stringify({
+          success: true,
+          // NO storage field at all.
+          data: { dataset_id: ds },
+        }), { status: 200 });
+      }
+      return undefined;
+    },
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, null,
+      'missing record.storage → fallback yields null → stub eeg_json');
+  } finally { f.restore(); }
+});
+
+test('iter10 eegdashFallback: eegdash returns 500 → fallback yields null gracefully', async () => {
+  // `if (!r.ok) return null` inside eegdashDataset. Kills the
+  // !r.ok ConditionalExpression and the BlockStatement mutant on
+  // the surrounding async IIFE.
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const f = installFetch({}, {
+    extraHandler: async (u) => {
+      if (u.includes('data.eegdash.org/api/eegdash/datasets/')) {
+        return new Response('server error', { status: 500 });
+      }
+      return undefined;
+    },
+  });
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, null);
+  } finally { f.restore(); }
+});
+
+test('iter10 eegdashFallback: dep_key path that 404s falls through to next wanted variant', async () => {
+  // dep_keys lists TWO paths matching two different variants. The
+  // specific one's fetch 404s; the bare one's fetch 200s. Walker
+  // must continue past the 404 and accept the bare hit.
+  // Kills the `if (text != null) return ...` ConditionalExpression
+  // inside eegdashFallback's wanted-loop.
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const specificUrl = `${ONEURO_BASE}/${ds}/missing/sub-01_task-rest_eeg.json`;
+  const bareUrl = `${ONEURO_BASE}/${ds}/derivatives/eeg.json`;
+  const f = installFetch(
+    {
+      // specificUrl returns 404 (default behavior — not in table)
+      [bareUrl]: new Response(VALID_EEG_JSON_BODY, { status: 200 }),
+    },
+    {
+      extraHandler: async (u) => {
+        if (u.includes('data.eegdash.org/api/eegdash/datasets/')) {
+          return new Response(JSON.stringify({
+            success: true,
+            data: { storage: { dep_keys: [
+              'missing/sub-01_task-rest_eeg.json',
+              'derivatives/eeg.json',
+            ] } },
+          }), { status: 200 });
+        }
+        return undefined;
+      },
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 256,
+      'walker must fall through 404 on specific to accept 200 on bare');
+    assert.equal(meta.sidecar_sources.eeg_json, bareUrl);
+  } finally { f.restore(); }
+});
+
+test('iter10 eegdashFallback: cdn.eegdash.org host also triggers fallback (not just s3.amazonaws.com)', async () => {
+  // openNeuroDatasetId matches both s3.amazonaws.com/openneuro.org/<ds>
+  // and cdn.eegdash.org/<ds>. Kills the Regex mutants in
+  // openNeuroDatasetId that would narrow the host set.
+  const ds = freshDsId();
+  const eegUrl = `https://cdn.eegdash.org/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const fallbackUrl = `${ONEURO_BASE}/${ds}/derivatives/sub-01_task-rest_eeg.json`;
+  const f = installFetch(
+    { [fallbackUrl]: new Response(VALID_EEG_JSON_BODY, { status: 200 }) },
+    {
+      extraHandler: async (u) => {
+        if (u.includes('data.eegdash.org/api/eegdash/datasets/')) {
+          return new Response(JSON.stringify({
+            success: true,
+            data: { storage: { dep_keys: ['derivatives/sub-01_task-rest_eeg.json'] } },
+          }), { status: 200 });
+        }
+        return undefined;
+      },
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(meta.sidecar_sources.eeg_json, fallbackUrl,
+      'cdn.eegdash.org host must trigger the fallback path');
+  } finally { f.restore(); }
+});

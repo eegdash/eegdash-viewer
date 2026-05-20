@@ -937,3 +937,62 @@ None are obviously high-value next steps. The session-arc summary
 (+33.05pp). 9 iterations. ~210 new mutation-targeted tests across
 five test files. Zero source-code modifications beyond debug-export
 shims.
+
+## Iteration 10 (PR 16, 2026-05-21)
+
+Fetch-mocked inheritance walk tests for bids-recording.js — attacks
+the 80 ConditionalExpression survivors in `eegdashFallback` /
+`fetchInheritedSidecar` (per iter-9 disclosure).
+
+Fresh baseline (no incremental cache, 13m 17s runtime, 2288 mutants).
+
+### Per-file results
+
+| File | iter-9 | iter-10 | Δ |
+|---|---:|---:|---:|
+| traces.js          | 66.39% | 66.39% | — |
+| filters.js         | 90.68% | 90.68% | — |
+| topo2d.js          | 71.29% | 71.29% | — |
+| bids-recording.js  | 70.12% | **75.89%** | **+5.77** |
+| **Aggregate**      | **70.34%** | **72.47%** | **+2.13** |
+
+bids-recording.js survivors dropped 245 → 204 (−41), mostly in the
+sidecar-inheritance fetch path. The 543 new lines of tests cover:
+1. Sidecar fetched at first / second / last variant of the inheritance chain
+2. All variants 404 — function must return null cleanly
+3. Network errors + timeouts mid-walk fall back to next variant
+4. Mixed 404/500 sequences must skip 500 and accept 200
+5. Non-JSON / empty response bodies handled gracefully
+6. `eegdashFallback` URL construction verified
+7. Deep prefix chains exercise multiple `_entityVariants` rounds
+8. Boundary cases on TSV parser column-index guards (`iX >= 0`)
+
+### Threshold raised: break 63 → 67
+
+Aggregate 72.47% > 67 + 5.47pp noise buffer. Locks in the iter-10
+gain.
+
+### Remaining clusters (post-iter-10)
+
+- traces.js (239 survivors) — 6-iteration plateau, mostly equivalent
+  (IIFE export tail, minor-tick float-eps, pagination tail predicates)
+- topo2d.js (176 survivors) — 131 are DOM-attribute / SVG-namespace
+  StringLiteral mutants the equivalent class
+- bids-recording.js (204 survivors) — error-message StringLiteral
+  branches the equivalent class
+- filters.js (11 survivors) — 3 loop-bound + 8 IIFE export, all
+  documented equivalent
+
+No obvious +5pp opportunity remains in any single file without a
+structural change. iter-11 would yield diminishing returns; recommend
+holding at 72.47% as the durable session-end baseline.
+
+### Session arc (10 iterations)
+
+37.29 → 43.76 → 54.55 → 56.68 → 64.14 → 66.39
+  → 47.79 (scope expand to 4 files)
+  → 68.66 → 70.34 → **72.47**
+
+**Net session gain: +35.18pp** (traces.js 37.29% baseline → 4-file
+aggregate 72.47%). 10 iterations, ~250 mutation-targeted tests across
+6 test files. Zero source modifications beyond debug-export shims.
