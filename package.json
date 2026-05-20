@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
+    "@codspeed/tinybench-plugin": "^5.4.0",
     "@playwright/test": "^1.59.1",
     "@stryker-mutator/core": "^9.6.1",
     "c8": "^11.0.0",
