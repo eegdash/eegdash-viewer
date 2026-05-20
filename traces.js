@@ -639,6 +639,16 @@
     // direct unit test pin the contract without exposing more surface
     // than necessary — the leading underscore marks it as debug-only.
     _niceRound: niceRound,
+    // Iteration-3 debug exports: time-axis + scale-bar helpers were
+    // major mutant-survivor clusters (lines 200-399 in mutation-survivors
+    // 2026-05). Each is module-private; exposing under an _-prefix lets
+    // direct unit tests pin the boundary contracts (HH:MM:SS wrap, ISO
+    // parsing fallback, niceSteps table selection, µV/mV format split)
+    // without widening the public surface.
+    _secToHHMMSS: secToHHMMSS,
+    _isoToSecOfDay: isoToSecOfDay,
+    _computeTimeTicks: computeTimeTicks,
+    _formatScale: formatScale,
     lastDrawnXLabels: [],
     lastSlotMicrovolts: 0,
     lastMaxVisibleChannels: 0,
