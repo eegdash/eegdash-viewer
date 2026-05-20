@@ -1,0 +1,12 @@
+{
+  "reference_size": {
+    "w": 960,
+    "h": 668
+  },
+  "diff": {
+    "nonZero": 0,
+    "total": 641280,
+    "rms": 0
+  },
+  "diff_ratio": 0
+}
