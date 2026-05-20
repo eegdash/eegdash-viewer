@@ -393,3 +393,108 @@ By mutator (top survivors):
   test with a 15+ character label.
 - StringLiteral survivors (29 left): same accept-or-pixel-diff
   recommendation as iterations 2 and 3.
+
+## Iteration 5 (PR 11, 2026-05-20)
+
+Score: 64.14% (killed: 450 / total: 711, with 6 timeouts and 255 survivors)
+Delta vs iteration 4: +7.46 pp (56.68% → 64.14%)
+
+Strategy shift, validated: the iteration-4 honest disclosure called out
+that the PR-9 shims pinned the geometry CONTRACT but the original
+`drawScaleBar` / `drawTimeAxis` / `drawEventMarkers` ctx call streams
+were still mutation-blind. Iteration 5 added "ctx-conformance"
+tests — drive a real `draw()` through the existing
+`makeStubCtx`-recording harness, then assert that the recorded
+`moveTo` / `lineTo` / `fillText` arguments match the shim's output
+field-for-field. The bridge worked: 53 mutants flipped from Survived
+to Killed, +7.46pp jump.
+
+By cluster (delta vs iteration 4):
+
+| Lines     | iter-4 | iter-5 | Δ      | What lives here                                                  |
+|-----------|-------:|-------:|-------:|------------------------------------------------------------------|
+| 200-249   |     37 |     15 | **-22** | `drawScaleBar` ctx-side effects (moveTo/lineTo, fillText)        |
+| 350-399   |     43 |     26 | **-17** | `drawTimeAxis` ctx-side effects (moveTo/lineTo, fillText)        |
+| 250-299   |     26 |     15 | **-11** | `drawEventMarkers` body (label collision, slice(0,14), window)   |
+| 500-549   |     35 |     34 |    -1   | Pagination tail body — line/dimension mutants in slice math      |
+| 150-199   |     27 |     27 |     0   | Header constants + `drawChannelLabels` interior + `niceRound`    |
+| 600-649   |     25 |     25 |     0   | IIFE-export noise (mostly equivalent — see Acceptable section)   |
+| 100-149   |     21 |     21 |     0   | Color/font constants (StringLiteral survivors)                   |
+
+The three targeted clusters (200-249, 250-299, 350-399) collectively
+shed 50 of the 53 newly-killed mutants. The shim-↔-ctx bridging
+strategy is decisive against geometry-side-effect mutants.
+
+Tests added — `tests/unit-traces-draw.test.mjs` (+12 tests, 24 → 36):
+
+  drawTimeAxis ctx-conformance (4 tests):
+  - Major-tick `moveTo` x positions match `_computeTimeAxisLayout(...).major[i].x`
+    (strict-equality y filter on `axisBaselineY = plotY0 + plotH + 4`).
+  - `fillText` labels equal `tick.label + ' s'` for every major tick,
+    with x ≈ tick.x and y == axisBaselineY + 6 (lines 367-369).
+  - Minor-tick `moveTo` x positions match `_computeTimeAxisLayout(...).minor[i].x`
+    at ≥80% (floating-point accumulation drift allowance).
+  - Axis horizontal baseline drawn from `plotX0` to `plotX1` (the
+    very first moveTo+lineTo pair in drawTimeAxis, traces.js:341-342).
+
+  drawScaleBar ctx-conformance (3 tests):
+  - Vertical line `moveTo(x+0.5, yTop)` + `lineTo(x+0.5, yBottom)` match
+    `_computeScaleBarGeometry`. (Note: yBottom is reached via lineTo,
+    NOT a second moveTo — the original spec assumed two moveTos and was
+    corrected against the source.)
+  - Top + bottom tick caps: `moveTo(x-3, y+0.5)` + `lineTo(x+4, y+0.5)`
+    at both `yTop` and `yBottom`. Pins the -3 / +4 / +0.5 constants.
+  - `fillText` uses `_formatScale(targetMv)` at x=geom.x+8 and y=(yTop+yBottom)/2.
+
+  drawEventMarkers ctx-conformance (5 tests):
+  - Each visible event emits a `moveTo(round(...) + 0.5, plotY0)`.
+  - Each visible event emits a `lineTo(round(...) + 0.5, plotY0 + plotH)`.
+  - Events outside [t0, t1] produce ZERO moveTo at y=plotY0 (window
+    filter at line 256).
+  - Dense burst (3 events within 32 px): all 3 lines drawn, only first
+    label rendered (collision filter at line 277; pins iteration order).
+  - 20-char label is truncated to 14 chars via slice(0, 14) at line 279.
+
+Source changes: NONE. This iteration is purely additive on the test
+side; no behavioural change to traces.js.
+
+Threshold change:
+- `break: 49` unchanged. Score 64.14% is below the 65% raise-threshold
+  bar specified in the iteration-5 plan, and a 15pp buffer (64.14 - 49)
+  already comfortably guards against noise. Re-evaluate at iter-6 if
+  the score crosses 65%.
+
+Stryker config: unchanged (the new tests live in the already-included
+`tests/unit-traces-draw.test.mjs`).
+
+Mutators by surviving count (iter-5):
+
+| Mutator              | Survived | Δ vs iter-4 |
+|---------------------|---------:|------------:|
+| ConditionalExpression |     73 |      -7     |
+| ArithmeticOperator  |       55 |     -32     |
+| EqualityOperator    |       54 |      -4     |
+| StringLiteral       |       28 |      -1     |
+| LogicalOperator     |       14 |      0      |
+
+ArithmeticOperator falls hardest (-32) — direct evidence that the new
+position/coordinate assertions caught a large family of arithmetic
+mutations on tick spacing, scale-bar yBottom-px, and event-marker
+round-plus-0.5 expressions.
+
+**Next iteration (PR 12) should target:**
+- The pagination tail at lines 500-549 (34 survivors, now the BIGGEST
+  cluster). Iteration 4 added tail-boundary tests but the slice-math
+  body itself still has many surviving mutants — they live in the
+  inner loops that compute `nVisible`, `effectivePlotW`, `vToPx`, and
+  the per-channel `yCenter`. Strategy: a focused test that drives a
+  pagination scenario (offset > 0, totalCh > maxVisible) AND records
+  the per-channel `yCenter` moveTos to assert each visible channel is
+  drawn at `plotY0 + (c + 0.5) * slotH` with c starting at the offset.
+- `drawChannelLabels` interior + `niceRound` (150-199, 27 survivors,
+  unmoved). The lines-150-199 block contains the channel-label type
+  chip rendering. A test driving channel_types with at least one
+  non-EEG type and asserting the type-chip's `fillText` content +
+  position would attack the 15 ConditionalExpression survivors here.
+- StringLiteral survivors (28 left): same accept-or-pixel-diff
+  recommendation as iterations 2-4. Pure aesthetic constants.
