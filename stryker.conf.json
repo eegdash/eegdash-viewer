@@ -24,8 +24,8 @@
   "incrementalFile": "reports/stryker-incremental.json",
   "thresholds": {
     "high": 80,
-    "low": 40,
-    "break": 49
+    "low": 50,
+    "break": 60
   },
   "timeoutMS": 60000,
   "concurrency": 4

@@ -1,5 +1,5 @@
 {
-  "_comment": "Thresholds derived from 2026-05-20 baseline run of test:coverage (unit-only, deterministic): lines 57.18%, branches 82.50%, functions 75.82%, statements 57.18%. Formula: max(baseline-5, floor) where floors are lines/functions/statements>=60 and branches>=50. Lines and statements sit below the 60% floor because worker.js, fiff.js, and most of viewer.js are not driven by node:test unit tests — they exercise the browser-only render path and the MEG/FIF reader has no node-side test yet. Dropping those metrics to (baseline-5) reflects the testable surface today; re-baseline quarterly and raise by 2-3%.",
+  "_comment": "Thresholds re-baselined 2026-05-20 after PR 10 (fiff fix) + PR 11/12 (mutation iterations 5-6). Current actuals: lines 60.31%, branches 84.07%, functions 76.71%, statements 60.31%. Formula now: baseline - 3 (less aggressive than initial -5 since we're tightening on measured improvement, not initial setup). worker.js and viewer.js remain mostly uncovered by node:test (browser-only DOM/canvas paths). Re-baseline quarterly and raise by 2-3% per iteration once tests reach the next plateau.",
   "include": [
     "formats/**/*.js",
     "traces.js",
@@ -23,8 +23,8 @@
   "reporter": ["text", "html", "json-summary"],
   "all": true,
   "check-coverage": true,
-  "lines": 52,
-  "branches": 77,
-  "functions": 70,
-  "statements": 52
+  "lines": 57,
+  "branches": 81,
+  "functions": 73,
+  "statements": 57
 }
