@@ -191,3 +191,42 @@ test('RAPID-4: tab visibility throttle does not leave stale frame on resume', as
   expect(errors).toHaveLength(0);
   expect(after).toBeGreaterThan(500);
 });
+
+test('RAPID-5: 200 sequential pans do not leak heap memory', async ({ page }) => {
+  const dir = evidenceDir('rapid-5-heap');
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text());
+  });
+
+  await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
+  await waitForLoad(page);
+  await page.waitForTimeout(1000);
+
+  const startHeap = await page.evaluate(() => {
+    if (window.gc) window.gc();
+    return performance.memory ? performance.memory.usedJSHeapSize : null;
+  });
+  if (startHeap === null) {
+    test.skip(true, 'performance.memory not available');
+    return;
+  }
+
+  for (let i = 0; i < 100; i++) await page.keyboard.press('ArrowRight');
+  for (let i = 0; i < 100; i++) await page.keyboard.press('ArrowLeft');
+  await settle(page);
+
+  const endHeap = await page.evaluate(() => {
+    if (window.gc) window.gc();
+    return performance.memory.usedJSHeapSize;
+  });
+
+  const growth = endHeap - startHeap;
+  fs.writeFileSync(path.join(dir, 'heap.json'), JSON.stringify({ startHeap, endHeap, growthBytes: growth }, null, 2));
+
+  expect(errors).toHaveLength(0);
+  // Allow up to 50 MB growth across 200 pans (the read cache holds 6
+  // windows worth of data, each ~MB — plus normal V8 working set).
+  expect(growth).toBeLessThan(50 * 1024 * 1024);
+});
