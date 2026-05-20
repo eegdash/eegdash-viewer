@@ -14,6 +14,8 @@
     "test:smoke": "playwright test tests/e2e/smoke.spec.mjs --project=chromium",
     "test:acceptance": "playwright test tests/e2e/acceptance/ --project=chromium",
     "test:perf": "node bench/check-regression.mjs",
+    "mutation": "stryker run",
+    "mutation:incremental": "stryker run --incremental",
     "bench": "node scripts/bench-fetch.mjs"
   },
   "engines": {

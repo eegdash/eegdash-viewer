@@ -7,3 +7,5 @@ perf-trace.json
 .DS_Store
 coverage/
 .nyc_output/
+.stryker-tmp/
+reports/mutation/

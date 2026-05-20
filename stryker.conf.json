@@ -1,0 +1,32 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing config — see docs/qa-strategy.md § Mutation testing. Scope is traces.js only for v1 (the strongest-tested file); viewer.js is excluded because its IIFE depends on DOM globals.",
+  "packageManager": "npm",
+  "reporters": ["html", "clear-text", "progress", "json"],
+  "testRunner": "command",
+  "commandRunner": {
+    "command": "node --test tests/unit-traces-draw.test.mjs tests/unit-traces-partial-fill.test.mjs tests/traces.test.mjs"
+  },
+  "coverageAnalysis": "off",
+  "mutate": ["traces.js"],
+  "tempDirName": ".stryker-tmp",
+  "ignorePatterns": [
+    "node_modules",
+    "tests/evidence",
+    "tests/e2e",
+    "test-results",
+    "coverage",
+    ".stryker-tmp",
+    "docs",
+    "bench"
+  ],
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json",
+  "thresholds": {
+    "high": 80,
+    "low": 60,
+    "break": 50
+  },
+  "timeoutMS": 60000,
+  "concurrency": 4
+}
