@@ -368,6 +368,57 @@ test('draw: lastMaxVisibleChannels reflects available plot height', async (t) =>
     `lastMaxVisibleChannels=${TraceRenderer.lastMaxVisibleChannels} should be ≥4`);
 });
 
+test('draw: channel label Y-coordinates are evenly spaced by slotH (kills mutant 103)', async (t) => {
+  // MUTATION 103 guard at traces.js:174.
+  // Original: `const y = y0 + (c + 0.5) * slotH;`
+  // Mutant:   `const y = y0 + (c + 0.5) / slotH;`
+  //
+  // The earlier "labels within plot area" test only bounds Y to a window;
+  // a division-instead-of-multiplication collapses all label Ys to a thin
+  // sliver near y0 (since (c+0.5)/slotH is sub-pixel for slotH > 1), which
+  // still falls inside [plotY0, plotY0+plotH] — so the existing test misses it.
+  //
+  // The contract this test pins: consecutive labels are EXACTLY one slotH
+  // apart. With 8 channels at 800×600 (PAD_TOP=8, PAD_BOTTOM=28 → plotH=564),
+  // slotH = 70.5. Mutant slotH ≈ 1/70.5 → consecutive spacing ≈ 0.014px,
+  // which we'd reject.
+  const nCh = 8;
+  const cssW = 800, cssH = 600;
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(nCh, 100));
+
+  const plotY0 = TraceRenderer.PAD_TOP;
+  const plotH  = cssH - TraceRenderer.PAD_TOP - TraceRenderer.PAD_BOTTOM;
+  const slotH  = plotH / nCh;
+
+  // Filter to label fillText calls (`Ch1`..`Ch8`). All-EEG so each channel
+  // emits exactly one fillText (the LABEL branch, not the TYPE-chip branch).
+  const labelCalls = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && /^Ch\d+$/.test(String(c.args[0])))
+    .map(c => ({ label: c.args[0], y: c.args[2] }));
+
+  assert.equal(labelCalls.length, nCh, `expected ${nCh} label fillText calls, got ${labelCalls.length}`);
+
+  // First label must sit roughly half a slot below plotY0 (c=0 → y = y0 + 0.5*slotH).
+  // The mutant collapses this to y ≈ y0 + 0.5/slotH ≈ y0 + 0.007, which is
+  // WAY less than plotY0 + slotH/4 — this check kills the mutant.
+  const firstY = labelCalls[0].y;
+  assert.ok(
+    firstY > plotY0 + slotH / 4,
+    `first label y=${firstY} too close to plotY0=${plotY0}; mutant ${`(c+0.5)/slotH`} detected`,
+  );
+
+  // Consecutive labels must be exactly slotH apart (±0.5px tolerance for
+  // any future half-pixel snap).
+  for (let i = 1; i < labelCalls.length; i++) {
+    const dy = labelCalls[i].y - labelCalls[i - 1].y;
+    assert.ok(
+      Math.abs(dy - slotH) < 0.5,
+      `consecutive label Δy[${i - 1}→${i}] = ${dy.toFixed(3)}, expected ${slotH.toFixed(3)}`,
+    );
+  }
+});
+
 test('draw: trace moveTo Y-coordinates land within the plot area (mutation 2 guard)', async (t) => {
   // MUTATION 2 guard: negating the sign in yCenter = plotY0 + (c+0.5)*slotH
   // pushes all trace moveTos to negative Y values (above the canvas). This
