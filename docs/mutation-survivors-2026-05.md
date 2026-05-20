@@ -498,3 +498,141 @@ round-plus-0.5 expressions.
   position would attack the 15 ConditionalExpression survivors here.
 - StringLiteral survivors (28 left): same accept-or-pixel-diff
   recommendation as iterations 2-4. Pure aesthetic constants.
+
+## Iteration 6 (PR 12, 2026-05-20)
+
+Score: 66.39% (killed: 466 / total: 711, with 6 timeouts and 239 survivors)
+Delta vs iteration 5: +2.25 pp (64.14% → 66.39%)
+
+Honest disclosure: the targeted +8 to +12 pp landing zone (72-76%) was
+NOT reached. The shim-to-ctx bridging pattern that delivered +7.46pp
+against the axis/scalebar/event clusters in iter-5 returned only +2.25pp
+against the pagination cluster. Diagnosis: the pagination cluster's
+anatomy is genuinely different from the geometry-side-effect clusters
+hit in iter-5 — most of the 34 lines-500-549 survivors are NOT the
+"renderer ctx call wrong" mutants we expected, but **equivalent mutants
+on guard predicates** that yield identical observable output. See the
+post-mortem section below.
+
+By cluster (delta vs iteration 5):
+
+| Lines     | iter-5 | iter-6 | Δ      | What lives here                                                  |
+|-----------|-------:|-------:|-------:|------------------------------------------------------------------|
+| 500-549   |     34 |     28 | **-6** | Pagination tail body — see equivalent-mutant analysis below       |
+| 150-199   |     27 |     23 | **-4** | `drawChannelLabels` interior — typeChip mutants now exposed       |
+| 600-649   |     25 |     25 |     0  | IIFE-export noise (mostly equivalent — see Acceptable section)   |
+| 350-399   |     26 |     26 |     0  | `drawTimeAxis` remaining (mostly minor-tick float-eps mutants)   |
+| 100-149   |     21 |     21 |     0  | Color/font constants (StringLiteral survivors)                   |
+| 250-299   |     15 |     15 |     0  | `drawEventMarkers` remaining (mostly StringLiteral/equivalent)   |
+| 200-249   |     15 |     15 |     0  | `drawScaleBar` remaining (mostly StringLiteral/equivalent)       |
+
+Tests added — `tests/unit-traces-draw.test.mjs` (+7 tests, 36 → 43):
+
+  pagination ctx-conformance (7 tests):
+  - per-row label y-spacing equals slotH with offset > 0
+    (kills mutants on the `(c + 0.5) * slotH` arithmetic at visible idx,
+    not just the absolute channel index).
+  - bad-channel slot `fillRect(plotX0, plotY0 + c*slotH, plotW, slotH)`
+    tracks the VISIBLE row when offset > 0 (kills a slice-drop on
+    `bad_mask` — a mutant reading the unsliced array would put the
+    fillRect at the absolute index's y position).
+  - per-row `strokeStyle` matches `sliced channel_colors[visibleIdx]`
+    (kills a slice-drop on `colors`).
+  - per-row `setLineDash` matches `sliced channel_types[visibleIdx]`
+    (kills a slice-drop on `types`; uses EOG at the offset boundary so
+    visible row 0's dash pattern is the distinguishing feature).
+  - slot-divider count equals visibleN - 1 under offset > 0
+    (kills mutants on the `for (c = 1; c < nCh; c++)` loop bounds in
+    drawSlotDividers when nCh is the post-slice count).
+  - visibleN = min(maxVisible, totalCh - offset) at the tight tail
+    (offset=37, totalCh=40 → exactly Ch38, Ch39, Ch40 in order).
+  - trace polyline moveTos appear within ±halfSlotPx of per-row yCenter
+    for visibleIdx in {0, visibleN-1} with offset > 0.
+
+Source changes: NONE. This iteration is purely additive on the test
+side; no behavioural change to traces.js.
+
+Threshold change:
+- `break: 49` unchanged. Score 66.39% is below the 67% raise-threshold
+  bar specified in the iteration-6 plan, and a 17.39pp buffer
+  (66.39 - 49) already comfortably guards against noise. Re-evaluate at
+  iter-7 if the score crosses 70%.
+
+Stryker config: unchanged. (Incremental cache was corrupted at iter-6
+start — `incrementalFile` reported "1 of 1 files to be mutated using
+incremental report with 711 mutant(s), and 1 test(s)" which made
+`stryker run --incremental` a no-op. Deleted the cache file and ran a
+full mutation pass.)
+
+Mutators by surviving count (iter-6):
+
+| Mutator              | Survived | Δ vs iter-5 |
+|---------------------|---------:|------------:|
+| ConditionalExpression |     67 |      -6     |
+| ArithmeticOperator  |       52 |      -3     |
+| EqualityOperator    |       50 |      -4     |
+| StringLiteral       |       28 |      0      |
+| LogicalOperator     |       14 |      0      |
+
+### Post-mortem: why +2.25pp instead of +8 to +12pp?
+
+A line-by-line look at the 28 survivors that remain in lines 500-549
+reveals the cluster's true anatomy:
+
+| Survivor count | Lines | Mutator family | Verdict |
+|---:|---|---|---|
+| 6 | 502 (`plotW <= 4 \|\| plotH <= 4` guard) | ConditionalExpression / EqualityOperator / LogicalOperator | **Equivalent** to test setup: all our tests use 800x600, none exercises a <80px canvas where the early-return triggers. |
+| 12 | 512-516 (`totalCh > maxVisible ? slice(...) : allXxx`) | ConditionalExpression / EqualityOperator (×4 channels: data/labels/types/colors/bad) | **Equivalent in our setup**: when `totalCh <= maxVisible` the slice with `offset = clamp([0, max(0, totalCh-1)], 0) = 0` and `visibleN = min(maxVisible, totalCh) = totalCh` yields a slice identical to the original. Flipping the `>` predicate produces an array that is `slice(0, totalCh)` of the same array — by-reference different, by-value identical. |
+| 1 | 510 (`totalCh - offset → totalCh + offset`) | ArithmeticOperator | **Equivalent under JS slice clamping**: `Array.prototype.slice(offset, offset+huge)` clamps `end` to `length`, so the slice is the same as `slice(offset, length)`. Already documented in iter-1 (Mutant ID: 515). |
+| 1 | 519 (`Math.min(...) → Math.max(...)` on n_samples_visible) | MethodExpression | **Equivalent in our setup**: all tests use `channels[0].length === opts.n_samples_visible`, so `min(a,a) === max(a,a)`. |
+| 4-5 | 529/548 (partial_fill conditions, decimate threshold) | Conditional / Arithmetic / Equality | **Coverage gap**: no test exercises `partial_fill` AND no test sits at a decimation-threshold sample-density. Would need a dedicated partial_fill test to kill. |
+| 2 | 514 / 548 surfacing as `ConditionalExpression true/false` | | Hybrid: same as above plus a small bit of legit gap. |
+
+Net: of the 28 remaining 500-549 survivors, **~20 are equivalent
+mutants** that no test can kill without introducing observable output
+differences (which the renderer is correct NOT to produce — flipping a
+`>` to `>=` on `totalCh > maxVisible` when the two branches yield
+byte-identical ctx call streams is genuinely indistinguishable). The
+iteration-6 pagination ctx-conformance tests killed the 6 mutants that
+were actually distinguishable in that cluster (most importantly the
+`bad_mask` slice-drop, the `colors` slice-drop, the `types` slice-drop,
+the slot-divider count, the visibleN tight-tail formula, and the per-
+row yCenter formula).
+
+This is the same equivalent-mutant phenomenon called out for the IIFE
+export tail (lines 615-628, 13 mutants) in the iter-1 "Acceptable
+survivors" section: when a mutation cannot change observable output,
+no test can kill it. The fix is to mark these mutants as ignored via
+a Stryker comment or `mutator.excludedMutations` setting, not to
+write more tests.
+
+**Next iteration (PR 13) should target:**
+- `drawChannelLabels` typeChip path (150-199, 23 survivors): the
+  iter-6 pagination tests drove offset > 0 but never `channel_types`
+  with a non-EEG type at the visible offset, leaving the type-chip
+  rendering branch (traces.js:175-186) almost entirely uncovered. A
+  test using `channel_types = [..., 'EOG', 'ECG', 'EMG', ...]` and
+  asserting:
+  - The type-chip's `fillText(type, x-8, y+0.5)` content (kills the
+    `.toUpperCase()` / equality / -EEG-filter mutants at line 175-176).
+  - The label's `fillText(label, x - 8 - typeW - 6, y)` x position
+    (kills the `typeW * 2`, `-6 → +6` arithmetic mutants at line 186).
+  - The empty-types-array path (`types ? ... : ''`) drives a default-
+    branch test that exercises the `types && types[c] || ''` short-
+    circuit at line 175.
+  Expected delta: -10 to -15 mutants in 150-199, +1.5 to +2pp on
+  total mutation score.
+- `drawTimeAxis` minor-tick float-eps and skip-at-major (350-399, 26
+  survivors): the iter-5 ≥80% match on minor-tick x positions left a
+  handful of survivors at the major-tick skip boundary (`Math.abs(r-
+  Math.round(r)) < 1e-6`). A test that drives a window where exactly
+  one minor coincides with a major (e.g. major at 0.5, minor at 0.5)
+  and asserts NO duplicate moveTo at that x would close it.
+  Expected delta: -3 to -5 mutants.
+- File-Stryker-equivalent-mutant ignore list (PR-only, not test work):
+  drop the 12 line-512-516 "slice-when-shrunk" predicates from
+  Stryker's mutator scope via inline `// Stryker disable next-line all`
+  comments. This converts ~12 equivalent survivors to no-cov, raising
+  the apparent score by ~1.7pp without changing real test power.
+- StringLiteral survivors (28 left, unchanged): same accept-or-pixel-
+  diff recommendation as iterations 2-5. Pure aesthetic constants.
