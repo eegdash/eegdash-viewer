@@ -89,3 +89,50 @@ Six gates, each runnable locally and in CI.
 - **Sleuth investigations beat reading code yourself.** Two independent races in viewer.js (filter+pan stale cache, init-load inFlight clobber) and three in worker.js (filter snapshot, reader epoch, null resolve) were found by dispatching an investigator agent with explicit scope. Each finding came with file:line evidence and a reproduction scenario.
 - **Honest threshold management matters.** Three times this session a threshold was lowered (60→42 on scope expansion, then raised to 63 after iter-8 jumped to 68.66%). Lowering happened only with documented rationale; raising happened only after measured improvement.
 - **Equivalent mutants are a real ceiling.** The IIFE export tail in traces.js produced ~25 unkillable mutants from iteration 1; the pagination tail produced ~20 in iteration 6. Documenting these as "acceptable equivalents" prevented chasing diminishing returns.
+
+## Continuation — Sprint 8/9/10 wave
+
+After the initial /goal handoff the user requested continuation. Three more sprints landed:
+
+### Sprint 8 — three parallel work streams
+
+**Mutation iter-9 → iter-10 (delegated to agent):**
+| File | iter-9 | (iter-10 pending — agent running at handoff) |
+|---|---:|---|
+| traces.js | 66.39% | — |
+| filters.js | 90.68% | — |
+| topo2d.js | 71.29% | — |
+| bids-recording.js | 70.12% | targeting fetch-mocked inheritance walk |
+| **Aggregate** | **70.34%** | TBD |
+
+**Janitor F1 (delegated to refactor-cleaner agent):** Removed **518 LOC** of dead BIDSLoader montage-builder code. `bids-loader.js` shrank 601 → **83 lines (86.2% file shrink)**. Coverage on that file jumped 36% → 97.59%. Tests stayed at 693/693 pass.
+
+**Worker P3 finding 5 (handled directly):** Added worker-side `CANCEL_REQUEST` protocol. Viewer abort handlers now send `{type:'CANCEL_REQUEST', request_id}`; worker tracks cancelled IDs in a bounded set (256 cap, FIFO eviction) and bails between iterator steps. Real bandwidth savings on rapid panning — a 30-pan burst previously decoded 150 chunks the viewer dropped; now ~30.
+
+Findings 3 and 6 from the worker investigation were already implicitly fixed by the snapshot pattern in commit `671d995` — every filter-application site uses `filterSnapshot` (per-request closure), not live `activeFilterCoefs`. Verified via grep.
+
+### Sprint 9 — API contract testing (lightweight Level 7 directional)
+
+`publint` was tried but rejected our package (`{private:true}`, no version — designed for published libraries). Built a custom API-surface snapshot test instead: `tests/unit-api-surface.test.mjs`.
+
+8 tests covering: edf, brainvision, eeglab, fiff, filters, traces, bids-loader public exports + 1 cross-module contract test ensuring every format reader's `open()` returns the same 7 required keys + `readWindow` function. Catches accidental refactoring that would silently break viewer.js or worker.js's reader assumptions.
+
+(topo2d.js excluded — uses `window.EEGTopo2D = api` only, no `module.exports`. Same export-pattern bug as fiff.js had pre-c57dc88. Tracked under janitor F2.)
+
+### Sprint 10 — final state
+
+Net session-end totals:
+
+| Metric | Session start | Session end |
+|---|---|---|
+| Commits on main | (1 baseline fix) | **~80 pushed** |
+| Test count | ~210 | **~660+ (≈ 3.1× growth)** |
+| Mutation aggregate | n/a (gate not present) | **70.34%** across 4 files |
+| Coverage | n/a (gate not present) | **60.71% lines / 86.44% br / 76.96% fn** |
+| Real bugs fixed | 0 | **15+** (4 user-blocking, 6 P1 silent corruption, 5 P2 leaks/UX, 2 a11y critical) |
+| New CI gates | 0 | **8** (coverage, property, fuzz, mem-leak browser, mem-leak node, mutation, a11y, statistical bench) |
+| Dead code removed | 0 | **528 LOC** (bids-loader F1 + viewer.js F3/F4/F5) |
+| Real fixtures committed | 0 | **12 files / 4 formats × 3 modalities / 220 KB** |
+| Documentation | scattered | **6 new docs (qa-strategy, mutation-survivors, memory-leak-testing, dead-code findings, fuzz findings, this retrospective)** |
+
+QA maturity went **Level 3 → Level 7** (added property, coverage, mutation, fuzz, a11y, contract-via-snapshot). Performance maturity went **Level 3 → Level 6** (statistical bench, memory-leak gate). The remaining ladder rungs (CodSpeed instrumented benchmarks, full TS-via-JSDoc, RUM) require external service signups or fundamental tooling changes — both deferred to a future sprint window with explicit budget.
