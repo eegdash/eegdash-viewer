@@ -286,6 +286,62 @@ test('prefetch gate: prefetch is skipped while worker has in-flight requests', a
   assert.equal(shouldPrefetch(), true, 'must allow prefetch once stream is aborted/drained');
 });
 
+test('memory: 1000 abort cascades on stub worker do not leak heap', async (t) => {
+  // Node-side memory gate. Requires `node --expose-gc`. Without it, GC is
+  // lazy enough that a real leak vs noise can't be distinguished — we skip
+  // rather than report a flaky number.
+  if (typeof global.gc !== 'function') {
+    t.skip('run with `node --expose-gc` to enable memory leak detection');
+    return;
+  }
+
+  // Joyee Cheung pattern — retry GC + setImmediate until heap stabilises.
+  // We bail out early once two consecutive measurements drift less than
+  // 50KB (essentially noise floor of allocation churn from setImmediate
+  // itself), or fall through at 30 retries.
+  const stableGc = async () => {
+    let lastHeap = process.memoryUsage().heapUsed;
+    for (let i = 0; i < 30; i++) {
+      global.gc();
+      await new Promise(r => setImmediate(r));
+      const curr = process.memoryUsage().heapUsed;
+      if (Math.abs(curr - lastHeap) < 50_000) return curr;
+      lastHeap = curr;
+    }
+    return lastHeap;
+  };
+
+  const start = await stableGc();
+
+  // 1000 abort cascades. Each iteration: create client, start stream,
+  // abort 90% of the way through, drop references. The worker stub's
+  // pendingRequests/cancelledRequests sets must not retain anything.
+  for (let i = 0; i < 1000; i++) {
+    const client = makeStreamingClient();
+    const ctrl = new AbortController();
+    const stream = client.fetchStream(1000, 5, 1, ctrl.signal);
+    const iter = stream[Symbol.asyncIterator]();
+    // Pull 2 chunks then abort.
+    await iter.next();
+    await iter.next();
+    ctrl.abort();
+    // Give the stub's queued setTimeouts a chance to noop on the cancel.
+    await new Promise(r => setImmediate(r));
+  }
+
+  const end = await stableGc();
+  const growth = end - start;
+  const growthMb = (growth / 1024 / 1024).toFixed(2);
+
+  // 5 MB is a generous gate for 1000 iterations. A real retention bug
+  // (every cascade keeping its AbortController / iterator state alive)
+  // would balloon 1000 × ~10KB = ~10 MB easily.
+  assert.ok(
+    growth < 5 * 1024 * 1024,
+    `heap grew ${growthMb} MB across 1000 abort cascades (limit 5 MB); possible leak`,
+  );
+});
+
 test('interleave race: consumer skips draw after abort fires mid-body', async () => {
   // Locks down the viewer.js defensive recheck: even when a chunk has been
   // dequeued and the body has started processing, if the abort signal flips

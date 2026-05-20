@@ -6,6 +6,7 @@
     "test:unit": "node --test --test-reporter=spec tests/traces.test.mjs tests/unit-*.test.mjs tests/local-blob.test.mjs tests/tile-fetching.test.mjs tests/eegdash-fallback.test.mjs",
     "test:net": "node --test --test-reporter=spec --test-concurrency=1 tests/sidecars.test.mjs tests/eeglab.test.mjs tests/edf.test.mjs tests/brainvision.test.mjs tests/bdf.test.mjs",
     "test:integration": "node --test --test-reporter=spec --test-concurrency=1 tests/integration.test.mjs",
+    "test:integration:gc": "node --expose-gc --test --test-reporter=spec --test-concurrency=1 tests/integration.test.mjs tests/integration-rapid-pan.test.mjs",
     "test:coverage": "c8 --reporter=text --reporter=html --reporter=json-summary node --test --test-reporter=spec tests/traces.test.mjs tests/unit-*.test.mjs tests/prop-*.test.mjs tests/local-blob.test.mjs tests/tile-fetching.test.mjs tests/eegdash-fallback.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:rapid": "playwright test tests/e2e/streaming.spec.mjs tests/e2e/rapid-scroll.spec.mjs --project=chromium",
