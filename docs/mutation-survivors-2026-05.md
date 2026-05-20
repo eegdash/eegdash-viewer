@@ -809,3 +809,48 @@ the highest survivor counts. For each:
 Expected aggregate trajectory: 47.79% (now) → ~55% (one iteration on
 each weak file) → ~65% (two iterations) → 70%+ (three iterations).
 The `break` threshold should rise to 55, then 62, then 67 alongside.
+
+## Iteration 8 (PR 14, 2026-05-21)
+
+Golden-output assertions added to attack `topo2d.js` (35 tests) and
+`bids-recording.js` (43 tests) — the two files where iteration-7
+exposed the high-coverage-but-loose-assertions gap.
+
+Per-file results (fresh baseline, 8m 51s, 2262 mutants):
+
+| File | iter-7 | iter-8 | Δ |
+|---|---:|---:|---:|
+| traces.js          | 66.39% | 66.39% | — |
+| filters.js         | 66.95% | 66.95% | — |
+| topo2d.js          | **37.36%** | **71.29%** | **+33.93** |
+| bids-recording.js  | **36.71%** | **68.90%** | **+32.19** |
+| **Aggregate**      | **47.79%** | **68.66%** | **+20.87** |
+
+The shim-to-ctx bridging pattern from iteration 5 transferred cleanly
+to the new files. topo2d.js's 384 survivors halved to 176; bids-recording's
+519 halved to 255. The remaining survivors are mostly StringLiteral
+mutants on error-message text and DOM/SVG namespace strings — the
+documented equivalent-mutant class from iter-1.
+
+Tests added: 78 across two files. Zero source modifications. Full
+regression suite still green (530+/530+ minus pre-existing flake which
+was also fixed this session).
+
+### Threshold raised: break 42 → 63
+
+Aggregate 68.66% is well above the iteration-7 break of 42. Raising to
+63 (aggregate − 5, rounded down) locks in the gain with a comfortable
+5.66pp noise buffer.
+
+### Bonus: race-condition bug fixes landed in adjacent PRs
+
+While iteration 8 was running, the sleuth agent investigation surfaced
+4 real race conditions in viewer.js — see commits in this session for
+the fixes:
+- Filter+pan stale cache poisoning (P1)
+- Initial-load inFlight clobber (P1)
+- cancelledRequests unbounded growth (P2)
+- Drag state leak on pointercancel (P2)
+
+These are independent of the mutation iteration but came from the same
+"actively hunt for bugs" sprint.
