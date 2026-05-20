@@ -247,13 +247,32 @@
   // top edge. Filters to those falling in the visible window. Labels
   // are dropped when they would collide (< 32 px apart) so a
   // dense burst of events looks like a comb instead of a wall of text.
-  function drawEventMarkers(ctx, events, t0, t1, plotX0, plotX1, plotY0, plotH) {
+  //
+  // `clearedBand` — when set to { xStart, xEnd }, ONLY draws events
+  // whose line or label falls inside that band. Used by streaming
+  // partial_fill draws so we don't redraw the same event over and
+  // over (the event colors are semi-transparent — successive draws
+  // at the same pixel compound the alpha, producing a darker-and-
+  // darker "ghost trace"). Events outside the band were drawn on
+  // the first chunk's full_clear pass and are still on the canvas.
+  // Label-width slack (~100 px) ensures we also redraw events whose
+  // line is just LEFT of the band but whose label extends INTO it.
+  const EVENT_LABEL_MAX_PX = 100;
+  function drawEventMarkers(ctx, events, t0, t1, plotX0, plotX1, plotY0, plotH, clearedBand) {
     if (!events || !events.length) return;
     const span = t1 - t0;
     if (span <= 0) return;
+    const xFor = (ev) => plotX0 + ((ev.onset - t0) / span) * (plotX1 - plotX0);
+    const inBand = clearedBand
+      ? (ev) => {
+          const x = xFor(ev);
+          return x >= clearedBand.xStart - EVENT_LABEL_MAX_PX && x <= clearedBand.xEnd + 2;
+        }
+      : null;
     const visible = [];
     for (const ev of events) {
       if (ev.onset < t0 || ev.onset > t1) continue;
+      if (inBand && !inBand(ev)) continue;
       visible.push(ev);
     }
     if (!visible.length) return;
@@ -262,7 +281,7 @@
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (const ev of visible) {
-      const x = Math.round(plotX0 + ((ev.onset - t0) / span) * (plotX1 - plotX0)) + 0.5;
+      const x = Math.round(xFor(ev)) + 0.5;
       ctx.moveTo(x, plotY0);
       ctx.lineTo(x, plotY0 + plotH);
     }
@@ -273,7 +292,7 @@
     ctx.textBaseline = 'top';
     let lastLabelX = -100;
     for (const ev of visible) {
-      const x = Math.round(plotX0 + ((ev.onset - t0) / span) * (plotX1 - plotX0));
+      const x = Math.round(xFor(ev));
       if (x - lastLabelX < 32) continue;
       if (ev.label) {
         ctx.fillText(String(ev.label).slice(0, 14), x + 3, plotY0 + 1);
@@ -452,6 +471,12 @@
     // new chunk's band. The polyline x-mapping (downstream) still uses
     // `total_samples` so the partial data lands in its real x position.
     const partialFill = opts.partial_fill;
+    // Tracks the x-band cleared on a partial_fill (non-full) chunk.
+    // Passed to drawEventMarkers so it only redraws events whose line
+    // or label intersects the band — avoiding alpha-compound "ghost
+    // traces" on the semi-transparent event hairlines + labels when
+    // the same event is re-drawn on every chunk of a streaming pan.
+    let eventClearedBand = null;
     if (partialFill) {
       if (partialFill.full_clear) {
         clear(ctx, cssW, cssH, opts.transparent === true);
@@ -467,6 +492,7 @@
           const bandW = Math.max(1, xEnd - xStart);
           ctx.fillStyle = BG_COLOR;
           ctx.fillRect(xStart, 0, bandW, cssH);
+          eventClearedBand = { xStart, xEnd };
         }
       }
     } else {
@@ -540,7 +566,7 @@
     // Event onset markers: rendered BEFORE traces so they read as
     // background scaffolding (muted green hairlines) rather than as
     // additional data.
-    drawEventMarkers(ctx, opts.events, t0, t1, plotX0, plotX1, plotY0, plotH);
+    drawEventMarkers(ctx, opts.events, t0, t1, plotX0, plotX1, plotY0, plotH, eventClearedBand);
 
     // Decimation threshold uses the *effective* plot width — samples-per-
     // pixel density is the same regardless of partial vs full (we just have

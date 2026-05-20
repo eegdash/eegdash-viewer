@@ -1601,3 +1601,94 @@ test('pagination ctx-conformance: trace polyline moveTos appear at per-row yCent
   checkRowBand(visibleN - 1);
 });
 
+
+// ─── Event-marker ghost regression (Sprint 11) ────────────────────
+//
+// Bug: EVENT_LINE_COLOR is rgba(0,158,115,0.30) and EVENT_LABEL_COLOR
+// is rgba(0,110,80,0.95). Both are semi-transparent. The streaming
+// partial_fill path used to redraw every event on every chunk —
+// alpha compounded at fixed pixels → "green ghost" buildup. Fix:
+// drawEventMarkers accepts a `clearedBand` and only redraws events
+// whose line or label intersects it. Events outside the band were
+// drawn on the first chunk's full_clear pass and stay perfect.
+
+test('event-ghost fix: partial_fill draws ONLY events inside the cleared band', async () => {
+  const cssW = 800, cssH = 600;
+  const events = [
+    { onset: 0.5, label: 'EarlyEv' },  // x ≈ 96 + 0.125*634 = 175  (outside band)
+    { onset: 2.0, label: 'MidEv'   },  // x ≈ 96 + 0.5*634   = 413  (inside band)
+    { onset: 3.5, label: 'LateEv'  },  // x ≈ 96 + 0.875*634 = 651  (outside band, right)
+  ];
+
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(2, 600, {
+    events,
+    n_samples_visible: 600,   // partial chunk
+    fs: 250,
+    start_sec: 0,
+    // partial_fill with band ~ [40%, 60%] of plotW → CSS x in [349.6, 478.2]
+    partial_fill: { sample_start: 400, sample_end: 599, total_samples: 1000 },
+  }));
+
+  const calls = canvas._ctx.calls;
+  const labelDrawn = (label) =>
+    calls.some(c => c.op === 'fillText' && c.args[0] === label);
+
+  // EarlyEv (x≈175) is far LEFT of the band [349.6, 478.2]. With the
+  // 100-px label slack the inclusive window is [249.6, 480.2]. 175 < 249.6
+  // → NOT redrawn.
+  assert.equal(labelDrawn('EarlyEv'), false,
+    'EarlyEv (left of band + label slack) must NOT be redrawn during partial_fill');
+
+  // MidEv (x≈413) is INSIDE the band [349.6, 478.2] → MUST be redrawn.
+  assert.equal(labelDrawn('MidEv'), true,
+    'MidEv (inside band) must be redrawn');
+
+  // LateEv (x≈651) is far RIGHT of the band → NOT redrawn.
+  assert.equal(labelDrawn('LateEv'), false,
+    'LateEv (right of band) must NOT be redrawn during partial_fill');
+});
+
+test('event-ghost fix: full_clear chunk redraws ALL events (no band filter)', async () => {
+  // Regression check: the band filter must NOT apply on a full_clear
+  // chunk. Every visible event must be drawn.
+  const events = [
+    { onset: 0.1, label: 'A' },
+    { onset: 0.2, label: 'B' },
+    { onset: 0.3, label: 'C' },
+  ];
+  const canvas = makeStubCanvas(800, 600);
+  TraceRenderer.draw(canvas, buildOpts(2, 100, {
+    events,
+    n_samples_visible: 100,
+    fs: 250,
+    start_sec: 0,
+    partial_fill: { sample_start: 0, sample_end: 99, total_samples: 100, full_clear: true },
+  }));
+  const calls = canvas._ctx.calls;
+  for (const ev of events) {
+    const hit = calls.some(c => c.op === 'fillText' && c.args[0] === ev.label);
+    assert.ok(hit, `event ${ev.label} must be drawn on full_clear chunk`);
+  }
+});
+
+test('event-ghost fix: non-partial_fill draw (cache hit path) redraws ALL events', async () => {
+  // The non-streaming path (no partial_fill in opts) must continue
+  // drawing all events — clearedBand must be null in that path.
+  const events = [
+    { onset: 0.1, label: 'X' },
+    { onset: 0.2, label: 'Y' },
+  ];
+  const canvas = makeStubCanvas(800, 600);
+  TraceRenderer.draw(canvas, buildOpts(2, 100, {
+    events,
+    n_samples_visible: 100,
+    fs: 250,
+    start_sec: 0,
+  }));
+  const calls = canvas._ctx.calls;
+  for (const ev of events) {
+    const hit = calls.some(c => c.op === 'fillText' && c.args[0] === ev.label);
+    assert.ok(hit, `event ${ev.label} must be drawn on non-partial_fill draw`);
+  }
+});
