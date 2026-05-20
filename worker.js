@@ -32,6 +32,7 @@ importScripts(
   'formats/eeglab.js',
   'formats/edf.js',
   'formats/brainvision.js',
+  'formats/fiff.js',
   'filters.js',
 );
 
@@ -40,6 +41,8 @@ const READERS = {
   edf:  globalThis.EDFReader,
   bdf:  globalThis.EDFReader,
   vhdr: globalThis.BrainVisionReader,
+  fif:  globalThis.FiffReader,
+  fiff: globalThis.FiffReader,
 };
 
 let reader = null;

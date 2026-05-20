@@ -86,3 +86,59 @@ test('fiff: accepts a synthetic FIFF_FILE_ID-only buffer', () => {
   assert.ok(meas && typeof meas === 'object');
   assert.deepEqual(meas.blocks, []);
 });
+
+// ─── api.open ─────────────────────────────────────────────────────
+// open() is the wrapper viewer.js + worker.js call. It fetches the
+// file via HttpRange.fetchBuffer, parses, and returns a reader-shaped
+// object matching the EDFReader/EEGLABReader/BrainVisionReader
+// contract. Tests use file:// URLs that HttpRange should fetch via
+// fetch() — node:test 22+ supports the global fetch.
+
+test('fiff: open(meta) returns a reader-shaped object for events file', async () => {
+  // Mock HttpRange via globalThis since the production module uses it.
+  const fs = await import('node:fs');
+  globalThis.HttpRange = globalThis.HttpRange || {
+    async fetchBuffer(url) {
+      const path = url.replace(/^file:\/\//, '');
+      const buf = fs.readFileSync(path);
+      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    },
+  };
+  const reader = await FIFFReader.open({
+    eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/test-eve.fif',
+  });
+  assert.ok(reader, 'open() must return a non-null reader');
+  assert.equal(typeof reader.n_channels, 'number');
+  assert.equal(typeof reader.sampling_frequency, 'number');
+  assert.equal(typeof reader.duration_s, 'number');
+  assert.equal(typeof reader.readWindow, 'function');
+});
+
+test('fiff: readWindow throws on metadata-only files (no FIFFB_RAW_DATA)', async () => {
+  // test-eve.fif is an events-only file — it has FIFFB_EVENTS but no
+  // raw data block. readWindow must throw with a clear message rather
+  // than silently returning empty arrays.
+  globalThis.HttpRange = globalThis.HttpRange || {};
+  if (!globalThis.HttpRange.fetchBuffer) {
+    const fs = await import('node:fs');
+    globalThis.HttpRange.fetchBuffer = async (url) => {
+      const path = url.replace(/^file:\/\//, '');
+      const buf = fs.readFileSync(path);
+      return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    };
+  }
+  const reader = await FIFFReader.open({
+    eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/test-eve.fif',
+  });
+  await assert.rejects(
+    () => reader.readWindow(0, 100),
+    /no FIFFB_RAW_DATA|events\/projections\/annotations only/,
+  );
+});
+
+test('fiff: open requires meta.eeg_url', async () => {
+  await assert.rejects(
+    () => FIFFReader.open({}),
+    /eeg_url is required/,
+  );
+});

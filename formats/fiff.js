@@ -296,6 +296,66 @@
     return { data: converted, nsamp };
   }
 
+  // ─── Reader interface (matches edf.js / brainvision.js / eeglab.js) ────
+  // viewer.js and worker.js both call `READERS[ext].open(meta)` then
+  // expect `reader.n_channels`, `reader.sampling_frequency`,
+  // `reader.duration_s`, `reader.n_samples`, `reader.channel_labels`,
+  // and `reader.readWindow(start, n)`. FIFF traditionally loads the whole
+  // file because random access requires the tag directory at the end.
+  // This implementation fetches the file once, parses it via `api.read`,
+  // and serves windows from the buffered raw data.
+
+  api.open = async function (meta) {
+    // The eeg_url is the file URL; HttpRange.fetchBuffer fetches the
+    // full body. We don't try to range-fetch FIFF — the standard
+    // implementation must walk the tag directory at the end of the
+    // file, which a range request would miss without two round-trips.
+    const url = meta.eeg_url || meta.url;
+    if (!url) throw new Error('fiff.open: meta.eeg_url is required');
+    const buf = await globalThis.HttpRange.fetchBuffer(url);
+    const meas = api.read(buf);
+
+    const channelLabels = Array.isArray(meas.chs)
+      ? meas.chs.map((c, i) => c.ch_name || `Ch${i + 1}`)
+      : Array.from({ length: meas.nchan || 0 }, (_, i) => `Ch${i + 1}`);
+
+    const sfreq = meas.sfreq || 0;
+    const nchan = meas.nchan || 0;
+    // Raw samples are in meas.raw.data as Float32Array[nchan][nsamp]
+    // when the file contains a FIFFB_RAW_DATA block. Files that are
+    // pure metadata (events, projections, annotations) have no raw —
+    // open() still returns a reader so the viewer can render the
+    // metadata pane, but readWindow throws.
+    const rawChannels = meas.raw && Array.isArray(meas.raw.data)
+      ? meas.raw.data
+      : null;
+    const nsamp = rawChannels && rawChannels[0] ? rawChannels[0].length : 0;
+    const duration_s = sfreq > 0 ? nsamp / sfreq : 0;
+
+    return {
+      n_channels:         nchan,
+      sampling_frequency: sfreq,
+      duration_s,
+      channel_labels:     channelLabels,
+      bytes_per_sample:   4,  // float32
+      n_samples:          nsamp,
+      recording_start_iso: null,   // TODO: derive from meas.meas_date if present
+      annotation_events:  null,    // TODO: parse FIFFB_EVENTS block
+
+      async readWindow(start, n) {
+        if (!rawChannels) {
+          throw new Error('fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)');
+        }
+        const end = Math.min(start + n, nsamp);
+        const slice = [];
+        for (let c = 0; c < nchan; c++) {
+          slice.push(rawChannels[c].subarray(start, end));
+        }
+        return slice;
+      },
+    };
+  };
+
   // Expose reader — matches the dual-target pattern used by every other
   // formats/*.js so the module loads cleanly under both browser globals
   // and Node (where `window` is undefined and createRequire reads
