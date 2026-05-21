@@ -35,10 +35,12 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run test:unit
-
+      # Typecheck first — it's faster (~1s) than the unit suite (~5s), so
+      # contributors get the structural failure signal sooner.
       - name: Type check (tsc on JSDoc-annotated files)
         run: npm run test:typecheck
+
+      - run: npm run test:unit
 
   # Coverage gate. c8 wraps the same unit-only test set as the `unit`
   # job above and enforces thresholds from `.c8rc.json` (derived from
