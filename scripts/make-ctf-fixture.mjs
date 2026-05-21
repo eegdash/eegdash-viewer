@@ -37,16 +37,21 @@ const res4 = Buffer.alloc(res4Size, 0);
 // Magic
 res4.write('MEG41RS\x00', 0, 8, 'binary');
 
-// no_samples (offset 1682, int16 BE)
-res4.writeInt16BE(N_SAMPLES_PER_TRIAL, 1682);
-// no_channels (offset 1684, int16 BE)
-res4.writeInt16BE(N_CHANNELS, 1684);
-// sample_rate (offset 1686, float32 BE)
-res4.writeFloatBE(SAMPLE_RATE, 1686);
-// epoch_time (offset 1690, float32 BE)
-res4.writeFloatBE(N_SAMPLES_PER_TRIAL / SAMPLE_RATE, 1690);
-// no_trials (offset 1694, int16 BE)
-res4.writeInt16BE(N_TRIALS, 1694);
+// Fixed-header field layout per MNE-Python's mne/io/ctf/res4.py.
+// Verified empirically against real ds002001 + ds002908 .res4 files
+// 2026-05-21. The previous offsets (1682/1684/1686/1690/1694 with
+// int16/float32) landed in a zero-padded region and both code AND
+// this fixture were wrong in lockstep — fixed together.
+// no_samples (offset 1288, int32 BE)
+res4.writeInt32BE(N_SAMPLES_PER_TRIAL, 1288);
+// no_channels (offset 1292, int16 BE)
+res4.writeInt16BE(N_CHANNELS, 1292);
+// sample_rate (offset 1296, float64 BE)
+res4.writeDoubleBE(SAMPLE_RATE, 1296);
+// epoch_time (offset 1304, float64 BE)
+res4.writeDoubleBE(N_SAMPLES_PER_TRIAL / SAMPLE_RATE, 1304);
+// no_trials (offset 1312, int16 BE)
+res4.writeInt16BE(N_TRIALS, 1312);
 
 // Channel names: 32 bytes each, null-padded ASCII, starting at offset 1844
 const namesOff = HEADER_FIXED;

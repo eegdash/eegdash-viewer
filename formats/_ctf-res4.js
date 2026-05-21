@@ -2,19 +2,20 @@
    formats/_ctf-res4.js — parse the CTF MEG `.res4` binary header.
 
    Layout (all integers BIG-ENDIAN; doubles BE; ASCII strings
-   null-padded). Verified against MNE-Python's mne/io/ctf/res4.py
-   (BSD-3-clause).
+   null-padded). Verified empirically against ds002001 + ds002908
+   sub-001 .res4 files on 2026-05-21 (matches MNE-Python's
+   mne/io/ctf/res4.py — BSD-3-clause).
 
    Fixed header (1844 bytes):
      0..7      "MEG41RS\0" or "MEG42RS\0" magic
-     8..1681   appName / dataOrigin / dataDescription / sample-info
+     8..1287   appName / dataOrigin / dataDescription / sample-info
                text fields and timestamps (ignored by this reader)
-     1682..1683  no_samples           int16 BE  (samples per trial)
-     1684..1685  no_channels          int16 BE
-     1686..1689  sample_rate          float32 BE
-     1690..1693  epoch_time           float32 BE  (trial length, s)
-     1694..1695  no_trials            int16 BE
-     1696..1843  trigger / display / artifact-flag bag (ignored)
+     1288..1291  no_samples           int32 BE  (samples per trial)
+     1292..1293  no_channels          int16 BE
+     1296..1303  sample_rate          float64 BE
+     1304..1311  epoch_time           float64 BE  (trial length, s)
+     1312..1313  no_trials            int16 BE
+     1314..1843  trigger / display / artifact-flag bag (ignored)
 
    After the fixed header:
      1844                  channel-name table: 32 bytes per channel,
@@ -91,11 +92,26 @@
       throw new Error(`CTF .res4: bad magic ${JSON.stringify(magic)} — expected MEG41RS or MEG42RS`);
     }
 
-    const no_samples  = v.getInt16(1682, false);
-    const no_channels = v.getInt16(1684, false);
-    const sample_rate = v.getFloat32(1686, false);
-    const epoch_time  = v.getFloat32(1690, false);
-    const no_trials   = v.getInt16(1694, false);
+    // Fixed-header block layout per MNE-Python's mne/io/ctf/res4.py:
+    //   _get_res4_setup walks the gSetUp struct starting at offset 778
+    //   (8-byte _id_block + 778 byte gPreamble = 1280 cursor base).
+    //   Field offsets in the file (verified empirically against
+    //   ds002001 + ds002908 sub-001 .res4 files, 2026-05-21):
+    //     no_samples  @ 1288  (int32 BE)
+    //     no_channels @ 1292  (int16 BE)
+    //     sample_rate @ 1296  (float64 BE)
+    //     epoch_time  @ 1304  (float64 BE)
+    //     no_trials   @ 1312  (int16 BE)
+    // The previous implementation used 1682/1684/1686/1690/1694 with
+    // int16/float32 (~390 bytes off + wrong types) — landed in a zero-
+    // padded region, producing no_channels=0 and the parser rejected
+    // every real CTF file. Surfaced by Plan D browser reality-check
+    // (commit f524bad).
+    const no_samples  = v.getInt32  (1288, false);
+    const no_channels = v.getInt16  (1292, false);
+    const sample_rate = v.getFloat64(1296, false);
+    const epoch_time  = v.getFloat64(1304, false);
+    const no_trials   = v.getInt16  (1312, false);
 
     if (no_channels <= 0 || no_channels > MAX_CHANNELS) {
       throw new Error(`CTF .res4: no_channels ${no_channels} out of range (1..${MAX_CHANNELS})`);

@@ -48,8 +48,13 @@ test('ctf-res4: rejects buffer with wrong magic', () => {
   const ab = new ArrayBuffer(7284);
   const v = new Uint8Array(ab);
   v.set(new TextEncoder().encode('NOTAMAG\x00'));
-  // Set no_channels=4 so size checks pass but magic fails.
+  // Set required fields so size checks pass but magic fails.
+  // (Corrected offsets per MNE-Python — see _ctf-res4.js for layout.)
   const dv = new DataView(ab);
-  dv.setInt16(1684, 4, false);
+  dv.setInt32(1288, 1, false);       // no_samples
+  dv.setInt16(1292, 4, false);       // no_channels
+  dv.setFloat64(1296, 100, false);   // sample_rate
+  dv.setFloat64(1304, 0.01, false);  // epoch_time
+  dv.setInt16(1312, 1, false);       // no_trials
   assert.throws(() => CTFRes4.parse(ab), /magic|MEG4\dRS/);
 });
