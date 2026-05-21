@@ -9,7 +9,7 @@
     "test:integration:gc": "node --expose-gc --test --test-reporter=spec --test-concurrency=1 tests/integration.test.mjs tests/integration-rapid-pan.test.mjs",
     "test:coverage": "c8 --reporter=text --reporter=html --reporter=json-summary node --test --test-reporter=spec tests/traces.test.mjs tests/unit-*.test.mjs tests/prop-*.test.mjs tests/local-blob.test.mjs tests/tile-fetching.test.mjs tests/eegdash-fallback.test.mjs",
     "test:e2e": "playwright test",
-    "test:e2e:rapid": "playwright test tests/e2e/streaming.spec.mjs tests/e2e/rapid-scroll.spec.mjs --project=chromium",
+    "test:e2e:rapid": "playwright test tests/e2e/streaming.spec.mjs tests/e2e/rapid-scroll.spec.mjs tests/e2e/memory-streaming.spec.mjs --project=chromium",
     "test:visual": "playwright test tests/e2e/visual-regression.spec.mjs",
     "test:visual:update": "playwright test tests/e2e/visual-regression.spec.mjs --update-snapshots",
     "test:smoke": "playwright test tests/e2e/smoke.spec.mjs --project=chromium",
