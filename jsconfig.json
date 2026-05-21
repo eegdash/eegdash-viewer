@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "checkJs": true,
+    "noEmit": true,
+    "allowJs": true,
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "ignoreDeprecations": "6.0"
+  },
+  "include": [
+    "formats/globals.d.ts",
+    "formats/edf.js",
+    "formats/brainvision.js",
+    "formats/eeglab.js",
+    "formats/fiff.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "tests",
+    "bench",
+    "reports",
+    "coverage"
+  ]
+}
