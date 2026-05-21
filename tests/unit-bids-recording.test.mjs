@@ -1093,12 +1093,17 @@ test('resolveTargets: accepts http URL (dev/localhost) in ?eeg= param', () => {
   assert.equal(t.kind, 'url');
 });
 
-test('resolveTargets: rejects malformed URL gracefully', () => {
+test('resolveTargets: relative-looking string resolves to same-origin URL', () => {
+  // After Fix A3 the gate resolves every input against the document
+  // baseURI. A bare token like "not-a-url" becomes a same-origin
+  // relative path under https: and is accepted — same as the
+  // `?eeg=/test-data/foo.edf` local-fixture case. Hostile schemes
+  // (data:/javascript:/file:/etc.) still throw — see
+  // unit-bids-recording-security.test.mjs for the rejected cases.
   const params = new URLSearchParams('eeg=not-a-url');
-  assert.throws(
-    () => BIDSRecording.resolveTargets(params),
-    /Invalid URL protocol/,
-  );
+  const t = BIDSRecording.resolveTargets(params);
+  assert.equal(t.kind, 'url');
+  assert.equal(t.eeg_url, 'not-a-url');
 });
 
 test('resolveTargets: protocol check applies to ?ieeg=, ?emg=, ?meg=, ?nirs= too', () => {

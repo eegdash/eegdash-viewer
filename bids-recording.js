@@ -899,27 +899,41 @@
   // descriptor the bootstrap code feeds into loadRecordingMetadata.
   // Returns null when no params are present (cold viewer state).
   // Allowed URL protocols for query-param-supplied recording URLs. The
-  // viewer accepts https only by default — data:/blob:/file:/javascript:
+  // viewer accepts http(s) only — data:/blob:/file:/javascript:/etc.
   // are rejected to prevent (a) cross-origin SSRF-from-victim where a
   // malicious link causes the browser to fetch an attacker URL with
   // the viewer's referer/cookies, and (b) data:/blob: payloads that
-  // could bypass the format-reader's bounds checks. http: is permitted
-  // for localhost / dev. (SAST scanner finding P2, 2026-05-21.)
+  // could bypass the format-reader's bounds checks.
+  //
+  // Fix A3 (HIGH): the previous gate accepted ANY string starting with
+  // '/' (and not '//') as "same-origin relative" — including paths like
+  // `/cdn-worker/.env` that read attacker-chosen same-origin files via
+  // a single-click URL. It was also case-sensitive, letting `HTTP://`
+  // and `JaVaScRiPt:` slip through `new URL().protocol` (which would
+  // lowercase the scheme). The replacement resolves every input string
+  // against the document baseURI and only accepts the resolved URL when
+  // its protocol is http: or https: — relative paths inherit the
+  // current origin and scheme, so they still work, but cannot be used
+  // to smuggle non-http schemes.
   function isAllowedProtocol(urlString) {
-    if (typeof urlString !== 'string' || !urlString) return false;
-    // Same-origin relative URLs (start with /) are always safe — they
-    // resolve against the viewer's own origin, so there's no
-    // SSRF-from-victim or data:/blob: attack surface. Used by local
-    // test fixtures like `?eeg=/test-data/*.edf` and by future
-    // pre-bundled demo recordings.
-    if (urlString.startsWith('/') && !urlString.startsWith('//')) return true;
+    if (typeof urlString !== 'string' || urlString.length === 0) return false;
+    // Disallow scheme-relative early — `//evil.com/x` would inherit the
+    // current scheme but go to attacker origin.
+    if (urlString.startsWith('//')) return false;
+    let u;
     try {
-      const u = new URL(urlString);
-      return u.protocol === 'https:' || u.protocol === 'http:';
+      const base = (typeof globalThis !== 'undefined' && globalThis.location && globalThis.location.href)
+        ? globalThis.location.href
+        : 'https://example.invalid/';
+      u = new URL(urlString, base);
     } catch {
       return false;
     }
+    // After resolution, only http/https survive. URL.protocol is always
+    // lowercase per spec, so this implicitly handles uppercase schemes.
+    return u.protocol === 'http:' || u.protocol === 'https:';
   }
+  api._isAllowedProtocol = isAllowedProtocol;
 
   // Network resilience: NEMAR's data.nemar.org occasionally returns 404
   // 'Version not published' on the latest manifest; OpenNeuro S3 returns
