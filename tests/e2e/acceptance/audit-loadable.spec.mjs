@@ -92,10 +92,48 @@ const CASES = subsample(ALL_LOADABLE, SAMPLE_SIZE, SEED);
 fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
 fs.writeFileSync(RESULTS_JSONL, '');
 
+/**
+ * Per-test result row written to RESULTS_JSONL.
+ *
+ * verdict semantics:
+ *   pass       — stage-caption visible + canvas non-blank + zero errors + pill matches
+ *   render-fail — stage-caption never appeared (reader/parser bug or sidecar failure)
+ *   blank-canvas — stage-caption appeared but canvas had < 50 non-bg pixels
+ *   console-error — pageerror or non-404 console.error fired during load
+ *   pill-mismatch — stage-caption appeared but #pill-format did not match expected
+ *   timeout    — 90 s test budget exceeded (network or hung worker)
+ *   skipped    — soft-fail mode and the test was downgraded
+ *
+ * Every numeric field is null when not measured (e.g. render_ms is null
+ * on timeout because stage-caption never resolved).
+ */
+function makeResultRow(testCase) {
+  return {
+    dataset_id: testCase.dataset_id,
+    cdn_url: testCase.cdn_url,
+    ext: testCase.ext,
+    datatype: testCase.datatype,
+    verdict: 'unknown',
+    render_ms: null,
+    console_errors: 0,
+    page_errors: 0,
+    pill_format: null,
+    non_bg_pixels: null,
+    error_message: null,
+  };
+}
+
+const EXT_TO_PILL = {
+  set: 'SET',
+  edf: 'EDF',
+  bdf: 'BDF',
+  vhdr: 'BV',
+  fif: 'FIF',
+  snirf: 'SNIRF',
+};
+
 test.describe('audit-loadable: browser reality check', () => {
   test('subsample bootstrap sanity', () => {
-    // Sanity guard — if this fires, the loader produced an empty case list
-    // and every dataset test will appear "skipped" instead of failing loudly.
     expect(CASES.length, 'subsampled case count').toBeGreaterThan(0);
     expect(CASES.length, 'subsample bounded by sample size').toBeLessThanOrEqual(SAMPLE_SIZE);
     for (const c of CASES) {
@@ -104,4 +142,27 @@ test.describe('audit-loadable: browser reality check', () => {
       );
     }
   });
+});
+
+// Per-test result accumulator. Populated by the per-case test() bodies in
+// Task 3 and flushed by afterEach. Using a Map keyed by Playwright test
+// title because parallelism is disabled (playwright.config.mjs:
+// fullyParallel: false) so there is never more than one in-flight test.
+const PENDING_RESULTS = new Map();
+
+test.afterEach(async ({}, testInfo) => {
+  const row = PENDING_RESULTS.get(testInfo.title);
+  if (!row) return; // bootstrap sanity test has no row
+  // Promote Playwright's own verdict when the spec body did not classify
+  // (e.g. a timeout fired before any of our try/catch ran).
+  if (row.verdict === 'unknown') {
+    if (testInfo.status === 'timedOut') row.verdict = 'timeout';
+    else if (testInfo.status === 'passed') row.verdict = 'pass';
+    else row.verdict = 'render-fail';
+    if (testInfo.error && !row.error_message) {
+      row.error_message = String(testInfo.error.message || testInfo.error).slice(0, 500);
+    }
+  }
+  fs.appendFileSync(RESULTS_JSONL, JSON.stringify(row) + '\n');
+  PENDING_RESULTS.delete(testInfo.title);
 });
