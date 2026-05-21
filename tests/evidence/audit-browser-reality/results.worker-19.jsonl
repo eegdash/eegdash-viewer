@@ -1,0 +1,2 @@
+{"dataset_id":"ds003753","cdn_url":"https://cdn.eegdash.org/ds003753/sub-001/eeg/sub-001_task-ProbabilisticSelection_eeg.set","ext":"set","datatype":"eeg","verdict":"pass","render_ms":362,"console_errors":0,"page_errors":0,"pill_format":"SET","non_bg_pixels":686,"error_message":null}
+{"dataset_id":"ds003766","cdn_url":"https://cdn.eegdash.org/ds003766/sub-01/eeg/sub-01_task-foodchoice_eeg.set","ext":"set","datatype":"eeg","verdict":"pass","render_ms":16076,"console_errors":0,"page_errors":0,"pill_format":"SET","non_bg_pixels":225,"error_message":null}

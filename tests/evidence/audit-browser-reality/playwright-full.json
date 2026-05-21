@@ -1,0 +1,3913 @@
+{
+  "config": {
+    "configFile": "/Users/bruaristimunha/Projects/eegdash-viewer/playwright.audit-full.config.mjs",
+    "rootDir": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 4
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/.*\\.spec\\.mjs$/"
+        ],
+        "timeout": 90000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "tests/evidence/audit-browser-reality/playwright-full.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.59.1",
+    "workers": 4,
+    "webServer": {
+      "command": "node scripts/serve.mjs 8011",
+      "url": "http://localhost:8011/index.html",
+      "reuseExistingServer": true,
+      "stdout": "ignore",
+      "stderr": "pipe"
+    }
+  },
+  "suites": [
+    {
+      "title": "acceptance/audit-loadable.spec.mjs",
+      "file": "acceptance/audit-loadable.spec.mjs",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "loads ds000246 (ds) from https://cdn.eegdash.org/ds000246/sub-emptyroom/meg/sub-emptyroom_task-noise_run-01_meg.ds/sub-emptyroom_task-noise_run-01_meg.meg4",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 1654,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:12.445Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-36bf3aac2d3245211d25",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds000248 (fif) from https://cdn.eegdash.org/ds000248/sub-01/meg/sub-01_acq-crosstalk_meg.fif",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 1638,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:12.445Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-338dcc7ec4c2bf7045ee",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds001785 (set) from https://cdn.eegdash.org/ds001785/sub-01/ses-01/eeg/sub-01_ses-01_task-adapt_run-01_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 36653,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:12.446Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-08a4dea0b9911f0c2276",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds001787 (bdf) from https://cdn.eegdash.org/ds001787/sub-001/ses-01/eeg/sub-001_ses-01_task-meditation_eeg.bdf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1592,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:12.477Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-4d0c4e95b8c5d6c73994",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds001810 (vhdr) from https://cdn.eegdash.org/ds001810/sub-01/ses-anodalpost/eeg/sub-01_ses-anodalpost_task-attentionalblink_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1565,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:14.179Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-0aa72e0a8f683cd41a02",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds001849 (set) from https://cdn.eegdash.org/ds001849/sub-01/eeg/sub-01_task-tmseegrest_acq-dlpfcactive_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 16582,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:14.181Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-591a0de9ba9faaa787ae",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds001971 (set) from https://cdn.eegdash.org/ds001971/sub-001/eeg/sub-001_task-AudioCueWalkingStudy_run-01_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 832,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:14.194Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-836fc5f6b60d64a98d13",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002001 (ds) from https://cdn.eegdash.org/ds002001/sub-0001/ses-20140502/meg/sub-0001_ses-20140502_task-rivalry_run-02_meg.ds/sub-0001_ses-20140502_task-rivalry_run-02_meg.meg4",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
+                  "status": "failed",
+                  "duration": 60423,
+                  "error": {
+                    "message": "Error: ds002001: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002001: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds002001: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002001: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds002001: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002001: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:15.032Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--9f549-ask-rivalry-run-02-meg-meg4-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--9f549-ask-rivalry-run-02-meg-meg4-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--9f549-ask-rivalry-run-02-meg-meg4-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-4660347bd59bb19647f8",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002034 (edf) from https://cdn.eegdash.org/ds002034/sub-01/ses-01/eeg/sub-01_ses-01_task-offline_run-01_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1177,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:15.749Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-4bfb9132d7d5f84ffc37",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002094 (vhdr) from https://cdn.eegdash.org/ds002094/sub-283/eeg/sub-283_task-rest_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1178,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:16.932Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-f235a9c22c746848077e",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002158 (vhdr) from https://cdn.eegdash.org/ds002158/sub-02/ses-001/eeg/sub-02_ses-001_task-main_run-001_eeg.vhdr",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 60394,
+                  "error": {
+                    "message": "Error: ds002158: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002158: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds002158: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002158: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds002158: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002158: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:18.115Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--85817--task-main-run-001-eeg-vhdr-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--85817--task-main-run-001-eeg-vhdr-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--85817--task-main-run-001-eeg-vhdr-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-0e6e3338a142354eb79a",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002181 (set) from https://cdn.eegdash.org/ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 2,
+                  "status": "failed",
+                  "duration": 60411,
+                  "error": {
+                    "message": "Error: ds002181: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002181: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds002181: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002181: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds002181: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002181: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:30.770Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--c7112--1473-task-Baseline-eeg-set-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--c7112--1473-task-Baseline-eeg-set-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--c7112--1473-task-Baseline-eeg-set-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-2c87c008982cfa20baff",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002218 (set) from https://cdn.eegdash.org/ds002218/sub-001/eeg/sub-001_task-Experiment_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 437,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:49.193Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-623c4e7d3695e3478572",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002312 (fif) from https://cdn.eegdash.org/ds002312/sub-A0023/meg/sub-A0023_task-OcularLDT_meg.fif",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 3,
+                  "status": "failed",
+                  "duration": 60367,
+                  "error": {
+                    "message": "Error: ds002312: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002312: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds002312: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002312: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds002312: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002312: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T14:59:49.635Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--b65be-0023-task-OcularLDT-meg-fif-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--b65be-0023-task-OcularLDT-meg-fif-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--b65be-0023-task-OcularLDT-meg-fif-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-fbe8af95620af613ba02",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002336 (vhdr) from https://cdn.eegdash.org/ds002336/sub-xp101/eeg/sub-xp101_task-eegNF_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 1172,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:15.884Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-60d39d820c39cff9ea3d",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002338 (vhdr) from https://cdn.eegdash.org/ds002338/sub-xp201/eeg/sub-xp201_task-1dNF_run-01_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 1153,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:17.118Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-45100507b7552eee585a",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002578 (set) from https://cdn.eegdash.org/ds002578/sub-001/eeg/sub-001_task-attention_eeg.set",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 1,
+                  "status": "failed",
+                  "duration": 60383,
+                  "error": {
+                    "message": "Error: ds002578: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002578: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds002578: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002578: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds002578: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002578: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:18.276Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--76c82--001-task-attention-eeg-set-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--76c82--001-task-attention-eeg-set-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--76c82--001-task-attention-eeg-set-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-0b0f326cda3e8a9b4f85",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002680 (set) from https://cdn.eegdash.org/ds002680/sub-002/ses-01/eeg/sub-002_ses-01_task-gonogo_run-10_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 694,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:18.938Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-7e4362785220c929419e",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002691 (set) from https://cdn.eegdash.org/ds002691/sub-001/eeg/sub-001_task-internalattention_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 675,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:19.695Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-f79dc2954ad8d923d634",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002712 (fif) from https://cdn.eegdash.org/ds002712/sub-01/meg/sub-01_task-numbersletters_run-11_meg.fif",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 60382,
+                  "error": {
+                    "message": "Error: ds002712: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002712: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds002712: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002712: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds002712: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002712: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:20.375Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--2accd-mbersletters-run-11-meg-fif-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--2accd-mbersletters-run-11-meg-fif-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--2accd-mbersletters-run-11-meg-fif-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-282c40d00c4e29b7c0dd",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002718 (set) from https://cdn.eegdash.org/ds002718/sub-002/eeg/sub-002_task-FaceRecognition_eeg.set",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 6,
+                  "parallelIndex": 2,
+                  "status": "failed",
+                  "duration": 60406,
+                  "error": {
+                    "message": "Error: ds002718: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002718: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds002718: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002718: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds002718: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds002718: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:31.618Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--161bc-ask-FaceRecognition-eeg-set-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--161bc-ask-FaceRecognition-eeg-set-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--161bc-ask-FaceRecognition-eeg-set-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-64479ea5d141c934c3b7",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002720 (edf) from https://cdn.eegdash.org/ds002720/sub-01/eeg/sub-01_task-run1_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1165,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:50.381Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-c918d4684c5285d19516",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002721 (edf) from https://cdn.eegdash.org/ds002721/sub-01/eeg/sub-01_task-run1_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1142,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:51.609Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-f5ee3157c406e48d0360",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002722 (edf) from https://cdn.eegdash.org/ds002722/sub-01/eeg/sub-01_task-run1_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1134,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:52.756Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-e9d40c9b512981fffdcd",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002723 (edf) from https://cdn.eegdash.org/ds002723/sub-01/eeg/sub-01_task-run1_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1178,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:53.895Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-62dc54411729cd15edcc",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002724 (edf) from https://cdn.eegdash.org/ds002724/sub-08/ses-3/eeg/sub-08_ses-3_task-run1_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1145,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:55.078Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-c382606128a7e9bb8368",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002725 (edf) from https://cdn.eegdash.org/ds002725/sub-01/eeg/sub-01_task-classicalMusic_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1128,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:56.229Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-d2b0cc7fa5e72d267dee",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002761 (ds) from https://cdn.eegdash.org/ds002761/sub-311/meg/sub-311_task-loc_run-01_meg.ds/sub-311_task-loc_run-01_meg.meg4",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 33206,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:00:57.362Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-117b1e42501e099a5f20",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002778 (bdf) from https://cdn.eegdash.org/ds002778/sub-hc1/ses-hc/eeg/sub-hc1_ses-hc_task-rest_eeg.bdf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 1184,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:19.063Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-7b8817c2324a0be3a9c0",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002791 (vhdr) from https://cdn.eegdash.org/ds002791/sub-01/ses-naming/eeg/sub-01_ses-naming_run-1_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 1167,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:20.312Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-1caa7b50882adcf68c28",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002814 (set) from https://cdn.eegdash.org/ds002814/sub-01/ses-eeg/eeg/sub-01_ses-eeg_task-categorySelectivity_run-1_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 9,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1222,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:21.189Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-e96c391a920793a8c1a8",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002833 (vhdr) from https://cdn.eegdash.org/ds002833/sub-01/ses-Audio/eeg/sub-01_ses-Audio_task-PicturesNaming_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 1174,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:21.484Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-59d9777d2be4dbcf64c5",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002885 (fif) from https://cdn.eegdash.org/ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 9,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 3294,
+                  "error": {
+                    "message": "Error: ds002885: console/page errors\nconsole.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m1\u001b[39m\nReceived array:  \u001b[31m[\"console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\u001b[39m\n\u001b[31m    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\"]\u001b[39m",
+                    "stack": "Error: ds002885: console/page errors\nconsole.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m1\u001b[39m\nReceived array:  \u001b[31m[\"console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\u001b[39m\n\u001b[31m    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\"]\u001b[39m\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:324:11",
+                    "location": {
+                      "file": "http://localhost:8011/viewer.js?v=5",
+                      "column": 33,
+                      "line": 478
+                    }
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "http://localhost:8011/viewer.js?v=5",
+                        "column": 33,
+                        "line": 478
+                      },
+                      "message": "Error: ds002885: console/page errors\nconsole.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m1\u001b[39m\nReceived array:  \u001b[31m[\"console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\u001b[39m\n\u001b[31m    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\"]\u001b[39m\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:324:11"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:22.481Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--29120-eg-sub-01-task-DSMW-meg-fif-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--29120-eg-sub-01-task-DSMW-meg-fif-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--29120-eg-sub-01-task-DSMW-meg-fif-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "http://localhost:8011/viewer.js?v=5",
+                    "column": 33,
+                    "line": 478
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-1c121d10c2854ef0b575",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002893 (set) from https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 477,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:22.663Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-60257e5d5d73c89260c8",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds002908 (ds) from https://cdn.eegdash.org/ds002908/sub-01/ses-1/meg/sub-01_ses-1_task-mouse_meg.ds/sub-01_ses-1_task-mouse_meg.meg4",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 46206,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:23.145Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-a456a2a5c6d460f83634",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003004 (set) from https://cdn.eegdash.org/ds003004/sub-01/eeg/sub-01_task-ImaginedEmotion_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 10,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 40238,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:26.176Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-df52777276b5477aa79d",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003029 (vhdr) from https://cdn.eegdash.org/ds003029/sub-jh101/ses-presurgery/ieeg/sub-jh101_ses-presurgery_task-ictal_acq-ecog_run-01_ieeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1212,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:30.573Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-1cb6fa8bfceff8593a38",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003039 (set) from https://cdn.eegdash.org/ds003039/sub-001/eeg/sub-001_task-neurCorrYoung_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 684,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:31.791Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-3f36421294d989818802",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003061 (set) from https://cdn.eegdash.org/ds003061/sub-001/eeg/sub-001_task-P300_run-1_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 2263,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:32.533Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-9ea9b7bf0b2e641b15ca",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003078 (set) from https://cdn.eegdash.org/ds003078/sub-01/ieeg/sub-01_task-PROBE_run-11_ieeg.set",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 7,
+                  "parallelIndex": 3,
+                  "status": "failed",
+                  "duration": 60528,
+                  "error": {
+                    "message": "Error: ds003078: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003078: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003078: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003078: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003078: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003078: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:32.480Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--cdf57--task-PROBE-run-11-ieeg-set-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--cdf57--task-PROBE-run-11-ieeg-set-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--cdf57--task-PROBE-run-11-ieeg-set-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-4cb7ce2fe6a664ddb544",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003082 (ds) from https://cdn.eegdash.org/ds003082/sub-emptyroom/ses-20150112/meg/sub-emptyroom_ses-20150112_task-noise_run-01_meg.ds/sub-emptyroom_ses-20150112_task-noise_run-01_meg.meg4",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 49207,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:01:34.874Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-b6d63c8b4549d9034fb9",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003190 (vhdr) from https://cdn.eegdash.org/ds003190/sub-01/ses-01/eeg/sub-01_ses-01_task-cnos_run-4_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 10,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1210,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:06.486Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-8c59ad68a21ba37f099e",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003194 (edf) from https://cdn.eegdash.org/ds003194/sub-NEPO26/ses-Nepopre/eeg/sub-NEPO26_ses-Nepopre_task-taskprenepo_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 10,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1187,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:07.702Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-048cac6cb85202e564ba",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003195 (edf) from https://cdn.eegdash.org/ds003195/sub-PLAC10/ses-placebo6m/eeg/sub-PLAC10_ses-placebo6m_task-taskplacebo6m_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 10,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1149,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:08.895Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-e073388a96df685d9ee9",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003343 (bdf) from https://cdn.eegdash.org/ds003343/sub-13/ses-01/eeg/sub-13_ses-01_task-fps_run-01_eeg.bdf",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 8,
+                  "parallelIndex": 1,
+                  "status": "failed",
+                  "duration": 60415,
+                  "error": {
+                    "message": "Error: ds003343: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003343: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003343: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003343: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003343: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003343: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:09.357Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--6c6a7--01-task-fps-run-01-eeg-bdf-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--6c6a7--01-task-fps-run-01-eeg-bdf-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--6c6a7--01-task-fps-run-01-eeg-bdf-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-dfc55dd64aeaf02be9f3",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003352 (fif) from https://cdn.eegdash.org/ds003352/sub-1/ses-01/meg/sub-1_ses-01_task-ColorSpirals_run-00_meg.fif",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 10,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 3302,
+                  "error": {
+                    "message": "Error: ds003352: console/page errors\nconsole.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m1\u001b[39m\nReceived array:  \u001b[31m[\"console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\u001b[39m\n\u001b[31m    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\"]\u001b[39m",
+                    "stack": "Error: ds003352: console/page errors\nconsole.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m1\u001b[39m\nReceived array:  \u001b[31m[\"console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\u001b[39m\n\u001b[31m    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\"]\u001b[39m\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:324:11",
+                    "location": {
+                      "file": "http://localhost:8011/viewer.js?v=5",
+                      "column": 33,
+                      "line": 478
+                    }
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "http://localhost:8011/viewer.js?v=5",
+                        "column": 33,
+                        "line": 478
+                      },
+                      "message": "Error: ds003352: console/page errors\nconsole.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m1\u001b[39m\nReceived array:  \u001b[31m[\"console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)\u001b[39m\n\u001b[31m    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\"]\u001b[39m\n    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:324:11"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:10.049Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--839b1-ColorSpirals-run-00-meg-fif-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--839b1-ColorSpirals-run-00-meg-fif-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--839b1-ColorSpirals-run-00-meg-fif-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "http://localhost:8011/viewer.js?v=5",
+                    "column": 33,
+                    "line": 478
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-1bcd4c2e965199936862",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003374 (edf) from https://cdn.eegdash.org/ds003374/sub-01/ses-01/ieeg/sub-01_ses-01_task-jokeit_run-01_ieeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1212,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:13.849Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-14fdf2d15bc1df4968d8",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003392 (fif) from https://cdn.eegdash.org/ds003392/sub-01/meg/sub-01_acq-crosstalk_meg.fif",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1137,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:15.137Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-8d656e4937379ea650cd",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003420 (vhdr) from https://cdn.eegdash.org/ds003420/sub-01/ses-naming/eeg/sub-01_ses-naming_run-1_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1164,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:16.279Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-3bcda1503605cfc3268a",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003421 (vhdr) from https://cdn.eegdash.org/ds003421/sub-01/ses-Audio/eeg/sub-01_ses-Audio_task-PicturesNaming_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1160,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:17.450Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-497be4364baed32511b7",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003458 (set) from https://cdn.eegdash.org/ds003458/sub-001/eeg/sub-001_task-ThreeArmedBandit_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 491,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:18.614Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-10b19005585dc007a137",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003474 (set) from https://cdn.eegdash.org/ds003474/sub-001/eeg/sub-001_task-ProbabilisticSelection_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 439,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:19.110Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-82d7358011cf4ebaea86",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003478 (set) from https://cdn.eegdash.org/ds003478/sub-001/eeg/sub-001_task-Rest_run-01_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 688,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:19.555Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-ec74b6279f470d69f8af",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003483 (fif) from https://cdn.eegdash.org/ds003483/sub-009/ses-1/meg/sub-009_ses-1_task-deduction_run-1_meg.fif",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 12,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 60398,
+                  "error": {
+                    "message": "Error: ds003483: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003483: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003483: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003483: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003483: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003483: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:20.250Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--9da78-ask-deduction-run-1-meg-fif-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--9da78-ask-deduction-run-1-meg-fif-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--9da78-ask-deduction-run-1-meg-fif-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-6897a744645cb4fed4e7",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003490 (set) from https://cdn.eegdash.org/ds003490/sub-001/ses-01/eeg/sub-001_ses-01_task-Rest_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 1339,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:24.087Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-d68ceab61d0d16898a52",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003498 (vhdr) from https://cdn.eegdash.org/ds003498/sub-01/ses-interictalsleep/ieeg/sub-01_ses-interictalsleep_run-01_ieeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 1223,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:25.432Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-69d5b3cc5f74168a0fdd",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003506 (set) from https://cdn.eegdash.org/ds003506/sub-001/ses-01/eeg/sub-001_ses-01_task-ReinforcementLearning_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 703,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:26.663Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-4f0543d0cf7d58b994dd",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003509 (set) from https://cdn.eegdash.org/ds003509/sub-001/ses-01/eeg/sub-001_ses-01_task-SimonConflict_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 732,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:27.374Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-37db385e46fbcaea285d",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003516 (set) from https://cdn.eegdash.org/ds003516/sub-001/eeg/sub-001_task-AttendedSpeakerParadigmOwnName_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 436,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:28.113Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-49cdf47bff30da30fc93",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003517 (set) from https://cdn.eegdash.org/ds003517/sub-001/eeg/sub-001_task-ContinuousVideoGamePlay_run-01_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 494,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:28.555Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-5eb1e8337a36aca2fb0f",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003518 (set) from https://cdn.eegdash.org/ds003518/sub-001/ses-01/eeg/sub-001_ses-01_task-SimonConflict_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 474,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:29.055Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-0a182a9f0e47b2b1f478",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003519 (set) from https://cdn.eegdash.org/ds003519/sub-001/ses-01/eeg/sub-001_ses-01_task-VisualWorkingMemory_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 693,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:29.539Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-fcae53fbd2e6b71ca05a",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003522 (set) from https://cdn.eegdash.org/ds003522/sub-001/ses-01/eeg/sub-001_ses-01_task-ThreeStimAuditoryOddball_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 431,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:30.238Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-1b77f97294f094ad46f6",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003523 (set) from https://cdn.eegdash.org/ds003523/sub-001/ses-01/eeg/sub-001_ses-01_task-VisualWorkingMemory_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 435,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:30.674Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-8a40b1955aa2ca761353",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003555 (edf) from https://cdn.eegdash.org/ds003555/sub-01/ses-01/eeg/sub-01_ses-01_task-hfo_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 1200,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:31.114Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-dc8eca38a9a034a0a669",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003570 (set) from https://cdn.eegdash.org/ds003570/sub-001/eeg/sub-001_task-AuditoryOddballChords_eeg.set",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 11,
+                  "parallelIndex": 2,
+                  "status": "failed",
+                  "duration": 60351,
+                  "error": {
+                    "message": "Error: ds003570: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003570: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003570: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003570: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003570: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003570: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:32.319Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--742c4-ditoryOddballChords-eeg-set-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--742c4-ditoryOddballChords-eeg-set-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--742c4-ditoryOddballChords-eeg-set-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-6bb877eafaeb3622a189",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003602 (set) from https://cdn.eegdash.org/ds003602/sub-001/eeg/sub-001_task-APA1_run-1_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 13,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1230,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:33.570Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-8698b5199510c7b7e0a1",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003626 (bdf) from https://cdn.eegdash.org/ds003626/sub-01/ses-01/eeg/sub-01_ses-01_task-innerspeech_eeg.bdf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 13,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 4152,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:34.873Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-e6ba9f0c6a95dd783f55",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003638 (bdf) from https://cdn.eegdash.org/ds003638/sub-001/eeg/sub-001_task-5CCPTPSTPRBP_eeg.bdf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 13,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 479,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:39.031Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-e24a6b0a2a7c110e0b72",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003645 (set) from https://cdn.eegdash.org/ds003645/sub-002/eeg/sub-002_task-FacePerception_run-1_eeg.set",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 13,
+                  "parallelIndex": 3,
+                  "status": "failed",
+                  "duration": 60428,
+                  "error": {
+                    "message": "Error: ds003645: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003645: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003645: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003645: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003645: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003645: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:02:39.516Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--d18de-acePerception-run-1-eeg-set-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--d18de-acePerception-run-1-eeg-set-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--d18de-acePerception-run-1-eeg-set-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-9662a65026fb66c1c6a9",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003655 (set) from https://cdn.eegdash.org/ds003655/sub-001/eeg/sub-001_task-VerbalWorkingMemory_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 14,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 467,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:03:10.199Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-0b7abfd965bd065865e7",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003670 (set) from https://cdn.eegdash.org/ds003670/sub-001/ses-01/eeg/sub-001_ses-01_task-GXtESCTT_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 14,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 48178,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:03:10.735Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-78359e3b48d983a449de",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003682 (fif) from https://cdn.eegdash.org/ds003682/sub-001/ses-01/meg/sub-001_ses-01_task-AversiveLearningReplay_run-01_meg.fif",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 15,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 60421,
+                  "error": {
+                    "message": "Error: ds003682: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003682: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003682: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003682: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003682: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003682: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:03:21.172Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--5c14c-arningReplay-run-01-meg-fif-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--5c14c-arningReplay-run-01-meg-fif-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--5c14c-arningReplay-run-01-meg-fif-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-1aa10b211dcf5889d9c7",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003688 (vhdr) from https://cdn.eegdash.org/ds003688/sub-01/ses-iemu/ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 16,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 1204,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:03:33.140Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-8ece85890c5584367025",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003690 (set) from https://cdn.eegdash.org/ds003690/sub-AB4/eeg/sub-AB4_task-gonogo_run-1_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 16,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 2240,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:03:34.411Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-57c4c3412b1868af5e43",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003694 (fif) from https://cdn.eegdash.org/ds003694/sub-01/meg/sub-01_task-MEM_run-01_meg.fif",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 16,
+                  "parallelIndex": 2,
+                  "status": "failed",
+                  "duration": 60380,
+                  "error": {
+                    "message": "Error: ds003694: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003694: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003694: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003694: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003694: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003694: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:03:36.656Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--c38df--01-task-MEM-run-01-meg-fif-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--c38df--01-task-MEM-run-01-meg-fif-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--c38df--01-task-MEM-run-01-meg-fif-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-213ea561c0897b990c65",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003702 (vhdr) from https://cdn.eegdash.org/ds003702/sub-01/eeg/sub-01_task-SocialMemoryCuing_eeg.vhdr",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 17,
+                  "parallelIndex": 3,
+                  "status": "failed",
+                  "duration": 60399,
+                  "error": {
+                    "message": "Error: ds003702: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003702: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003702: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003702: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003702: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003702: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:03:40.372Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--13ef5--SocialMemoryCuing-eeg-vhdr-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--13ef5--SocialMemoryCuing-eeg-vhdr-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--13ef5--SocialMemoryCuing-eeg-vhdr-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-d90ecfc0d382be535239",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003703 (fif) from https://cdn.eegdash.org/ds003703/sub-a68d5xp5/meg/sub-a68d5xp5_task-listeningToSpeech_run-01_meg.fif",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 14,
+                  "parallelIndex": 1,
+                  "status": "failed",
+                  "duration": 60450,
+                  "error": {
+                    "message": "Error: ds003703: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003703: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003703: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003703: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003703: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003703: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:03:58.918Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--e4266-ningToSpeech-run-01-meg-fif-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--e4266-ningToSpeech-run-01-meg-fif-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--e4266-ningToSpeech-run-01-meg-fif-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-71e02a20ee399c4d485a",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003710 (vhdr) from https://cdn.eegdash.org/ds003710/sub-01/ses-1/eeg/sub-01_ses-1_task-appleseedexample_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 18,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1182,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:22.075Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-76ea9ffdca502a25e21a",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003739 (set) from https://cdn.eegdash.org/ds003739/sub-001/ses-01/eeg/sub-001_ses-01_task-pullstand_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 18,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 423,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:23.325Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-2efe64e8176ccee0c219",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003751 (set) from https://cdn.eegdash.org/ds003751/sub-mit113/eeg/sub-mit113_task-Emotion_eeg.set",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 18,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 60332,
+                  "error": {
+                    "message": "Error: ds003751: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003751: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n",
+                    "stack": "Error: ds003751: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003751: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9",
+                    "location": {
+                      "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                      "column": 9,
+                      "line": 281
+                    },
+                    "snippet": "  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                        "column": 9,
+                        "line": 281
+                      },
+                      "message": "Error: ds003751: stage-caption never visible\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator:  locator('#stage-caption')\nExpected: visible\nReceived: hidden\nTimeout:  60000ms\n\nCall log:\n\u001b[2m  - ds003751: stage-caption never visible with timeout 60000ms\u001b[22m\n\u001b[2m  - waiting for locator('#stage-caption')\u001b[22m\n\u001b[2m    64 × locator resolved to <div hidden=\"\" id=\"stage-caption\" class=\"stage-caption\"></div>\u001b[22m\n\u001b[2m       - unexpected value \"hidden\"\u001b[22m\n\n\n  279 |         page.locator('#stage-caption'),\n  280 |         `${c.dataset_id}: stage-caption never visible`,\n> 281 |       ).toBeVisible({ timeout: 60_000 });\n      |         ^\n  282 |\n  283 |       row.render_ms = Date.now() - t0;\n  284 |\n    at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:23.753Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--4fbda-mit113-task-Emotion-eeg-set-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--4fbda-mit113-task-Emotion-eeg-set-chromium/error-context.md"
+                    },
+                    {
+                      "name": "trace",
+                      "contentType": "application/zip",
+                      "path": "/Users/bruaristimunha/Projects/eegdash-viewer/test-results/acceptance-audit-loadable--4fbda-mit113-task-Emotion-eeg-set-chromium/trace.zip"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs",
+                    "column": 9,
+                    "line": 281
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-7c6c827f32cd7bb0f67c",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003753 (set) from https://cdn.eegdash.org/ds003753/sub-001/eeg/sub-001_task-ProbabilisticSelection_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 19,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 474,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:37.440Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-8fcc1c922f1535ea8fea",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003766 (set) from https://cdn.eegdash.org/ds003766/sub-01/eeg/sub-01_task-foodchoice_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 19,
+                  "parallelIndex": 2,
+                  "status": "passed",
+                  "duration": 16154,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:37.979Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-eaedd1d5664f84518fd2",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003768 (vhdr) from https://cdn.eegdash.org/ds003768/sub-01/eeg/sub-01_task-rest_run-1_eeg.vhdr",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 20,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1195,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:41.241Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-3b57f2574a6005f619a3",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003774 (set) from https://cdn.eegdash.org/ds003774/sub-001/ses-01/eeg/sub-001_ses-01_task-MusicListening_run-1_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 20,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 726,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:42.508Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-ebeb276c3bc0501c798e",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003775 (edf) from https://cdn.eegdash.org/ds003775/sub-001/ses-t1/eeg/sub-001_ses-t1_task-resteyesc_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 20,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1197,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:43.239Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-18d133eaddc3abe7774e",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003801 (set) from https://cdn.eegdash.org/ds003801/sub-001/eeg/sub-001_task-NeuralTrackingToGo_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 20,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 421,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:44.442Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-77ab2cd9978907dff5ff",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003805 (set) from https://cdn.eegdash.org/ds003805/sub-1/eeg/sub-1_task-MultisensoryGammaEntrainment_eeg.set",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 20,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1193,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:44.869Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-1a12d61ff84278de9ad1",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        },
+        {
+          "title": "loads ds003810 (edf) from https://cdn.eegdash.org/ds003810/sub-02/eeg/sub-02_task-MIvsRest_run-0_eeg.edf",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 90000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 20,
+                  "parallelIndex": 3,
+                  "status": "passed",
+                  "duration": 1162,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-05-21T15:04:46.068Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "a9635b4c73cc8953c402-78a1c672393d41c8ed2a",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 246,
+          "column": 3
+        }
+      ],
+      "suites": [
+        {
+          "title": "audit-loadable: browser reality check",
+          "file": "acceptance/audit-loadable.spec.mjs",
+          "line": 204,
+          "column": 6,
+          "specs": [
+            {
+              "title": "subsample bootstrap sanity",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 21,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-21T14:59:12.446Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a9635b4c73cc8953c402-e03329329dd9e57d2383",
+              "file": "acceptance/audit-loadable.spec.mjs",
+              "line": 205,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-05-21T14:59:12.003Z",
+    "duration": 372181.401,
+    "expected": 71,
+    "skipped": 0,
+    "unexpected": 19,
+    "flaky": 0
+  }
+}
