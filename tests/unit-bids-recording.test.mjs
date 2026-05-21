@@ -617,6 +617,7 @@ test('resolveTargets: ?dataset=nm000001 → kind:nemar with params including ver
       sub: '01',
       ses: null,
       task: 'rest',
+      acq: null,
       run: null,
       ext: null,
       version: 'v1.2.3',
@@ -1648,4 +1649,53 @@ test('resolveTargets: rejects protocol-relative // URL in ?eeg= param', () => {
     () => BIDSRecording.resolveTargets(params),
     /Invalid URL protocol/,
   );
+});
+
+// ─── acq entity threaded through URL → path (ds003688 bug) ──────
+
+test('buildOpenNeuroEegUrl: ?acq= threaded into filename in BIDS-required position', () => {
+  // ds003688 (iEEG film) needs both acq=clinical AND suffix=ieeg in
+  // the path. Filename order must be sub_ses_task_acq_run per BIDS spec.
+  const url = BIDSRecording.buildOpenNeuroEegUrl({
+    dataset: 'ds003688',
+    sub: '01',
+    ses: 'iemu',
+    task: 'film',
+    acq: 'clinical',
+    run: '1',
+    ext: 'vhdr',
+    suffix: 'ieeg',
+  });
+  assert.ok(url.endsWith('/ds003688/sub-01/ses-iemu/ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vhdr'),
+    `wrong URL produced: ${url}`);
+});
+
+test('buildOpenNeuroEegUrl: acq=null omitted from filename', () => {
+  // Backward compat: existing URLs without acq should produce
+  // the same filename as before this fix.
+  const url = BIDSRecording.buildOpenNeuroEegUrl({
+    dataset: 'ds002893',
+    sub: '001',
+    task: 'AuditoryVisualShift',
+    run: '01',
+    ext: 'set',
+    suffix: 'eeg',
+  });
+  assert.ok(url.endsWith('/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.set'),
+    `wrong URL produced: ${url}`);
+});
+
+test('resolveTargets: ?acq= propagated through to params.acq', () => {
+  const params = new URLSearchParams(
+    'dataset=ds003688&sub=01&ses=iemu&task=film&acq=clinical&run=1&ext=vhdr&suffix=ieeg',
+  );
+  const t = BIDSRecording.resolveTargets(params);
+  // resolveTargets returns a target descriptor; either it includes
+  // params.acq directly OR the resolved eeg_url contains _acq-clinical_.
+  if (t.params) {
+    assert.equal(t.params.acq, 'clinical');
+  } else if (t.eeg_url) {
+    assert.ok(t.eeg_url.includes('_acq-clinical_'),
+      `eeg_url missing _acq-clinical_: ${t.eeg_url}`);
+  }
 });

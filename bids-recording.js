@@ -81,11 +81,20 @@
   // bidspath filter against the eegdash records API). Lifted out so
   // both call sites stay in lockstep when BIDS path conventions evolve.
   // Suffix defaults to 'eeg' but supports 'ieeg', 'emg', 'meg', 'nirs', etc.
+  //
+  // BIDS entity order (per the BIDS spec, MUST appear in this order in
+  // the filename): sub, ses, task, acq, ce, rec, dir, run, mod, echo,
+  // flip, inv, mt, part, proc, hemi, space, split, recording, chunk.
+  // We thread sub/ses/task/acq/run because those are the entities the
+  // viewer's URL grammar accepts. acq is critical for iEEG datasets
+  // like ds003688 (clinical vs research electrode banks) and for MEG
+  // datasets that distinguish noise/empty-room vs subject recordings.
   function buildBidsRelpath(params, suffix) {
     const ds   = required(params, 'dataset');
     const sub  = required(params, 'sub');
     const ses  = params.ses || null;
     const task = params.task || null;
+    const acq  = params.acq || null;
     const run  = params.run || null;
     const ext  = (params.ext || 'set').toLowerCase();
     const suf  = (suffix || 'eeg').toLowerCase();
@@ -104,6 +113,7 @@
     let entities = `sub-${sub}`;
     if (ses)  entities += `_ses-${ses}`;
     if (task) entities += `_task-${task}`;
+    if (acq)  entities += `_acq-${acq}`;
     if (run)  entities += `_run-${run}`;
     return `${segs.join('/')}/${entities}_${suf}.${ext}`;
   }
@@ -845,6 +855,12 @@
         sub:     p.get('sub'),
         ses:     p.get('ses'),
         task:    p.get('task'),
+        // acq is the BIDS "acquisition" entity. Critical for iEEG
+        // (clinical vs research electrode banks) and MEG (subject vs
+        // empty-room). Threaded through buildBidsRelpath so the
+        // filename gets the `_acq-<X>_` segment in the BIDS-required
+        // position between _task- and _run-.
+        acq:     p.get('acq'),
         run:     p.get('run'),
         ext:     p.get('ext'),
         // NEMAR only: pin a specific manifest version. The loader
@@ -853,6 +869,10 @@
         version: p.get('version') || undefined,
       };
       // Determine suffix (default to 'eeg', can be overridden with ?suffix=)
+      // For iEEG datasets the user must currently pass ?suffix=ieeg
+      // explicitly. A future iteration could auto-fall-back to ieeg on
+      // 404 of the eeg path; for now the explicit param keeps the URL
+      // unambiguous.
       const suffix = p.get('suffix') || 'eeg';
       params.suffix = suffix;
       // NEMAR (nm-prefixed) datasets resolve via the eegdash records
