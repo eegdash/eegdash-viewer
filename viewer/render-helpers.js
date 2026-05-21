@@ -49,7 +49,61 @@
     };
   }
 
-  const api = { buildDrawOpts };
+  // Issue a single best-effort prefetch in the user's last pan direction.
+  //
+  // Inputs (deps object, read-only refs the caller closes over and
+  // passes fresh on every call):
+  //   readerInfo, view, lastPanDir,
+  //   rpcIsIdle()       — gate so we don't queue behind foreground
+  //   worker            — Worker instance (null in Node tests)
+  //   workerFetchWindow — (s, n, signal) => Promise<channels>
+  //   fallbackReader    — non-worker readWindow path
+  //   readCache         — "start-n" → Promise<channels> Map (mutated)
+  //   READ_CACHE_MAX    — LRU bound for readCache
+  //   clampStartSamples — coerce a start-time seconds to an in-range sample idx
+  //
+  // Returns: void. The prefetch promise lives in readCache and is
+  // discarded if it rejects (caller doesn't await — this is fire-and-forget).
+  function prefetchNeighbours(deps) {
+    const {
+      readerInfo, view, lastPanDir,
+      rpcIsIdle, worker, workerFetchWindow, fallbackReader,
+      readCache, READ_CACHE_MAX, clampStartSamples,
+    } = deps;
+    if (!readerInfo) return;
+    // Gate: if the worker has any in-flight FETCH_WINDOW, do NOT
+    // queue prefetches behind it. The worker processes requests
+    // serially; queuing 4 prefetches behind a foreground fetch
+    // pushes the user's NEXT pan ~5 round-trips deep and produces
+    // the multi-second lag the perf benchmark exposed.
+    if (!rpcIsIdle()) return;
+    const fs = readerInfo.sampling_frequency;
+    const n = Math.round(view.window_sec * fs);
+    // Single-target prefetch: the most likely next window in the
+    // user's pan direction. Fan-out higher than 1 amplifies queue
+    // contention without speeding up perception.
+    const half = view.window_sec / 2;
+    const targets = lastPanDir !== 0
+      ? [clampStartSamples(view.start_sec + lastPanDir * half)]
+      : [clampStartSamples(view.start_sec + half)];
+    for (const s of targets) {
+      const key = `${s}-${n}`;
+      if (readCache.has(key)) continue;
+      // No abort signal: prefetch is best-effort.
+      let p;
+      if (worker) {
+        p = workerFetchWindow(s, n, null).catch(() => null);
+      } else {
+        p = fallbackReader.readWindow(s, n).catch(() => null);
+      }
+      readCache.set(key, p);
+      while (readCache.size > READ_CACHE_MAX) {
+        readCache.delete(readCache.keys().next().value);
+      }
+    }
+  }
+
+  const api = { buildDrawOpts, prefetchNeighbours };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.ViewerRenderHelpers = api;
 })();

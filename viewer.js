@@ -422,41 +422,19 @@
       return Math.max(0, Math.min(readerInfo.n_samples - n, Math.round(secs * fs)));
     }
 
+    // F3: prefetchNeighbours body lives in viewer/render-helpers.js now.
+    // The wrapper bundles closure-captured state (incl. let-rebound
+    // `lastPanDir`, `readerInfo`, `fallbackReader`) into a deps object
+    // on every call so the helper sees the live values.
     function prefetchNeighbours() {
-      if (!readerInfo) return;
-      // Gate: if the worker has any in-flight FETCH_WINDOW, do NOT
-      // queue prefetches behind it. The worker processes requests
-      // serially; queuing 4 prefetches behind a foreground fetch
-      // pushes the user's NEXT pan ~5 round-trips deep and produces
-      // the multi-second lag the perf benchmark exposed (cold p50 was
-      // 3× the floor, warm p95 6× over budget). Prefetch only when the
-      // worker is idle.
-      if (!rpc.isIdle()) return;
-      const fs = readerInfo.sampling_frequency;
-      const n = Math.round(view.window_sec * fs);
-      // Single-target prefetch: the most likely next window in the
-      // user's pan direction. Fan-out higher than 1 amplifies queue
-      // contention without speeding up perception (the user's NEXT
-      // arrow press only needs 1 cached window, not 4).
-      const half = view.window_sec / 2;
-      const targets = lastPanDir !== 0
-        ? [clampStartSamples(view.start_sec + lastPanDir * half)]
-        : [clampStartSamples(view.start_sec + half)];
-      for (const s of targets) {
-        const key = `${s}-${n}`;
-        if (readCache.has(key)) continue;
-        // No abort signal: prefetch is best-effort.
-        let p;
-        if (worker) {
-          p = workerFetchWindow(s, n, null).catch(() => null);
-        } else {
-          p = fallbackReader.readWindow(s, n).catch(() => null);
-        }
-        readCache.set(key, p);
-        while (readCache.size > READ_CACHE_MAX) {
-          readCache.delete(readCache.keys().next().value);
-        }
-      }
+      const RH = (typeof globalThis !== 'undefined' && globalThis.ViewerRenderHelpers)
+        || (typeof require !== 'undefined' ? require('./viewer/render-helpers.js') : null);
+      RH.prefetchNeighbours({
+        readerInfo, view, lastPanDir,
+        rpcIsIdle: () => rpc.isIdle(),
+        worker, workerFetchWindow, fallbackReader,
+        readCache, READ_CACHE_MAX, clampStartSamples,
+      });
     }
 
     // Track the current active filter state so streaming path knows
