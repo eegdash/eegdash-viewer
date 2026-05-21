@@ -482,12 +482,15 @@ self.onmessage = async function (evt) {
             const trimmed = assembledChannels.map(ch => ch.subarray(0, totalSamples));
             rawCachePut(cacheKey, trimmed);
             resolveInflight(rawCacheGet(cacheKey));
-            const filtered = trimmed.map(rawCh => globalThis.Filters.applyChain(rawCh, filterSnapshot));
-            const ownedFiltered = filtered.map(ch => {
-              const a = new Float32Array(ch.length);
-              a.set(ch);
-              return a;
-            });
+            // applyChain with a non-empty filter chain returns a fresh
+            // Float32Array (`Float32Array.from(bk)` inside filters.js), so
+            // the result already owns a transferable buffer. We're in the
+            // `hasFilter` branch (filterSnapshot.length > 0), so the empty-
+            // chain early-return-with-input-ref path is never taken here —
+            // skip the redundant copy.
+            const ownedFiltered = trimmed.map(rawCh =>
+              globalThis.Filters.applyChain(rawCh, filterSnapshot),
+            );
             self.postMessage(
               { type: 'WINDOW_CHUNK', request_id, partial: false,
                 sample_start: start_sample, sample_end: start_sample + ownedFiltered[0].length - 1,
