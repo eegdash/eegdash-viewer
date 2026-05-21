@@ -155,6 +155,52 @@ test('parseEegUrl: rejects URLs that are not BIDS *_eeg.<ext>', () => {
     /URL is not a BIDS \*_/);
 });
 
+// ─── [#D3] parseEegUrl error-message word-pinning + return shape ───
+// Pins EVERY word and the URL interpolation in the error message at
+// bids-recording.js:75. StringLiteral mutants on "URL", "BIDS", "*_",
+// "{suffix}", ".<ext>", or "path:" all survive `/URL is not a BIDS \*_/`
+// alone — multi-token regex makes each token a separate kill.
+//
+// Also pins the SUCCESS-path return-shape fields (dir/prefix/suffix/ext)
+// for a canonical BIDS URL so any object-literal mutation at line 64 is
+// caught alongside the error path.
+
+test('parseEegUrl: error message pins all words + offending URL (kills StringLiteral mutants) [#D3]', () => {
+  assert.throws(
+    () => BIDSRecording.parseEegUrl('https://x.example/no-entities.bin'),
+    (err) => {
+      // Each /.../ pin kills a different StringLiteral mutant.
+      assert.match(err.message, /URL is not a BIDS/,
+        '"URL is not a BIDS" prefix must survive');
+      assert.match(err.message, /\*_/,
+        '"*_" glob marker must survive (kills "*_" → "" mutant)');
+      assert.match(err.message, /\{suffix\}/,
+        '"{suffix}" placeholder is literal, not interpolated');
+      assert.match(err.message, /<ext>/,
+        '"<ext>" placeholder is literal');
+      assert.match(err.message, /path:/,
+        '"path:" delimiter must survive');
+      assert.match(err.message, /no-entities\.bin/,
+        'offending URL must be appended (kills URL-in-message drop mutant)');
+      return true;
+    },
+  );
+});
+
+test('parseEegUrl: success-path return shape for canonical BIDS URL [#D3]', () => {
+  // Pins the object-literal at bids-recording.js:64 — every field name
+  // and slice math (dir, prefix, suffix, ext.toLowerCase()).
+  const ok = BIDSRecording.parseEegUrl('https://x.example/ds001/sub-01_task-rest_eeg.edf');
+  assert.equal(ok.dir, 'https://x.example/ds001/',
+    'dir captures trailing slash');
+  assert.equal(ok.prefix, 'sub-01_task-rest',
+    'prefix excludes the _{suffix} segment');
+  assert.equal(ok.suffix, 'eeg',
+    'suffix from the BIDS regex group');
+  assert.equal(ok.ext, 'edf',
+    'ext is lowercased and dot-stripped');
+});
+
 // ----- buildOpenNeuroEegUrl --------------------------------------
 
 // Default URL routes through cdn.eegdash.org (Cloudflare Worker proxy
