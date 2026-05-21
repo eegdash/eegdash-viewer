@@ -110,19 +110,43 @@ const CASES = subsample(ALL_LOADABLE, SAMPLE_SIZE, SEED);
 //      parent-PID truncates only when the PPID changes (which means a new
 //      shell-level `npm run test:audit-reality` invocation).
 fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
-const TRUNCATE_SENTINEL = path.join(EVIDENCE_DIR, '.last-truncate-ppid');
-const PARENT_PID_KEY = String(process.ppid ?? process.pid);
-const sentinelPpid = fs.existsSync(TRUNCATE_SENTINEL)
-  ? fs.readFileSync(TRUNCATE_SENTINEL, 'utf8').trim()
-  : '';
-if (!process.env.__AUDIT_RESULTS_TRUNCATED__ && sentinelPpid !== PARENT_PID_KEY) {
-  fs.writeFileSync(RESULTS_JSONL, '');
-  fs.writeFileSync(TRUNCATE_SENTINEL, PARENT_PID_KEY);
-  process.env.__AUDIT_RESULTS_TRUNCATED__ = '1';
-} else if (!process.env.__AUDIT_RESULTS_TRUNCATED__) {
-  // Same parent PID = same outer playwright run; do not retruncate even if
-  // the module re-evaluates across test isolations.
-  process.env.__AUDIT_RESULTS_TRUNCATED__ = '1';
+
+// Per-worker shard selection — only active under AUDIT_FULL because the
+// legacy 20-sample mode is serial and the single-file truncate sentinel
+// below is its correctness invariant.
+const FULL_MODE = process.env.AUDIT_FULL === '1';
+const WORKER_INDEX = process.env.TEST_WORKER_INDEX ?? '0';
+const RESULTS_JSONL_EFFECTIVE = FULL_MODE
+  ? path.join(EVIDENCE_DIR, `results.worker-${WORKER_INDEX}.jsonl`)
+  : RESULTS_JSONL;
+
+if (FULL_MODE) {
+  // Each worker owns its own shard file. Truncate at most once per worker
+  // process. Workers never share files, so no PPID sentinel is needed —
+  // a per-process env flag suffices because Playwright re-imports the
+  // spec inside the same worker for each test, not across worker boundaries.
+  if (!process.env.__AUDIT_SHARD_TRUNCATED__) {
+    fs.writeFileSync(RESULTS_JSONL_EFFECTIVE, '');
+    process.env.__AUDIT_SHARD_TRUNCATED__ = '1';
+  }
+} else {
+  // Legacy 20-sample path — preserve the parent-PID sentinel exactly as
+  // it was (commit 8852a7c). Single file, serial worker, one truncate per
+  // outer `npm run test:audit-reality` invocation.
+  const TRUNCATE_SENTINEL = path.join(EVIDENCE_DIR, '.last-truncate-ppid');
+  const PARENT_PID_KEY = String(process.ppid ?? process.pid);
+  const sentinelPpid = fs.existsSync(TRUNCATE_SENTINEL)
+    ? fs.readFileSync(TRUNCATE_SENTINEL, 'utf8').trim()
+    : '';
+  if (!process.env.__AUDIT_RESULTS_TRUNCATED__ && sentinelPpid !== PARENT_PID_KEY) {
+    fs.writeFileSync(RESULTS_JSONL, '');
+    fs.writeFileSync(TRUNCATE_SENTINEL, PARENT_PID_KEY);
+    process.env.__AUDIT_RESULTS_TRUNCATED__ = '1';
+  } else if (!process.env.__AUDIT_RESULTS_TRUNCATED__) {
+    // Same parent PID = same outer playwright run; do not retruncate even if
+    // the module re-evaluates across test isolations.
+    process.env.__AUDIT_RESULTS_TRUNCATED__ = '1';
+  }
 }
 
 /**
@@ -200,7 +224,7 @@ test.afterEach(async ({}, testInfo) => {
       row.error_message = String(testInfo.error.message || testInfo.error).slice(0, 500);
     }
   }
-  fs.appendFileSync(RESULTS_JSONL, JSON.stringify(row) + '\n');
+  fs.appendFileSync(RESULTS_JSONL_EFFECTIVE, JSON.stringify(row) + '\n');
   PENDING_RESULTS.delete(testInfo.title);
 });
 
