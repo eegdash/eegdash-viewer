@@ -159,6 +159,40 @@ test('fiff range: returns channel labels and duration', async () => {
   assert.equal(reader.duration_s, 0.5);  // 50 samples / 100 Hz
 });
 
+test('fiff range: readWindow(0, 10) returns 10 samples per channel', async () => {
+  const reader = await FiffReader.open({ eeg_url: 'mock://synth.fif' });
+  const win = await reader.readWindow(0, 10);
+  assert.equal(win.length, 2);
+  for (const ch of win) {
+    assert.ok(ch instanceof Float32Array);
+    assert.equal(ch.length, 10);
+  }
+  // Synthetic data: interleaved [0.00, 0.01, 0.02, 0.03, …] (channel-pair-per-sample
+  // because we wrote i*0.01 to position i; sample t channel c is i = t*2+c).
+  for (let t = 0; t < 10; t++) {
+    assert.ok(Math.abs(win[0][t] - (t * 2 + 0) * 0.01) < 1e-6);
+    assert.ok(Math.abs(win[1][t] - (t * 2 + 1) * 0.01) < 1e-6);
+  }
+});
+
+test('fiff range: readWindow only fetches the bytes for the window', async () => {
+  const reader = await FiffReader.open({ eeg_url: 'mock://synth.fif' });
+  // Forget the open()-time fetches; we only care about subsequent ones.
+  rangeRequestLog.length = 0;
+  await reader.readWindow(0, 10);
+  const fetched = rangeRequestLog.reduce((a, r) => a + (r.end - r.start + 1), 0);
+  // 10 samples × 2 chans × 4 bytes = 80 bytes. Allow some slack for
+  // covering-buffer-boundary overfetch (rounds to whole buffer in v1).
+  assert.ok(fetched <= 500, `readWindow fetched ${fetched}B for 80B window`);
+});
+
+test('fiff range: readWindow at tail clamps to n_samples', async () => {
+  const reader = await FiffReader.open({ eeg_url: 'mock://synth.fif' });
+  const win = await reader.readWindow(reader.n_samples - 3, 100);
+  assert.ok(win[0].length <= 3, `tail window length ${win[0].length}`);
+  assert.ok(win[0].length > 0);
+});
+
 test('fiff range: falls back to fetchBuffer when DIR_POINTER = -1', async () => {
   // Rewrite the DIR_POINTER payload to -1 → no-directory file.
   const dv = new DataView(mockSource);

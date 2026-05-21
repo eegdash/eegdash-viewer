@@ -638,13 +638,77 @@
     };
   }
 
-  // Task 3 + 4 placeholders so api.open can reference them. These
-  // throw until Task 3 / Task 4 implement them.
-  async function readWindowRange(url, nchan, cals, bufIndex, totalSamples, startReq, nReq, opts) {
-    void url; void nchan; void cals; void bufIndex; void totalSamples;
-    void startReq; void nReq; void opts;
-    throw new Error('fiff: range readWindow not implemented yet');
+  // Binary-search the buffer index for the first buffer covering
+  // `targetSample`. bufIndex is ordered by ascending cumStart so a
+  // standard lower_bound on cumStart + samplesInBuf works.
+  function findBufferForSample(bufIndex, targetSample) {
+    let lo = 0, hi = bufIndex.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const b = bufIndex[mid];
+      const bufEnd = b.cumStart + b.samplesInBuf;
+      if (targetSample < b.cumStart) hi = mid - 1;
+      else if (targetSample >= bufEnd) lo = mid + 1;
+      else return mid;
+    }
+    return -1;
   }
+
+  async function readWindowRange(url, nchan, cals, bufIndex, totalSamples, startReq, nReq, opts) {
+    const start = Math.max(0, startReq);
+    if (start >= totalSamples || nReq <= 0) {
+      const out = new Array(nchan);
+      for (let c = 0; c < nchan; c++) out[c] = new Float32Array(0);
+      return out;
+    }
+    const end = Math.min(start + nReq, totalSamples);
+    const nWin = end - start;
+    const firstBufIdx = findBufferForSample(bufIndex, start);
+    if (firstBufIdx === -1) throw new Error(`fiff: no buffer covers sample ${start}`);
+
+    // Output allocation — one Float32Array per channel.
+    const out = new Array(nchan);
+    for (let c = 0; c < nchan; c++) out[c] = new Float32Array(nWin);
+
+    // Walk buffers in order, range-fetching each that overlaps the window.
+    // For v1 we fetch the entire buffer's payload (typical buffer is
+    // ~64 KB, well under the 256 KB tile threshold so it's a single
+    // single-tile fetch).
+    let writeOff = 0;
+    for (let i = firstBufIdx; i < bufIndex.length && writeOff < nWin; i++) {
+      const b = bufIndex[i];
+      const bufStartSample = b.cumStart;
+      const bufEndSample   = b.cumStart + b.samplesInBuf;
+      const sliceStart = Math.max(start, bufStartSample) - bufStartSample;  // local sample index
+      const sliceEnd   = Math.min(end,   bufEndSample)   - bufStartSample;
+      const nLocal = sliceEnd - sliceStart;
+      if (nLocal <= 0) continue;
+
+      // Range-fetch the whole buffer payload (v1; could narrow to
+      // [sliceStart*nchan*bps, sliceEnd*nchan*bps] for huge buffers
+      // but that's an optimisation for later).
+      const payloadStart = b.payloadOffset;
+      const payloadEnd   = b.payloadOffset + b.payloadSize - 1;
+      const fetched = await globalThis.HttpRange.rangeFetch(
+        url, payloadStart, payloadEnd, b.payloadSize, opts,
+      );
+      const expectedElemCount = b.samplesInBuf * nchan;
+      const decoded = decodeRawBufferBytes(fetched, b.miType, expectedElemCount);
+      // De-interleave + calibrate the slice we want.
+      for (let t = 0; t < nLocal; t++) {
+        const src = (sliceStart + t) * nchan;
+        const dst = writeOff + t;
+        for (let c = 0; c < nchan; c++) {
+          out[c][dst] = decoded[src + c] * cals[c];
+        }
+      }
+      writeOff += nLocal;
+    }
+    return out;
+  }
+
+  // Task 4 placeholder so api.open can reference it. Throws until Task 4
+  // implements it.
   async function* readWindowRangeStreaming(url, nchan, cals, bufIndex, totalSamples, startReq, nReq, opts) {
     void url; void nchan; void cals; void bufIndex; void totalSamples;
     void startReq; void nReq; void opts;
