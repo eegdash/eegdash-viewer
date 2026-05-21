@@ -8,12 +8,14 @@
 
 ## Headline
 
-**80 of 100 datasets are loadable in the viewer.**
+**82 of 100 datasets are loadable in the viewer (post subject-discovery fix, 2026-05-21).**
+
+> Original audit: 80/100. The +2 lift came from `api.discoverSubject` (commit landing 2026-05-21), which probes `participants.tsv` → S3 prefix-list when `?sub=` is omitted from the viewer URL. See plan `docs/superpowers/plans/2026-05-21-subject-discovery.md`.
 
 | Datatype | Loadable | Total in sample | % |
 |---|---:|---:|---:|
 | iEEG | 3 | 3 | **100.0%** |
-| EEG | 66 | 70 | **94.3%** |
+| EEG | 68 | 70 | **97.1%** |
 | MEG | 11 | 27 | **40.7%** |
 
 ## What "loadable" means
@@ -42,10 +44,10 @@ Example: `ds003633/sub-01/ses-movie/meg/sub-01_ses-movie_task-movie_run-01_meg.d
 
 ### EEG (4 failures) — mixed root causes
 
-- `ds003620`: subject discovery falls back to `sub-01` but no `participants.tsv` exists and the S3 listing for `sub-*` returns derived/processed files first.
-- `ds003774`: same root cause — missing `participants.tsv`, S3 listing surfaces `Code/ESongs/*.wav` instead of subject directories.
+- `ds003620`: subject discovery falls back to `sub-01` but no `participants.tsv` exists and the S3 listing for `sub-*` returns derived/processed files first. **FIXED 2026-05-21**: viewer now auto-discovers subject via `participants.tsv` → S3-list fallback (see `bids-recording.js` `api.discoverSubject`, plan `docs/superpowers/plans/2026-05-21-subject-discovery.md`).
+- `ds003774`: same root cause — missing `participants.tsv`, S3 listing surfaces `Code/ESongs/*.wav` instead of subject directories. **FIXED 2026-05-21**: same fix as above.
 
-Both are **audit-harness limitations**, not viewer bugs. A user pasting the URL directly would still see the viewer load via auto-detect, provided they pick the right subject ID. Probable real-user loadable rate on these 4 is ~50%, bringing the project-wide loadable rate to ~82%.
+Both are now loadable from minimal URLs (`?dataset=ds003774&task=MusicListening&ext=set` — no `?sub=` needed). The fix raises overall loadable rate from 80% → **82%** (4 → 6 EEG loadable, 66 → 68 EEG total, project-wide 80 → 82).
 
 ## Loadable examples (first 5)
 
@@ -72,7 +74,7 @@ ds002336  eeg   sub-xp101 .../sub-xp101_task-eegNF_eeg.vhdr
 | Change | Datasets gained | Effort |
 |---|---:|---|
 | Implement CTF MEG reader (`.ds/` directory bundles) | +16 | 1-2 weeks |
-| Better subject discovery (fall back to S3 prefix list when participants.tsv missing) | +2 | Already shipped in this audit script; viewer would need similar resilience |
+| Better subject discovery (fall back to S3 prefix list when participants.tsv missing) | +2 | **SHIPPED 2026-05-21** (plan `docs/superpowers/plans/2026-05-21-subject-discovery.md`) |
 | Handle SNIRF/NIRS files | already supported by viewer; just no NIRS datasets in this random sample | n/a |
 
 Adding CTF support would lift MEG from 40.7% → ~85%+ and the overall rate from 80% → 96%+.
