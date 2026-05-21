@@ -18,6 +18,7 @@
     "test:audit-reality:soft": "AUDIT_SOFT_FAIL=1 playwright test tests/e2e/acceptance/audit-loadable.spec.mjs --project=chromium",
     "test:audit-reality:full": "AUDIT_FULL=1 playwright test --config=playwright.audit-full.config.mjs tests/e2e/acceptance/audit-loadable.spec.mjs",
     "report:audit-reality": "node scripts/audit-browser-reality-report.mjs",
+    "merge:audit-shards": "node scripts/audit-merge-shards.mjs",
     "test:perf": "node bench/check-regression.mjs",
     "test:typecheck": "tsc --noEmit -p jsconfig.json",
     "test:bench": "node bench/run-all.tinybench.mjs",
