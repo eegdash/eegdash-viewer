@@ -1,0 +1,24 @@
+PATH OF DATASET:
+/synthetic/ctf-tiny.ds
+
+NUMBER OF MARKERS:
+1
+
+CLASSGROUPID:
+0
+NAME:
+Trigger1
+COMMENT:
+
+COLOR:
+red
+EDITABLE:
+Yes
+CLASSID:
+1
+NUMBER OF SAMPLES:
+2
+LIST OF SAMPLES:
+TRIAL NUMBER		TIME FROM SYNC POINT (in seconds)
+                +0		   +0.500000
+                +0		   +1.250000
