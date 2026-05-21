@@ -514,6 +514,14 @@ self.onmessage = async function (evt) {
               }
               totalSamples += chunkLen;
 
+              // Re-check cancellation right before the per-chunk copy. The
+              // assembly above is cheap (typed-array .set, mutating buffers
+              // we already own), but the transferable.map below allocates
+              // N×chunkLen Float32s plus the postMessage. If the caller
+              // cancelled between the top-of-iter check and now, skip both.
+              if (!isStillCurrent()) { resolveInflight([]); return; }
+              if (isRequestCancelled(request_id)) { resolveInflight([]); return; }
+
               // Send partial chunk (transferable — transfer ownership; assembledChannels
               // keeps its own copy so we can't transfer from that; must copy for transfer)
               const transferable = chunk.channels.map(ch => {
