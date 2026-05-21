@@ -193,17 +193,25 @@ test('fiff range: readWindow at tail clamps to n_samples', async () => {
   assert.ok(win[0].length > 0);
 });
 
-test('fiff range: falls back to fetchBuffer when DIR_POINTER = -1', async () => {
-  // Rewrite the DIR_POINTER payload to -1 → no-directory file.
+test('fiff range: header-walks the file when DIR_POINTER = -1', async () => {
+  // Rewrite the DIR_POINTER payload to -1 → "no directory" sentinel.
+  // The reader now reconstructs the directory by sequential header
+  // walk (MNE-Python mne/_fiff/open.py:183-192 strategy) instead of
+  // hitting the 200 MB whole-file fallback. Verify open() succeeds and
+  // returns the same metadata as the directory path.
   const dv = new DataView(mockSource);
   dv.setInt32(0x24 + 16, -1, false);
-  // The fallback path uses fetchBuffer. Mock it.
+  // Track whether fetchBuffer was called — it MUST NOT be (the header
+  // walk uses rangeFetch only).
   let fetchBufferCalled = false;
+  const origFetchBuffer = globalThis.HttpRange.fetchBuffer;
   globalThis.HttpRange.fetchBuffer = async (url) => {
     fetchBufferCalled = true;
-    return mockSource;
+    return origFetchBuffer ? origFetchBuffer(url) : mockSource;
   };
   const reader = await FiffReader.open({ eeg_url: 'mock://synth-nodir.fif' });
-  assert.equal(fetchBufferCalled, true, 'fallback must call fetchBuffer');
+  assert.equal(fetchBufferCalled, false, 'header-walk path must NOT call fetchBuffer');
   assert.equal(reader.n_channels, 2);
+  assert.equal(reader.sampling_frequency, 100);
+  assert.equal(reader.n_samples, 50);
 });

@@ -128,6 +128,85 @@ test('fiff-dir: rejects garbage first tag', () => {
 const REAL_FIXTURE = path.resolve('tests/fixtures/meg/test_ctf_comp_raw.fif');
 const skipIfNoFixture = !fs.existsSync(REAL_FIXTURE);
 
+test('fiff-dir: buildDirectoryByHeaderWalk reconstructs entries when no DIR_POINTER', async () => {
+  // Build a synthetic stream-writer FIFF: FILE_ID, DIR_POINTER payload=-1,
+  // MEAS_INFO block (empty), RAW_DATA block with one big DATA_BUFFER, EOF.
+  // The walker should produce the same shape of {kind,type,size,position}
+  // entries as parseDirectory would for an end-of-file FIFF_DIR.
+  const PAYLOAD_BYTES = 256;
+  const buf = new ArrayBuffer(0x100 + PAYLOAD_BYTES);
+  const dv  = new DataView(buf);
+  // 0x00 FILE_ID
+  writeTagBE(dv, 0x00, FIFF_FILE_ID, 31, 20, 0);
+  // 0x24 DIR_POINTER payload=-1 (no directory)
+  writeTagBE(dv, 0x24, FIFF_DIR_POINTER, TYPE_INT32, 4, 0);
+  dv.setInt32(0x24 + 16, -1, false);
+  // 0x38 BLOCK_START MEAS_INFO
+  writeTagBE(dv, 0x38, FIFF_BLOCK_START, TYPE_INT32, 4, 0);
+  dv.setInt32(0x38 + 16, FIFFB_MEAS_INFO, false);
+  // 0x4c BLOCK_END MEAS_INFO
+  writeTagBE(dv, 0x4c, FIFF_BLOCK_END, TYPE_INT32, 4, 0);
+  dv.setInt32(0x4c + 16, FIFFB_MEAS_INFO, false);
+  // 0x60 BLOCK_START RAW_DATA
+  writeTagBE(dv, 0x60, FIFF_BLOCK_START, TYPE_INT32, 4, 0);
+  dv.setInt32(0x60 + 16, FIFFB_RAW_DATA, false);
+  // 0x74 FIFF_DATA_BUFFER (big payload — walker should skip via size jump)
+  writeTagBE(dv, 0x74, FIFF_DATA_BUFFER, 4, PAYLOAD_BYTES, 0);
+  // After header + payload: pos = 0x74 + 16 + PAYLOAD_BYTES
+  const blockEndPos = 0x74 + 16 + PAYLOAD_BYTES;
+  // BLOCK_END RAW_DATA with next=-1 → walker stops cleanly
+  writeTagBE(dv, blockEndPos, FIFF_BLOCK_END, TYPE_INT32, 4, -1);
+  dv.setInt32(blockEndPos + 16, FIFFB_RAW_DATA, false);
+
+  const totalBytes = blockEndPos + 16 + 4;  // last tag header + 4-byte payload
+  // Fake fetchRange backed by the synthetic buffer. Slice [s, e].
+  let fetchCount = 0;
+  const fetchRange = async (s, e) => {
+    fetchCount++;
+    return buf.slice(s, e + 1);
+  };
+  const dir = await FiffDir.buildDirectoryByHeaderWalk(
+    'https://example.invalid/synthetic.fif',
+    totalBytes,
+    fetchRange,
+    { chunk: 64 },  // tiny chunk to force multiple fetches
+  );
+  // Should have collected: FILE_ID, DIR_POINTER, BLOCK_START×2,
+  // BLOCK_END×1 (the MEAS_INFO end), BLOCK_START (RAW_DATA),
+  // DATA_BUFFER, BLOCK_END (RAW_DATA). Total = 7 tag headers walked.
+  // (Note: we have FILE_ID + DIR_POINTER + 4 BLOCK_* + 1 DATA_BUFFER = 7)
+  assert.equal(dir.entries.length, 7, 'walker found all 7 tag headers');
+  assert.equal(dir.entries[0].kind, FIFF_FILE_ID);
+  assert.equal(dir.entries[1].kind, FIFF_DIR_POINTER);
+  // DATA_BUFFER must be at position 0x74 (proves walker did NOT
+  // mistakenly walk INTO the payload byte-by-byte).
+  const dataBufEntry = dir.entries.find(e => e.kind === FIFF_DATA_BUFFER);
+  assert.ok(dataBufEntry, 'data buffer entry found');
+  assert.equal(dataBufEntry.position, 0x74);
+  assert.equal(dataBufEntry.size, PAYLOAD_BYTES);
+
+  // The blockIds map should have the 4 BLOCK_START/BLOCK_END positions.
+  assert.equal(dir.blockIds.size, 4, 'blockIds populated for all BLOCK_START/END tags');
+  assert.equal(dir.blockIds.get(0x38), FIFFB_MEAS_INFO);
+  assert.equal(dir.blockIds.get(0x60), FIFFB_RAW_DATA);
+
+  // Verify indexBlocks works on the synthesized entries.
+  const blocks = FiffDir.indexBlocks(
+    (pos) => dir.blockIds.get(pos) ?? null,
+    dir.entries,
+  );
+  assert.ok(blocks.meas_info, 'header-walked entries → MEAS_INFO indexed');
+  assert.equal(blocks.meas_info.startTagOffset, 0x38);
+  assert.ok(blocks.raw_data, 'header-walked entries → RAW_DATA indexed');
+  assert.equal(blocks.raw_data.buffers.length, 1);
+  assert.equal(blocks.raw_data.buffers[0].payloadOffset, 0x74 + 16);
+
+  // Walker should issue a small number of fetches relative to file size.
+  // Each fetch is ≤ CHUNK bytes; with 64 B chunks and ~7 distinct tag
+  // headers, expect ≤ 7 fetches.
+  assert.ok(fetchCount <= 7, `expected ≤7 fetches, got ${fetchCount}`);
+});
+
 test('fiff-dir: real-world test_ctf_comp_raw.fif parses DIR_POINTER correctly', { skip: skipIfNoFixture }, () => {
   const buf = fs.readFileSync(REAL_FIXTURE);
   const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);

@@ -445,31 +445,24 @@
 
     const dirInfo = globalThis.FiffDir.readDirPointer(headView);
 
+    // dir.entries: array of {kind,type,size,position}. Two paths to
+    // build it:
+    //   (a) DIR_POINTER is set → parse the end-of-file FIFF_DIR tag
+    //       (fast: 1 range fetch of the tail).
+    //   (b) DIR_POINTER payload is -1 (or DIR_POINTER tag is missing)
+    //       → walk the tag header stream sequentially. Big buffers
+    //       are skipped via pos += 16 + size, so total fetches scale
+    //       with N_TAGS, not file size. See MNE-Python
+    //       mne/_fiff/open.py:183-192 for the canonical reference.
+    let dir;
     if (!dirInfo.hasDirectory) {
-      // No directory → fall back to the legacy whole-file path.
-      // Cap at 200 MB so we don't OOM the page; raise/lower if needed.
-      const FALLBACK_CAP = 200 * 1024 * 1024;
-      if (totalBytes > FALLBACK_CAP) {
-        throw new Error(
-          `fiff: file is ${(totalBytes / 1024 / 1024).toFixed(0)} MB and has no ` +
-          `tag directory — cannot stream. Re-export with a modern FIFF writer.`,
-        );
-      }
-      const wholeBuf = await globalThis.HttpRange.fetchBuffer(url);
-      const meas    = api.read(wholeBuf);
-      // Plan E calibration-detection check: preserve the early-exit for
-      // metadata-only files (events/projections/calibration only).
-      if (meas.nchan === 0 && meas.raw === null) {
-        throw new Error(
-          'FIFF: this file is a calibration/empty-block file — no raw signal to display. ' +
-          '(MEAS_INFO has no channels and no FIFFB_RAW_DATA block was found.)'
-        );
-      }
-      return buildReaderFromMeas(meas);
+      const fetchRange = async (s, e) =>
+        globalThis.HttpRange.rangeFetch(url, s, e, e - s + 1);
+      dir = await globalThis.FiffDir.buildDirectoryByHeaderWalk(url, totalBytes, fetchRange);
+    } else {
+      // Parse directory entries → block ranges.
+      dir = globalThis.FiffDir.parseDirectory(shiftedView, dirInfo.dirOffset);
     }
-
-    // Parse directory entries → block ranges.
-    const dir    = globalThis.FiffDir.parseDirectory(shiftedView, dirInfo.dirOffset);
     // To identify block IDs we need the 4-byte payload at each
     // BLOCK_START tag's position+16. For huge files those positions
     // are far from the tail; we coalesce all BLOCK_START payloads
@@ -482,9 +475,17 @@
     const startEntries = dir.entries.filter(e => e.kind === 104 /*BLOCK_START*/);
 
     // Partition entries into those covered by existing buffers vs
-    // those that need a network fetch.
+    // those that need a network fetch. When the directory was built
+    // by header-walk, `dir.blockIds` already contains the block ids
+    // we read inline during the walk — use them first.
+    const walkBlockIds = dir.blockIds || null;
     const needsFetch = [];
     for (const e of startEntries) {
+      const fromWalk = walkBlockIds && walkBlockIds.get(e.position);
+      if (fromWalk !== undefined && fromWalk !== null) {
+        blockIdCache.set(e.position, fromWalk);
+        continue;
+      }
       const payloadAbs = e.position + 16;
       if (payloadAbs >= tailStart && payloadAbs + 4 <= totalBytes) {
         blockIdCache.set(e.position, tailDV.getInt32(payloadAbs - tailStart, false));
@@ -517,6 +518,17 @@
     };
     const blocks = globalThis.FiffDir.indexBlocks(readBlockId, dir.entries);
     if (!blocks.meas_info) {
+      // No MEAS_INFO + no RAW_DATA is the calibration / projection-only
+      // shape (e.g. test-proj.fif, ds003392). Surface the clean message
+      // the viewer already knows how to display rather than a generic
+      // "cannot open" — same shape the whole-file path produced before
+      // the no-DIR fallback was migrated to header-walk.
+      if (!blocks.raw_data) {
+        throw new Error(
+          'FIFF: this file is a calibration/empty-block file — no raw signal to display. ' +
+          '(MEAS_INFO has no channels and no FIFFB_RAW_DATA block was found.)'
+        );
+      }
       throw new Error('fiff: directory has no FIFFB_MEAS_INFO block — cannot open');
     }
 

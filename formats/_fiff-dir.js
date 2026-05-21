@@ -190,6 +190,74 @@
     return blocks;
   };
 
+  /**
+   * Build the directory by sequentially walking tag HEADERS only.
+   * Each tag header is 16 bytes (kind/type/size/next, all int32 BE).
+   * For BLOCK_START / BLOCK_END tags we also need 4 bytes of payload
+   * to read the block id, so we always grab 20 bytes per probe.
+   *
+   * Range-fetches the file in CHUNK-byte slices and parses headers
+   * out of each slice. When a tag's `next` field is non-zero (or 0
+   * meaning "sequential"), we jump pos = pos + 16 + size — which can
+   * skip multi-MB payloads in a single arithmetic step. So total
+   * fetches scale with N_TAGS, not file size.
+   *
+   * Used when FIFF_DIR_POINTER payload is -1 (the file declares
+   * "no directory") OR when DIR_POINTER is missing entirely.
+   *
+   * Returns the same shape as buildDirectoryFromTail: an array of
+   * { kind, type, size, position } entries.
+   *
+   * @param {string} url
+   * @param {number} totalBytes
+   * @param {(start: number, end: number) => Promise<ArrayBuffer>} fetchRange
+   * @param {object} [opts]
+   * @param {number} [opts.chunk] - chunk size for range fetches (default 2 MB)
+   * @returns {Promise<{entries: Array<{kind:number,type:number,size:number,position:number}>}>}
+   */
+  api.buildDirectoryByHeaderWalk = async function (url, totalBytes, fetchRange, opts) {
+    const CHUNK = (opts && opts.chunk) || 2 * 1024 * 1024;
+    const HEADER_PEEK = 20;  // 16-byte tag header + 4-byte block id payload
+    const entries = [];
+    // For BLOCK_START / BLOCK_END entries we capture the 4-byte
+    // payload (block id) inline since we already paid the fetch cost
+    // for the surrounding 20 bytes. Map: tag-position → block id.
+    const blockIds = new Map();
+    let pos = 0;
+    let bufStart = 0;
+    let bufEnd = 0;
+    let buf = null;
+    while (pos + 16 <= totalBytes) {
+      // Refill if we don't have at least HEADER_PEEK bytes ahead of pos.
+      if (pos < bufStart || pos + HEADER_PEEK > bufEnd) {
+        const fetchEnd = Math.min(pos + CHUNK, totalBytes) - 1;
+        buf = await fetchRange(pos, fetchEnd);
+        bufStart = pos;
+        bufEnd = pos + buf.byteLength;
+      }
+      const offsetInBuf = pos - bufStart;
+      if (offsetInBuf + 16 > buf.byteLength) break;  // not enough bytes for a header
+      const dv = new DataView(buf, offsetInBuf, Math.min(HEADER_PEEK, buf.byteLength - offsetInBuf));
+      const kind = dv.getInt32(0, false);
+      const type = dv.getInt32(4, false);
+      const size = dv.getInt32(8, false);
+      const next = dv.getInt32(12, false);
+      if (size < 0) {
+        throw new Error(`fiff dir walk: bad tag size ${size} at offset ${pos}`);
+      }
+      entries.push({ kind, type, size, position: pos });
+      // If BLOCK_START/BLOCK_END and 4-byte payload is in-buffer, cache it.
+      if ((kind === FIFF_BLOCK_START || kind === FIFF_BLOCK_END) && size >= 4
+          && offsetInBuf + 20 <= buf.byteLength) {
+        blockIds.set(pos, dv.getInt32(16, false));
+      }
+      if (next === -1) break;  // explicit end-of-stream sentinel
+      pos = next > 0 ? next : pos + 16 + size;
+      if (pos < 0 || pos > totalBytes) break;
+    }
+    return { entries, blockIds };
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.FiffDir = api;
 })();
