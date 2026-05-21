@@ -1167,3 +1167,97 @@ worker). The per-file scores for the well-tested files remain the
 durable measurement.
 
 low threshold also lowered: 42 → 34 (mirrors the previous gap).
+
+## Iteration 14 (Round 2 — Mutation + Coverage Lift, 2026-05-21)
+
+Round 2 of test-side investment per docs/superpowers/plans/2026-05-21-
+mutation-and-coverage-lift.md. T1-T6 added 6 test files (~58 tests)
+targeting iter-11/12's placeholder floors (viewer + worker) plus the
+3 format readers at ~60% line coverage.
+
+### Per-file mutation results (fresh baseline, 4119 mutants, 4 files)
+
+| File | iter-13 | iter-14 | Δ |
+|---|---:|---:|---:|
+| traces.js          | 66.71% | 66.71% | — |
+| filters.js         | 92.37% | 92.37% | — |
+| bids-recording.js  | 74.24% | 74.46% | +0.22 (noise) |
+| viewer.js          | 0.63%  | **12.37%** | **+11.74** |
+| worker.js          | 5.50%  | **19.42%** | **+13.92** |
+| **Aggregate**      | 35.33% | **41.69%** | **+6.36** |
+
+### Per-file line-coverage results (c8)
+
+| File | iter-13 | iter-14 | Δ |
+|---|---:|---:|---:|
+| viewer.js       | 13.43% | **41.21%** | **+27.78** (T1 + T2) |
+| worker.js       | 30.95% | **54.96%** | **+24.01** (T3) |
+| brainvision.js  | 57.76% | **96.27%** | **+38.51** (T4) |
+| edf.js          | 67.15% | **93.57%** | **+26.42** (T5) |
+| eeglab.js       | 62.64% | **92.35%** | **+29.71** (T6) |
+| **Project**     | 64.27% | **79.33%** | **+15.06** |
+
+### Tests added (T1-T6)
+
+| Task | File | Tests | What it exercises |
+|---|---|---:|---|
+| T1 | `unit-viewer-api.test.mjs` | 29 | window.Viewer.{el, setChildren, deriveChannelLabels, deriveBadMask, pickDefaultWindowSec, renderProvenance, renderChannels, renderEvents, updateElectrodeLink, renderStageCaption} |
+| T2 | `unit-viewer-boot.test.mjs` | 3 | boot() with stub Worker — INIT, LOAD_FILE → HEADER, unknown URL |
+| T3 | `unit-worker-roundtrip.test.mjs` | 5 | Real self.onmessage dispatch: INIT, LOAD_FILE → HEADER, FETCH_WINDOW → WINDOW, APPLY_FILTER → FILTERED, post-filter FETCH_WINDOW |
+| T4 | `unit-brainvision-readwindow.test.mjs` | 5 | iEEG .vhdr open + readWindow + streaming + channel_labels |
+| T5 | `unit-edf-readwindow.test.mjs` | 7 | EDF+ + BDF open + readWindow + streaming + annotation_events + tail clamp |
+| T6 | `unit-eeglab-readwindow.test.mjs` | 8 | Split .set+.fdt open + readWindow + streaming + fdtUrlFor + helper exports |
+
+### Threshold raised: 30 → 37
+
+Aggregate 41.69% lands in the 40-49 raise band per policy → set
+`break: 41.69 − 5 ≈ 37` and `low: 40`. The 4.69pp buffer is honest.
+
+### Honest disclosure: smaller-than-predicted lift on viewer + worker
+
+The plan predicted viewer.js to reach 25-35% and worker.js 35-50%.
+Actuals: viewer 12.37%, worker 19.42%. Why smaller:
+
+1. **viewer.js boot() bails on missing DOM bits.** T2's JSDOM bootstrap
+   covers the elements `boot()` queries at top, but `boot()` then
+   wires up handlers that throw at first user-event simulation because
+   the bootstrap doesn't include every overlay/menu element. The T2
+   tests therefore exercise only the early portion of `boot()` (URL
+   parse, Worker construction, INIT dispatch) — not the rest.
+2. **worker.js many FETCH_WINDOW branches need streaming readers.** T3
+   uses a non-streaming mock reader, so the streaming code paths
+   (FETCH_WINDOW_STREAM with band-clear logic) get only a fraction
+   of their mutants killed.
+
+### Iteration 15+ strategy
+
+Two follow-ups to lift the remaining gap, neither in the current plan:
+
+1. **Expand `_jsdom-bootstrap.mjs` to cover ALL DOM elements `boot()`
+   queries** (currently misses some overlay/dropdown nodes). Then
+   T2's stub-Worker round-trip can exercise the full boot path. Est.
+   +10-15pp on viewer.js.
+2. **Add a streaming-reader mock to T3-style tests.** Drive the
+   FETCH_WINDOW_STREAM message handlers. Est. +15-20pp on worker.js.
+
+Combined: aggregate could reach ~50%. Neither blocks current work;
+both worth a focused iter-15 PR.
+
+### Session arc (14 iterations)
+
+| Iter | Aggregate | Notes |
+|---|---:|---|
+| 1 | 37.29% | traces.js baseline |
+| 6 | 66.39% | traces.js plateau |
+| 7 | 47.79% | scope to 4 files |
+| 8 | 68.66% | golden assertions |
+| 9 | 70.34% | filters varied-coef |
+| 10 | 72.47% | bids fetch-mock |
+| 11 | 43.51% | viewer added (0.64%) |
+| 12 | 40.70% | worker added (4.56%) |
+| 13 | 35.33% | topo2d archived (was 71.29%) |
+| 14 | **41.69%** | **viewer 12.37%, worker 19.42% — round 2 lift** |
+
+Net: traces.js-only 37.29% → 5-file aggregate 41.69% (+4.4pp net)
+with the scope expanded from 1 → 5 files. Per-file scores remain
+the durable measurement; aggregate is informational.
