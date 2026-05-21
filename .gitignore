@@ -15,3 +15,9 @@ bench/results-all-gab.json
 reports/stryker-incremental.json
 # Stryker incremental cache grew to 54 MB after iter-8 scope expansion.
 # Local-only now; nightly CI rebuilds cold (~9 min). Saves repo bloat.
+
+# Agent worktrees + scheduler state — local-only, isolated copies of repo
+.claude/
+
+# CDN-worker lockfile — managed by separate workspace
+cdn-worker/package-lock.json
