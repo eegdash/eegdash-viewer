@@ -473,27 +473,20 @@
       );
     }
 
-    // Build draw opts (shared between streaming and non-streaming paths)
+    // F2: buildDrawOpts is a pure helper in viewer/render-helpers.js now.
+    // Resolve the module once (browser: globalThis, Node tests: require).
+    const _RenderHelpersMod = (typeof globalThis !== 'undefined' && globalThis.ViewerRenderHelpers)
+      || (typeof require !== 'undefined' ? require('./viewer/render-helpers.js') : null);
+
+    // Thin wrapper so existing call sites keep their 3-arg signature.
+    // The wrapper bundles the closure-captured state into a deps object
+    // on every call so any subsequent reassignment of readerInfo /
+    // metaChannels / etc. is reflected.
     function buildDrawOpts(channels, startSample, fs) {
-      const channelColors = metaChannels && metaChannels.length
-        ? metaChannels.map(ch => typeColors[(ch.type || 'MISC').toUpperCase()] || null)
-        : null;
-      return {
-        channels,
-        n_samples_visible: channels[0]?.length || 0,
-        channel_labels: channelLabels,
-        channel_types: metaChannels ? metaChannels.map(ch => (ch.type || '').toUpperCase()) : null,
-        bad_mask: channelBadMask,
-        channel_colors: channelColors,
-        channel_offset: view.channel_offset,
-        events: metaEvents,
-        fs,
-        start_sec: startSample / fs,
-        gain: view.gain,
-        time_mode: view.time_mode,
-        recording_start_iso: readerInfo ? (readerInfo.recording_start_iso ?? null) : null,
-        transparent: _isEmbedMode,
-      };
+      return _RenderHelpersMod.buildDrawOpts(channels, startSample, fs, {
+        metaChannels, typeColors, channelLabels, channelBadMask, metaEvents,
+        view, readerInfo, isEmbedMode: _isEmbedMode,
+      });
     }
 
     function requestRender() {
