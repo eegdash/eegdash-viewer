@@ -319,7 +319,7 @@
     const timer = setTimeout(() => ctrl.abort(), _NEMAR_FETCH_TIMEOUT_MS);
     let resp;
     try {
-      resp = await fetch(url, { signal: ctrl.signal });
+      resp = await fetchWithRetry(url, { signal: ctrl.signal });
     } catch (e) {
       const reason = e.name === 'AbortError'
         ? `timed out after ${_NEMAR_FETCH_TIMEOUT_MS}ms`
@@ -505,7 +505,7 @@
     if (_eegdashCache.has(datasetId)) return _eegdashCache.get(datasetId);
     const p = (async () => {
       try {
-        const r = await fetch(`${EEGDASH_BASE}/api/eegdash/datasets/${datasetId}`);
+        const r = await fetchWithRetry(`${EEGDASH_BASE}/api/eegdash/datasets/${datasetId}`);
         if (!r.ok) return null;
         const json = await r.json();
         return json && json.data ? json.data : null;
@@ -791,6 +791,40 @@
       return false;
     }
   }
+
+  // Network resilience: NEMAR's data.nemar.org occasionally returns 404
+  // 'Version not published' on the latest manifest; OpenNeuro S3 returns
+  // 503 under load. Wrap fetch() with bounded exponential backoff —
+  // 3 retries (200, 400, 800 ms) on transient 5xx and on network errors.
+  // 4xx (other than 429) is treated as terminal — the URL is wrong, no
+  // point retrying.
+  async function fetchWithRetry(url, opts) {
+    const TRANSIENT = new Set([429, 502, 503, 504]);
+    const delays = [200, 400, 800];
+    let lastErr;
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+      try {
+        const res = await fetch(url, opts);
+        if (res.ok) return res;
+        if (TRANSIENT.has(res.status) && attempt < delays.length) {
+          await new Promise(r => setTimeout(r, delays[attempt]));
+          continue;
+        }
+        // 4xx terminal — return the response so caller can decide
+        // (parsePhysioUrl or the sidecar walk often expects 404).
+        return res;
+      } catch (e) {
+        lastErr = e;
+        if (attempt < delays.length) {
+          await new Promise(r => setTimeout(r, delays[attempt]));
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastErr || new Error('fetchWithRetry: unreachable');
+  }
+  api._fetchWithRetry = fetchWithRetry;  // exposed for tests
 
   api.resolveTargets = function (urlSearchParams) {
     const p = urlSearchParams;
