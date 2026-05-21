@@ -1,11 +1,11 @@
 {
   "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
-  "_comment": "Mutation testing config — see docs/qa-strategy.md § Mutation testing. Scope (v5): traces.js (render path) + filters.js (signal processing) + bids-recording.js (metadata loader) + viewer.js (JSDOM smoke + partial pure-logic coverage) + worker.js (self-shim smoke + protocol re-implementation harness). topo2d.js was archived 2026-05-21 (janitor F2, not wired into index.html). Per-file scores are the durable measurement; aggregate is informational.",
+  "_comment": "Mutation testing config — see docs/qa-strategy.md § Mutation testing. Scope (v6): traces.js (render path) + filters.js (signal processing) + bids-recording.js (metadata loader) + viewer.js (JSDOM smoke + partial pure-logic coverage) + worker.js (self-shim smoke + protocol re-implementation harness) + formats/ctf.js (CTF reader). topo2d.js was archived 2026-05-21 (janitor F2, not wired into index.html). Per-file scores are the durable measurement; aggregate is informational.",
   "packageManager": "npm",
   "reporters": ["html", "clear-text", "progress", "json"],
   "testRunner": "command",
   "commandRunner": {
-    "command": "node --test tests/unit-traces-draw.test.mjs tests/unit-traces-partial-fill.test.mjs tests/unit-traces-nice-round.test.mjs tests/unit-traces-time-axis.test.mjs tests/unit-traces-scalebar-axis.test.mjs tests/traces.test.mjs tests/unit-filters.test.mjs tests/unit-bids-recording.test.mjs tests/unit-bids-recording-assemble.test.mjs tests/unit-viewer-jsdom.test.mjs tests/unit-viewer-render-loop.test.mjs tests/unit-viewer-races.test.mjs tests/unit-viewer-api.test.mjs tests/unit-viewer-boot.test.mjs tests/unit-worker-jsdom.test.mjs tests/unit-worker-protocol.test.mjs tests/unit-worker-faults.test.mjs tests/unit-worker-cache.test.mjs tests/unit-worker-races.test.mjs tests/unit-worker-roundtrip.test.mjs"
+    "command": "node --test tests/unit-traces-draw.test.mjs tests/unit-traces-partial-fill.test.mjs tests/unit-traces-nice-round.test.mjs tests/unit-traces-time-axis.test.mjs tests/unit-traces-scalebar-axis.test.mjs tests/traces.test.mjs tests/unit-filters.test.mjs tests/unit-bids-recording.test.mjs tests/unit-bids-recording-assemble.test.mjs tests/unit-viewer-jsdom.test.mjs tests/unit-viewer-render-loop.test.mjs tests/unit-viewer-races.test.mjs tests/unit-viewer-api.test.mjs tests/unit-viewer-boot.test.mjs tests/unit-worker-jsdom.test.mjs tests/unit-worker-protocol.test.mjs tests/unit-worker-faults.test.mjs tests/unit-worker-cache.test.mjs tests/unit-worker-races.test.mjs tests/unit-worker-roundtrip.test.mjs tests/unit-ctf.test.mjs tests/unit-ctf-res4.test.mjs tests/unit-ctf-marker.test.mjs tests/unit-ctf-bids-path.test.mjs"
   },
   "coverageAnalysis": "off",
   "mutate": [
@@ -13,7 +13,8 @@
     "filters.js",
     "bids-recording.js",
     "viewer.js",
-    "worker.js"
+    "worker.js",
+    "formats/ctf.js"
   ],
   "tempDirName": ".stryker-tmp",
   "ignorePatterns": [
