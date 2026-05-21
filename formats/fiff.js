@@ -88,7 +88,7 @@
    *   support random access without the directory; pass the whole file).
    * @returns {{
    *   blocks: number[],
-   *   chs: Array<{ ch_name: string, kind: number, scanno: number, range: number, cal: number }>,
+   *   chs: Array<{ name: string, kind: number, scanno: number, range: number, cal: number }>,
    *   has_projections: boolean,
    *   meas_date: number | null,
    *   nchan: number,
