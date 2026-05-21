@@ -53,6 +53,10 @@ const EXPECTED = {
     'open',
     'read',
   ],
+  '../formats/ctf.js': [
+    'open',
+    'read',
+  ],
   '../filters.js': [
     'applyChain',
     'designHighpass',
@@ -158,11 +162,25 @@ test('api-surface: format readers share the open() return shape', async () => {
       const path = url.replace(/^file:\/\//, '');
       return fs.readFileSync(path, 'utf-8');
     },
+    async fetchTextOrNull(url) {
+      try { return await this.fetchText(url); }
+      catch { return null; }
+    },
     async fetchRange(url, start, end) {
       const path = url.replace(/^file:\/\//, '');
       const buf = fs.readFileSync(path);
       const slice = buf.slice(start, end + 1);
       return slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.byteLength);
+    },
+    async rangeFetch(url, start, endIncl) {
+      const path = url.replace(/^file:\/\//, '');
+      const buf = fs.readFileSync(path);
+      const slice = buf.slice(start, endIncl + 1);
+      return slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.byteLength);
+    },
+    async probeLength(url) {
+      const path = url.replace(/^file:\/\//, '');
+      return fs.statSync(path).size;
     },
   };
 
@@ -182,4 +200,17 @@ test('api-surface: format readers share the open() return shape', async () => {
   }
   assert.equal(typeof fiffReader.readWindow, 'function',
     'fiff reader must expose readWindow function');
+
+  // CTF — synth .ds/ fixture
+  require('../formats/_ctf-res4.js');
+  require('../formats/_ctf-marker.js');
+  const CTFReader = require('../formats/ctf.js');
+  const ctfReader = await CTFReader.open({
+    eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/ctf-tiny.ds/ctf-tiny_meg.meg4',
+  });
+  for (const k of REQUIRED_KEYS) {
+    assert.ok(k in ctfReader, `ctf reader missing required key: ${k}`);
+  }
+  assert.equal(typeof ctfReader.readWindow, 'function',
+    'ctf reader must expose readWindow function');
 });
