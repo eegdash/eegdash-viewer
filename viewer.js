@@ -352,296 +352,20 @@
     // off the main thread. Guard with typeof Worker !== 'undefined'
     // so unit tests (Node.js, no Worker global) fall back to the
     // pre-F07 direct reader path.
-
-    let worker = null;
-    let workerReady = false;
-    // Resolve queue: if load() is called before INIT_OK arrives,
-    // queue the call to replay once the worker is ready.
-    let workerReadyResolve = null;
-    const workerReadyPromise = (typeof Worker !== 'undefined')
-      ? new Promise(resolve => { workerReadyResolve = resolve; })
-      : Promise.resolve();
-
-    // Pending FETCH_WINDOW requests: request_id → { resolve, reject, sentAt }
-    const pendingRequests = new Map();
-    // Cancelled request_ids (aborted before WINDOW arrived)
-    // Cancelled-request bookkeeping. The set entry is normally cleared
-    // by the cancelled chunk's WINDOW_CHUNK handler (line 433) when the
-    // final chunk lands. BUT: if the worker is aborted mid-stream and
-    // never sends a final !partial chunk for that request_id, the entry
-    // leaks. Across a long session of rapid panning that's unbounded
-    // growth. We cap the set size at MAX_CANCELLED_TRACKED and FIFO-evict
-    // — a request_id evicted from the set will pass the `has()` check
-    // on a late-arriving chunk, but the subsequent `pendingRequests.get`
-    // returns undefined (we already deleted on abort) and the handler
-    // bails. So eviction is correctness-safe. (Sleuth finding C.)
-    const cancelledRequests = new Set();
-    const MAX_CANCELLED_TRACKED = 256;
-    function trackCancelled(id) {
-      cancelledRequests.add(id);
-      while (cancelledRequests.size > MAX_CANCELLED_TRACKED) {
-        const oldest = cancelledRequests.values().next().value;
-        cancelledRequests.delete(oldest);
-      }
-    }
-    let _nextRequestId = 1;
-
-    // Stat helpers: write to window.__viewerWorkerStats so they land
-    // on whatever object the test or the viewer last assigned to that
-    // property (the test may replace the object via page.evaluate).
-    function incStat(key) {
-      if (typeof window !== 'undefined' && window.__viewerWorkerStats) {
-        window.__viewerWorkerStats[key] = (window.__viewerWorkerStats[key] || 0) + 1;
-      }
-    }
-    function setStat(key, value) {
-      if (typeof window !== 'undefined' && window.__viewerWorkerStats) {
-        window.__viewerWorkerStats[key] = value;
-      }
-    }
-
-    if (typeof Worker !== 'undefined') {
-      // Bump the cache-busting suffix when worker.js's importScripts
-      // list changes (the worker is cached separately from the page).
-      worker = new Worker('worker.js?v=2');
-      // Expose for F07 test assertion.
-      if (typeof window !== 'undefined') {
-        window.__viewerWorker = worker;
-        window.__viewerWorkerStats = { messages_sent: 0, messages_received: 0, last_round_trip_ms: 0 };
-      }
-
-      worker.onmessage = function (evt) {
-        const msg = evt.data;
-        if (!msg) return;
-
-        switch (msg.type) {
-          case 'INIT_OK': {
-            workerReady = true;
-            if (workerReadyResolve) workerReadyResolve();
-            break;
-          }
-
-          case 'HEADER': {
-            // Resolve the pending LOAD promise if any.
-            const resolve = pendingRequests.get('__LOAD__');
-            if (resolve) {
-              pendingRequests.delete('__LOAD__');
-              resolve.resolve(msg);
-            }
-            break;
-          }
-
-          case 'WINDOW': {
-            const { request_id, channels } = msg;
-            if (cancelledRequests.has(request_id)) {
-              cancelledRequests.delete(request_id);
-              return;
-            }
-            const entry = pendingRequests.get(request_id);
-            if (!entry) return;
-            pendingRequests.delete(request_id);
-            const rtt = performance.now() - entry.sentAt;
-            setStat('last_round_trip_ms', rtt);
-            incStat('windows_received');
-            entry.resolve(channels);
-            break;
-          }
-
-          case 'WINDOW_CHUNK': {
-            const { request_id, partial, channels, sample_start, sample_end } = msg;
-            if (cancelledRequests.has(request_id)) {
-              if (!partial) cancelledRequests.delete(request_id);
-              return;
-            }
-            const entry = pendingRequests.get(request_id);
-            if (!entry) return;
-            if (entry.streaming) {
-              incStat('messages_received');
-              entry.onChunk({ partial, channels, sample_start, sample_end });
-              if (!partial) {
-                pendingRequests.delete(request_id);
-                entry.onDone();
-                const rtt = performance.now() - entry.sentAt;
-                setStat('last_round_trip_ms', rtt);
-                incStat('windows_received');
-              }
-            }
-            break;
-          }
-
-          case 'ERROR': {
-            const { request_id, message } = msg;
-            if (request_id != null) {
-              const entry = pendingRequests.get(request_id);
-              if (entry) {
-                pendingRequests.delete(request_id);
-                if (entry.streaming) {
-                  entry.onError(new Error(message));
-                } else {
-                  entry.reject(new Error(message));
-                }
-              }
-            }
-            // Also resolve __LOAD__ if it's pending.
-            const loadEntry = pendingRequests.get('__LOAD__');
-            if (loadEntry) {
-              pendingRequests.delete('__LOAD__');
-              loadEntry.reject(new Error(message));
-            }
-            break;
-          }
-
-          case 'CANCELLED': {
-            const { request_id } = msg;
-            if (pendingRequests.has(request_id)) {
-              pendingRequests.delete(request_id);
-            }
-            // cancelledRequests already had this id from when we sent
-            // CANCEL_REQUEST; nothing extra to do there.
-            break;
-          }
-        }
-      };
-
-      worker.onerror = function (e) {
-        console.error('viewer worker error:', e);
-      };
-
-      // Send INIT.
-      worker.postMessage({ type: 'INIT' });
-      incStat('messages_sent');
-    }
-
-    // ---- Worker communication helpers -----------------------
-
-    // Send a FETCH_WINDOW to the worker, return a Promise<Float32Array[]>.
-    // abortSignal: when it fires, mark the request cancelled so the
-    // arriving WINDOW is dropped rather than resolved.
-    function workerFetchWindow(startSample, nWin, abortSignal) {
-      return new Promise((resolve, reject) => {
-        const id = _nextRequestId++;
-        const sentAt = performance.now();
-        pendingRequests.set(id, { resolve, reject, sentAt });
-
-        if (abortSignal) {
-          abortSignal.addEventListener('abort', () => {
-            if (pendingRequests.has(id)) {
-              pendingRequests.delete(id);
-            }
-            trackCancelled(id);
-            // Inform the worker so it can bail mid-stream instead of
-            // paying full bandwidth + decode for an abandoned request.
-            // The worker's CANCEL_REQUEST handler bounds its own
-            // tracking set; this is fire-and-forget. (Worker sleuth
-            // finding 5.)
-            if (worker) worker.postMessage({ type: 'CANCEL_REQUEST', request_id: id });
-            reject(new DOMException('aborted', 'AbortError'));
-          }, { once: true });
-        }
-
-        worker.postMessage({ type: 'FETCH_WINDOW', start_sample: startSample, n_samples: nWin, request_id: id });
-        incStat('messages_sent');
-        // Count as a round-trip initiation: each FETCH_WINDOW sent will
-        // produce exactly one WINDOW response. Counting here (rather than
-        // on WINDOW arrival) makes the stat available immediately without
-        // depending on S3 round-trip timing.
-        incStat('messages_received');
-      });
-    }
-
-    // ---- 1C: Streaming window fetch --------------------------
-    // Sends FETCH_WINDOW_STREAM to the worker and returns an AsyncIterable
-    // of WINDOW_CHUNK messages. Each chunk: { partial, sample_start, sample_end, channels }.
-    // Chunk with partial:false is the final (or only) chunk.
-    // abortSignal: fires → sends abort to worker via cancellation tracking.
-    function workerFetchWindowStreaming(startSample, nWin, abortSignal) {
-      const id = _nextRequestId++;
-      const sentAt = performance.now();
-
-      // We use an async generator that feeds from a queue driven by onmessage.
-      // The pending entry stores a { enqueue, error, done } controller.
-      let _resolve = null;
-      let _reject = null;
-      const _queue = [];
-      let _done = false;
-      let _error = null;
-
-      function enqueueChunk(chunk) {
-        if (_resolve) {
-          const r = _resolve;
-          _resolve = null;
-          r({ value: chunk, done: false });
-        } else {
-          _queue.push(chunk);
-        }
-      }
-      function signalDone() {
-        _done = true;
-        if (_resolve) {
-          const r = _resolve;
-          _resolve = null;
-          r({ value: undefined, done: true });
-        }
-      }
-      function signalError(err) {
-        _error = err;
-        if (_reject) {
-          const rj = _reject;
-          _resolve = null; _reject = null;
-          rj(err);
-        }
-      }
-
-      pendingRequests.set(id, {
-        resolve: null, reject: null, sentAt,
-        // streaming callbacks
-        onChunk: enqueueChunk,
-        onDone: signalDone,
-        onError: signalError,
-        streaming: true,
-      });
-
-      if (abortSignal) {
-        abortSignal.addEventListener('abort', () => {
-          if (pendingRequests.has(id)) pendingRequests.delete(id);
-          trackCancelled(id);
-          // Worker-side cancellation — same pattern as workerFetchWindow.
-          // Saves the worker the cost of decoding + posting chunks the
-          // viewer is about to drop. (Worker sleuth finding 5.)
-          if (worker) worker.postMessage({ type: 'CANCEL_REQUEST', request_id: id });
-          signalError(new DOMException('aborted', 'AbortError'));
-        }, { once: true });
-      }
-
-      worker.postMessage({
-        type: 'FETCH_WINDOW_STREAM',
-        start_sample: startSample, n_samples: nWin, request_id: id,
-      });
-      incStat('messages_sent');
-      // Count as a round-trip initiation: each FETCH_WINDOW_STREAM sent will
-      // produce at least one WINDOW_CHUNK response. Counting here makes the
-      // stat available immediately (matches the old FETCH_WINDOW pattern).
-      incStat('messages_received');
-
-      // Return AsyncIterable backed by the queue
-      return {
-        [Symbol.asyncIterator]() {
-          return {
-            next() {
-              if (_error) return Promise.reject(_error);
-              if (_queue.length > 0) {
-                return Promise.resolve({ value: _queue.shift(), done: false });
-              }
-              if (_done) return Promise.resolve({ value: undefined, done: true });
-              return new Promise((res, rej) => {
-                _resolve = res;
-                _reject = rej;
-              });
-            },
-          };
-        },
-      };
-    }
+    //
+    // The RPC + cancellation + request-correlation machinery
+    // (pendingRequests, cancelledRequests, onmessage dispatch,
+    // workerFetchWindow, workerFetchWindowStreaming, LOAD/APPLY_FILTER
+    // sends) lives in viewer/worker-rpc.js (Lane E3). This file just
+    // owns the factory and the `worker` / `workerReadyPromise` /
+    // `workerFetchWindow(Streaming)` aliases the rest of boot() reaches.
+    const _RpcMod = (typeof globalThis !== 'undefined' && globalThis.ViewerWorkerRpc)
+      || (typeof require !== 'undefined' ? require('./viewer/worker-rpc.js') : null);
+    const rpc = _RpcMod.createWorkerRpc({ workerUrl: 'worker.js?v=2' });
+    const worker = rpc.worker;
+    const workerReadyPromise = rpc.ready;
+    const workerFetchWindow = rpc.fetchWindow;
+    const workerFetchWindowStreaming = rpc.fetchWindowStreaming;
 
     // ---- LRU cache + neighbour prefetch ----------------------
     // The bottleneck on 5 kHz BV recordings is bytes-on-the-wire
@@ -707,7 +431,7 @@
       // the multi-second lag the perf benchmark exposed (cold p50 was
       // 3× the floor, warm p95 6× over budget). Prefetch only when the
       // worker is idle.
-      if (pendingRequests.size > 0) return;
+      if (!rpc.isIdle()) return;
       const fs = readerInfo.sampling_frequency;
       const n = Math.round(view.window_sec * fs);
       // Single-target prefetch: the most likely next window in the
@@ -1344,14 +1068,11 @@
         if (worker) {
           // Wait for INIT_OK before sending LOAD_FILE.
           await workerReadyPromise;
-
-          const headerMsg = await new Promise((resolve, reject) => {
-            pendingRequests.set('__LOAD__', { resolve, reject });
-            worker.postMessage({ type: 'LOAD_FILE', ext: meta.ext, eeg_url: meta.eeg_url, sidecars: meta });
-            incStat('messages_sent');
+          // fetchHeader handles the pendingRequests('__LOAD__') seam,
+          // sends LOAD_FILE, and counts the messages_sent stat.
+          readerInfo = await rpc.fetchHeader({
+            type: 'LOAD_FILE', ext: meta.ext, eeg_url: meta.eeg_url, sidecars: meta,
           });
-          // headerMsg is the HEADER message from the worker.
-          readerInfo = headerMsg;
         } else {
           // Fallback: open reader directly (Node unit tests, no Worker).
           const readerModule = READERS[meta.ext];
@@ -1608,11 +1329,10 @@
 
     function applyFilters() {
       const specs = buildFilterSpecs();
-      // Always send to worker (even empty = "no filters").
-      if (worker) {
-        worker.postMessage({ type: 'APPLY_FILTER', filters: specs });
-        incStat('messages_sent');
-      }
+      // Always send to worker (even empty = "no filters"). applyFilter
+      // is a no-op when worker is null (Node test path) and counts the
+      // messages_sent stat itself.
+      rpc.applyFilter(specs);
       // Filter change invalidates cached windows (different data).
       clearReadCache();
       requestRender();
