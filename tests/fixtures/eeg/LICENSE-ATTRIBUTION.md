@@ -27,8 +27,9 @@ We attribute even where the license does not require it.
 | FIFF (projection vectors) | MEG | `meg/test-proj.fif` | 4.5 KB | [mne-tools/mne-python](https://github.com/mne-tools/mne-python) | BSD-3 |
 | FIFF (annotations) | MEG | `meg/test_raw-annot.fif` | 273 B | [mne-tools/mne-python](https://github.com/mne-tools/mne-python) | BSD-3 |
 | FIFF (events) | MEG | `meg/test-eve.fif` | 543 B | [mne-tools/mne-python](https://github.com/mne-tools/mne-python) | BSD-3 |
+| FIFF (raw, synthetic) | MEG | `meg/synth-raw.fif` | ~5 KB | Generated locally with mne-python 1.12; BSD-3 by extension | BSD-3 |
 
-**Total committed:** ~220 KB across 12 files spanning 4 formats × 3 modalities.
+**Total committed:** ~225 KB across 13 files spanning 4 formats × 3 modalities.
 
 ## Dataset citations
 
@@ -62,18 +63,6 @@ We attribute even where the license does not require it.
   BSD-3-Clause. Original files from
   [mne/io/tests/data/](https://github.com/mne-tools/mne-python/tree/main/mne/io/tests/data).
   See [LICENSE](https://github.com/mne-tools/mne-python/blob/main/LICENSE.txt).
-
-## Known parser issues surfaced by adding these fixtures
-
-- **fiff.js cannot read real FIFF files.** The parser at `formats/fiff.js:66`
-  validates the file by looking for literal ASCII `"FIFF"` magic bytes
-  in the first 4 bytes. Real FIFF files start with a TAG (typically
-  `FIFF_FILE_ID`, `kind=100`) — the first 4 bytes are `00 00 00 64`,
-  not `46 49 46 46`. None of the three FIFF fixtures parse with the
-  current `fiff.js` (`Not a valid FIFF file` thrown). Tracked separately
-  as a parser bug; the fixtures still seed the fuzz suite usefully —
-  fast-check mutates around the FIFF tag structure regardless of
-  whether the magic check is correct.
 
 ## How to re-fetch / extend
 
@@ -115,6 +104,17 @@ curl -sSL -o tests/fixtures/meg/test_raw-annot.fif \
   "https://raw.githubusercontent.com/mne-tools/mne-python/main/mne/io/tests/data/test_raw-annot.fif"
 curl -sSL -o tests/fixtures/meg/test-eve.fif \
   "https://raw.githubusercontent.com/mne-tools/mne-python/main/mne/io/tests/data/test-eve.fif"
+
+# MEG — FIFF (synthetic raw, ~5 KB, regenerable; deterministic seed)
+python3 -c "
+import mne, numpy as np, os
+np.random.seed(42)
+info = mne.create_info(ch_names=['MEG1', 'MEG2'], sfreq=300, ch_types='mag')
+data = np.random.randn(2, 600).astype('float32') * 1e-12
+raw = mne.io.RawArray(data, info)
+os.makedirs('tests/fixtures/meg', exist_ok=True)
+raw.save('tests/fixtures/meg/synth-raw.fif', overwrite=True)
+"
 ```
 
 ## TODO
