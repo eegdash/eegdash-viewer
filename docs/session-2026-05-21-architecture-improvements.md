@@ -171,6 +171,32 @@ from the ctx getter. **Test coverage gap flagged:** the browser
 boot/render path needs an integration test that actually invokes rAF
 under real browser semantics.
 
+**Audit-environment fix (`7fcb1f0`):** The F4 rAF fix unblocked the
+stage-caption gate for 6+ datasets that had been silently timing out
+pre-fix. With the gate unblocked, those datasets surfaced a pre-existing
+`console.error` from a CORS-blocked fetch to `data.eegdash.org/api/eegdash/datasets/*`
+(the eegdash FastAPI service only allows the production
+`eegdash.github.io` origin, not `localhost:8011`). The viewer's
+`bids-recording.js` already catches the rejection silently and falls
+back to the binary header path, but the browser still emits the
+`console.error` JS cannot suppress. Whitelisted in the audit's
+console-error filter.
+
+## Final browser audit (seed=42, n=20)
+
+```
+18 passed / 3 failed = 85.7% pass rate
+```
+
+3 failures:
+1. ds003392 (fif) — intentional rejection (calibration FIFF, no FIFFB_RAW_DATA)
+2. ds002001 (ds)  — intentional rejection (CTF .meg4 trailing-data quirk)
+3. ds002908 (ds)  — CTF MEG, 32 MB first window fetch, 60s timeout edge case
+
+Counting out intentional: **18/19 = 94.7%** of expected-to-pass datasets
+render end-to-end through the post-refactor code path. ds002578, ds003682,
+ds003694 (the post-Wave-3 wins from the previous session) all still render.
+
 ## Open follow-ups (intentional non-goals)
 
 | # | Item | Why deferred |
