@@ -27,3 +27,20 @@ the CTF MEG format documented in MNE-Python's `mne/io/ctf/res4.py`
 - 4 channels (3 MEG + 1 EEG), 250 samples @ 100 Hz = 2.5 s recording.
 - Sample values: deterministic sine waves at increasing frequency per channel.
 - One marker at t=0.5 s and t=1.25 s. One bad channel: EEG001.
+
+## kit-tiny.con (synthesised, CC0)
+
+`kit-tiny.con` is synthesised by `scripts/make-kit-fixture.mjs` (this
+repo) — no upstream data. Released under CC0. Binary layout follows the
+KIT/Yokogawa/Ricoh MEG format documented in MNE-Python's
+`mne/io/kit/kit.py` + `mne/io/kit/constants.py` (BSD-3-clause). Field
+offsets in the SYSTEM and ACQ_COND directories were cross-checked
+against the vendored sources at `/tmp/kit_kit.py` (lines 483-718) at
+the time of authorship.
+
+- 4 channels, 500 samples @ 1000 Hz = 0.5 s recording.
+- 16-bit ADC, 12 bits stored, ± 0.5 V range.
+- Per-channel deterministic sine waves at increasing frequency.
+- Acquisition mode: CONTINUOUS (acq_type=1). Epoched/evoked KIT files
+  are intentionally NOT generated here — the reader rejects them with
+  a clean error, and supporting them would be a separate fixture.
