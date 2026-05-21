@@ -206,6 +206,9 @@
       bytes_per_sample: 4,
       trials_hint: trialsHint,
       url: fdtUrl,
+      // strict labels: throws via sidecar if meta is incomplete (split-fdt
+      // path guarantees `meta.channels` exists — no Ch1..ChN fallback here,
+      // unlike inline/.set paths). Do NOT migrate to ChannelLabels.fromMetaOr.
       channel_labels: meta.channels.map(c => c.name),
       bids_channels: meta.channels,
       // Bounds-clamp here so callers can pan past the end without
@@ -421,10 +424,7 @@
     if (trialsHint) {
       console.warn(`EEGLAB inline .set is epoched (${trialsHint} trials); v1 flattens to continuous.`);
     }
-    const fallbackLabels = Array.from({ length: nbchan }, (_, i) => `Ch${i + 1}`);
-    const channelLabels  = meta.channels && meta.channels.length === nbchan
-      ? meta.channels.map(c => c.name)
-      : fallbackLabels;
+    const channelLabels = ChannelLabels.fromMetaOr(meta, nbchan);
 
     const dataAbsOffset = dataElem.dataSubOffset;
 
@@ -526,10 +526,7 @@
           }
           const nSamplesFdt = totalBytesFdt / (nChannelsFromSidecar * BYTES_PER_SAMPLE);
           const durationFdt = nSamplesFdt / fsFromSidecar;
-          const labels =
-            meta.channels && meta.channels.length === nChannelsFromSidecar
-              ? meta.channels.map((c) => c.name)
-              : Array.from({ length: nChannelsFromSidecar }, (_, i) => `Ch${i + 1}`);
+          const labels = ChannelLabels.fromMetaOr(meta, nChannelsFromSidecar);
           return {
             n_channels: nChannelsFromSidecar,
             n_samples: nSamplesFdt,
@@ -610,10 +607,7 @@
     // so we can't extract per-channel labels from there yet — tracked
     // as a follow-up. Defaulting to indexed labels lets standalone
     // .set files (no BIDS sidecar) at least open and render.
-    const fallbackLabels = Array.from({ length: nbchan }, (_, i) => `Ch${i + 1}`);
-    const channelLabels = meta.channels && meta.channels.length === nbchan
-      ? meta.channels.map(c => c.name)
-      : fallbackLabels;
+    const channelLabels = ChannelLabels.fromMetaOr(meta, nbchan);
 
     return {
       n_channels: nbchan,

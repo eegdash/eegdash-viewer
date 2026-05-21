@@ -607,7 +607,7 @@
   function buildReaderFromMeas(meas) {
     const channelLabels = Array.isArray(meas.chs) && meas.chs.length > 0
       ? meas.chs.map((c, i) => (c && c.name) || `Ch${i + 1}`)
-      : Array.from({ length: meas.nchan || 0 }, (_, i) => `Ch${i + 1}`);
+      : ChannelLabels.indexed(meas.nchan || 0);
 
     let rawChannels = null;
     if (meas.raw && Array.isArray(meas.raw.buffers) && meas.raw.buffers.length > 0) {
