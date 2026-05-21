@@ -145,16 +145,41 @@ Each new sub-module follows the existing IIFE + `globalThis.<Name>` pattern
 - `snirf.js` jsfive resolver per-call pattern
 - `fiff.js` sample-stride byte-slice math in `readWindowRange` variants — regression source
 
+## Lane F follow-up (post-original-doc, SHIPPED)
+
+After this doc was first written, the user asked to revisit Lanes E4 + E5
+(deferred originally). Both were extracted incrementally as **Lane F**:
+
+| Step | File created | LOC | Commit |
+|---|---|---:|---|
+| F1 | `viewer/url-resolver.js` (E5 reborn) | 115 | `b9780d9` |
+| F2 | `viewer/render-helpers.js` — pure `buildDrawOpts` | 113 | `fdcd4d4` |
+| F3 | `viewer/render-helpers.js` — `prefetchNeighbours` | (same file) | `832fb40` |
+| F4 | `viewer/render-pipeline.js` — full `requestRender` via Context | 235 | `1c40174` |
+| **F4-fix** | bind `requestAnimationFrame` to globalThis in ctx getter | +8 LOC | `d461e57` |
+
+`viewer.js` shrank an additional 216 LOC (1453 → 1237). The Context object
+pattern (getters for mutable `let`s, plain refs for stable closures) made
+the 20-dep `requestRender` extraction tractable.
+
+**Bug caught by post-F4 browser audit:** `ctx.requestAnimationFrame(...)`
+throws `TypeError: Illegal invocation` in real browsers because rAF is a
+`Window` method that requires `this === Window`. Unit tests (JSDOM) and
+Node tests both passed because they don't enforce this `this` check. The
+fix (`d461e57`) returns `globalThis.requestAnimationFrame.bind(globalThis)`
+from the ctx getter. **Test coverage gap flagged:** the browser
+boot/render path needs an integration test that actually invokes rAF
+under real browser semantics.
+
 ## Open follow-ups (intentional non-goals)
 
 | # | Item | Why deferred |
 |---|---|---|
-| 1 | viewer.js render-pipeline extraction (E4) | `requestRender` has 20+ closure-captured deps; needs Context refactor first |
-| 2 | viewer.js url-resolver extraction (E5) | Leaf is small; tightly coupled to `load()`, `loadNemar()`, `applyEmbedMode()` |
-| 3 | Error-message format unification across readers (architect inconsistency #3) | Defer to avoid changing user-facing error wording mid-stabilization |
-| 4 | Re-run Stryker on changed modules to measure new kill ratio | Stryker takes >30 min; defer to next CI cycle |
-| 5 | ds002001 CTF .meg4 trailing-data parse (from previous session) | Real-world quirk, dataset-specific |
-| 6 | Range-based MAT v7.3 (HDF5) for inline .set | Bigger scope; vendor jsfive still whole-files |
+| 1 | Error-message format unification across readers (architect inconsistency #3) | Defer to avoid changing user-facing error wording mid-stabilization |
+| 2 | Re-run Stryker on changed modules to measure new kill ratio | Stryker takes >30 min; defer to next CI cycle |
+| 3 | ds002001 CTF .meg4 trailing-data parse (from previous session) | Real-world quirk, dataset-specific |
+| 4 | Range-based MAT v7.3 (HDF5) for inline .set | Bigger scope; vendor jsfive still whole-files |
+| 5 | Browser-integration test for rAF binding | Would have caught F4 bug; JSDOM doesn't replicate Window-method `this` enforcement |
 
 ## Recent commit chain
 
