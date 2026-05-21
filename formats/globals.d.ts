@@ -14,6 +14,8 @@ declare const BIDSRecording: any;
 declare const MatV5: any;
 declare const SidecarChecks: any;
 declare const StreamingUtils: any;
+declare const CTFRes4: any;
+declare const CTFMarker: any;
 
 // Some call sites reach through globalThis explicitly.
 declare global {
@@ -29,6 +31,10 @@ declare global {
   var SidecarChecks: any;
   // eslint-disable-next-line no-var
   var StreamingUtils: any;
+  // eslint-disable-next-line no-var
+  var CTFRes4: any;
+  // eslint-disable-next-line no-var
+  var CTFMarker: any;
 }
 
 export {};
