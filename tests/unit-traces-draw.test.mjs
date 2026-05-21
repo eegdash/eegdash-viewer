@@ -1672,6 +1672,104 @@ test('event-ghost fix: full_clear chunk redraws ALL events (no band filter)', as
   }
 });
 
+// ─── [#D5] 32px collision boundary + slice(0, 14) strict length ───
+// Pins the predicate `if (x - lastLabelX < 32) continue;` at the EXACT
+// boundary where gap == 32: the condition `32 < 32 === false`, so the
+// SECOND label MUST be drawn. A mutant flipping `<` to `<=` would skip
+// the second label here.
+//
+// Also pins `String(ev.label).slice(0, 14)` strict-length: the existing
+// truncation test only checks the 14-char prefix appears; it does not
+// reject a 13- or 15-char prefix. We strengthen with a strict-length
+// assertion.
+
+test('drawEventMarkers: gap == 32px must NOT collide — second label still drawn (kills `<` → `<=`) [#D5]', () => {
+  // Geometry at 800x600: PAD_LEFT=96, PAD_RIGHT=70 → plotW=634, with
+  // fs=250, n_samples_visible=100 → span=0.4s. Onset-A=0.0 → x_A=96.
+  // Onset-B chosen so raw_B = 96 + 32 = 128 → x_B=128, gap=32 exactly.
+  // Mutant `gap < 32 → gap <= 32` skips B's label at the boundary.
+  const cssW = 800, cssH = 600;
+  const PAD_LEFT = TraceRenderer.PAD_LEFT;
+  const PAD_RIGHT = TraceRenderer.PAD_RIGHT;
+  const plotW = cssW - PAD_LEFT - PAD_RIGHT;
+  const span = 100 / 250; // 0.4s
+  // onset_B chosen so round(plotX0 + onset_B/span * plotW) == plotX0 + 32.
+  const onsetB = 32 * span / plotW; // ≈ 0.02018927...
+
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(2, 100, {
+    events: [
+      { onset: 0.0,    label: 'A' },
+      { onset: onsetB, label: 'B' },
+    ],
+    start_sec: 0,
+    fs: 250,
+  }));
+
+  const labels = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && (c.args[0] === 'A' || c.args[0] === 'B'))
+    .map(c => c.args[0]);
+
+  // BOTH labels must appear when gap is exactly 32px. Under `<= 32`
+  // mutant, B is dropped and only A remains.
+  assert.deepEqual(labels.sort(), ['A', 'B'],
+    `gap == 32px must NOT collide — kills `+
+    `\`if (x - lastLabelX < 32)\` → \`<= 32\` mutant. Got labels: ${labels.join(',')}`);
+});
+
+test('drawEventMarkers: gap of 31px DOES collide — only first label drawn (positive boundary check) [#D5]', () => {
+  // Symmetric kill: a gap strictly less than 32 MUST collide. With
+  // onset_B chosen so the rounded gap is 31, the second label must
+  // be skipped. Catches a mutant flipping `< 32` to `< 0` or
+  // `< 31` (boundary shift).
+  const cssW = 800, cssH = 600;
+  const PAD_LEFT = TraceRenderer.PAD_LEFT;
+  const PAD_RIGHT = TraceRenderer.PAD_RIGHT;
+  const plotW = cssW - PAD_LEFT - PAD_RIGHT;
+  const span = 100 / 250;
+  const onsetB = 31 * span / plotW; // raw_B = plotX0 + 31
+
+  const canvas = makeStubCanvas(cssW, cssH);
+  TraceRenderer.draw(canvas, buildOpts(2, 100, {
+    events: [
+      { onset: 0.0,    label: 'A' },
+      { onset: onsetB, label: 'B' },
+    ],
+    start_sec: 0,
+    fs: 250,
+  }));
+
+  const labels = canvas._ctx.calls
+    .filter(c => c.op === 'fillText' && (c.args[0] === 'A' || c.args[0] === 'B'))
+    .map(c => c.args[0]);
+
+  assert.deepEqual(labels, ['A'],
+    `gap of 31px (< 32) must collide — only A drawn. Got: ${labels.join(',')}`);
+});
+
+test('drawEventMarkers: long label truncated to EXACTLY 14 chars (kills 14 → 13/15 mutants) [#D5]', () => {
+  // The existing "long label truncated" test checks the 14-char prefix
+  // appears but does not reject a 15-char or 13-char fillText. This
+  // test asserts EXACT length so off-by-one mutants on `slice(0, 14)`
+  // are killed.
+  const longLabel = 'A'.repeat(20); // 20 'A's
+  const canvas = makeStubCanvas(800, 600);
+  TraceRenderer.draw(canvas, buildOpts(2, 100, {
+    events: [{ onset: 0.2, label: longLabel }],
+    start_sec: 0,
+    fs: 250,
+  }));
+
+  // Find the fillText whose value matches /^A+$/ (the event label).
+  const t = canvas._ctx.calls.find(c =>
+    c.op === 'fillText' && /^A+$/.test(String(c.args[0])));
+  assert.ok(t, 'truncated event label must be drawn');
+  assert.equal(t.args[0].length, 14,
+    `slice(0, 14) must yield exactly 14 chars; got ${t.args[0].length}. ` +
+    `Mutant `+
+    `14 → 13 would yield 13; 14 → 15 would yield 15.`);
+});
+
 test('event-ghost fix: non-partial_fill draw (cache hit path) redraws ALL events', async () => {
   // The non-streaming path (no partial_fill in opts) must continue
   // drawing all events — clearedBand must be null in that path.
