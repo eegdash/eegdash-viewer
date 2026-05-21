@@ -707,12 +707,41 @@
     return out;
   }
 
-  // Task 4 placeholder so api.open can reference it. Throws until Task 4
-  // implements it.
+  // Streaming variant: yields one chunk per data buffer that overlaps
+  // the window. Each chunk has shape { firstSampleIdx, lastSampleIdx,
+  // channels } where channels is an Array<Float32Array> of length
+  // nchan, one entry per channel, each of length nLocal.
   async function* readWindowRangeStreaming(url, nchan, cals, bufIndex, totalSamples, startReq, nReq, opts) {
-    void url; void nchan; void cals; void bufIndex; void totalSamples;
-    void startReq; void nReq; void opts;
-    throw new Error('fiff: range readWindowStreaming not implemented yet');
+    const start = Math.max(0, startReq);
+    if (start >= totalSamples || nReq <= 0) return;
+    const end = Math.min(start + nReq, totalSamples);
+    const firstBufIdx = findBufferForSample(bufIndex, start);
+    if (firstBufIdx === -1) return;
+
+    for (let i = firstBufIdx; i < bufIndex.length; i++) {
+      const b = bufIndex[i];
+      const bufStartSample = b.cumStart;
+      const bufEndSample   = b.cumStart + b.samplesInBuf;
+      if (bufStartSample >= end) break;
+      const sliceStart = Math.max(start, bufStartSample) - bufStartSample;
+      const sliceEnd   = Math.min(end,   bufEndSample)   - bufStartSample;
+      const nLocal = sliceEnd - sliceStart;
+      if (nLocal <= 0) continue;
+
+      const fetched = await globalThis.HttpRange.rangeFetch(
+        url, b.payloadOffset, b.payloadOffset + b.payloadSize - 1, b.payloadSize, opts,
+      );
+      const decoded = decodeRawBufferBytes(fetched, b.miType, b.samplesInBuf * nchan);
+      const channels = new Array(nchan);
+      for (let c = 0; c < nchan; c++) channels[c] = new Float32Array(nLocal);
+      for (let t = 0; t < nLocal; t++) {
+        const src = (sliceStart + t) * nchan;
+        for (let c = 0; c < nchan; c++) channels[c][t] = decoded[src + c] * cals[c];
+      }
+      const firstSampleIdx = bufStartSample + sliceStart;
+      const lastSampleIdx  = firstSampleIdx + nLocal - 1;
+      yield { firstSampleIdx, lastSampleIdx, channels };
+    }
   }
 
   // Expose reader — matches the dual-target pattern used by every other

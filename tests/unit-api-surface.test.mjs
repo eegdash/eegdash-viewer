@@ -197,6 +197,7 @@ test('api-surface: format readers share the open() return shape', async () => {
   // pick but per Plan-E Task 8, FIFFReader.open() now throws cleanly on
   // calibration/empty-block files — we'd be asserting against an error,
   // not a reader shape.
+  require('../formats/_fiff-dir.js');
   const FIFFReader = require('../formats/fiff.js');
   const fiffReader = await FIFFReader.open({
     eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/synth-raw.fif',
