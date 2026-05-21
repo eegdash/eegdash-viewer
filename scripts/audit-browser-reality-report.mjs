@@ -77,11 +77,24 @@ function summarise(rows) {
   return { counts, total, passed, passRate, medianMs };
 }
 
+// Strip ANSI escapes + collapse whitespace so failure messages render as a
+// single clean line in the report's table column.
+function cleanErrorMessage(msg) {
+  if (!msg) return '';
+  // eslint-disable-next-line no-control-regex
+  const ansiRe = /\[[0-9;]*m/g;
+  return String(msg)
+    .replace(ansiRe, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function fmtRow(r) {
   const verdict = VERDICT_ICON[r.verdict] ?? r.verdict;
   const renderMs = r.render_ms == null ? '—' : `${r.render_ms} ms`;
   const errors = r.console_errors + r.page_errors;
-  const errCell = errors === 0 ? '0' : `${errors} (${r.error_message ?? ''})`;
+  const cleanedMsg = cleanErrorMessage(r.error_message);
+  const errCell = errors === 0 ? '0' : `${errors} (${cleanedMsg})`;
   const pill = r.pill_format ?? '—';
   return `| ${r.dataset_id} | ${r.ext} | ${r.datatype ?? '—'} | ${verdict} | ${renderMs} | ${pill} | ${errCell.replace(/\|/g, '\\|').slice(0, 120)} |`;
 }

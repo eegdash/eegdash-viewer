@@ -70,7 +70,18 @@ function loadLoadableRows() {
   if (loadable.length === 0) {
     throw new Error('audit JSON has zero loadable rows — re-run the audit');
   }
-  return loadable;
+  // Dedupe by cdn_url — the audit JSON can contain the same recording under
+  // multiple dataset_id rows (e.g. when a dataset publishes only one canonical
+  // file but the catalog walk emits it once per subject). We only need a
+  // unique render-target list; Playwright also rejects duplicate test titles.
+  const seen = new Set();
+  const unique = [];
+  for (const r of loadable) {
+    if (seen.has(r.cdn_url)) continue;
+    seen.add(r.cdn_url);
+    unique.push(r);
+  }
+  return unique;
 }
 
 function subsample(rows, n, seed) {
@@ -88,19 +99,30 @@ function subsample(rows, n, seed) {
 const ALL_LOADABLE = loadLoadableRows();
 const CASES = subsample(ALL_LOADABLE, SAMPLE_SIZE, SEED);
 
-// Truncate the JSONL sidecar at suite startup so a new run gets a fresh report.
-// Playwright may load this module multiple times across workers/projects, so
-// we gate truncation behind a per-invocation sentinel: the first eval to see
-// the sentinel "missing or older than 60 s" wins; later evals append-only.
+// Truncate the JSONL sidecar at the START of a fresh `npx playwright test`
+// invocation. Playwright may re-evaluate this spec file once per test when it
+// re-imports for isolation, so a naive `fs.writeFileSync(RESULTS_JSONL, '')`
+// would clobber rows written by previous tests in the same run. Two strategies
+// combined:
+//   1. In-process: a module-level constant + env-var ensures we truncate at
+//      most once per Node process.
+//   2. Cross-process: a sentinel file containing the playwright invocation's
+//      parent-PID truncates only when the PPID changes (which means a new
+//      shell-level `npm run test:audit-reality` invocation).
 fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
-const TRUNCATE_SENTINEL = path.join(EVIDENCE_DIR, '.last-truncate-ms');
-const now = Date.now();
-const lastTruncateMs = fs.existsSync(TRUNCATE_SENTINEL)
-  ? Number.parseInt(fs.readFileSync(TRUNCATE_SENTINEL, 'utf8').trim(), 10) || 0
-  : 0;
-if (now - lastTruncateMs > 60_000) {
+const TRUNCATE_SENTINEL = path.join(EVIDENCE_DIR, '.last-truncate-ppid');
+const PARENT_PID_KEY = String(process.ppid ?? process.pid);
+const sentinelPpid = fs.existsSync(TRUNCATE_SENTINEL)
+  ? fs.readFileSync(TRUNCATE_SENTINEL, 'utf8').trim()
+  : '';
+if (!process.env.__AUDIT_RESULTS_TRUNCATED__ && sentinelPpid !== PARENT_PID_KEY) {
   fs.writeFileSync(RESULTS_JSONL, '');
-  fs.writeFileSync(TRUNCATE_SENTINEL, String(now));
+  fs.writeFileSync(TRUNCATE_SENTINEL, PARENT_PID_KEY);
+  process.env.__AUDIT_RESULTS_TRUNCATED__ = '1';
+} else if (!process.env.__AUDIT_RESULTS_TRUNCATED__) {
+  // Same parent PID = same outer playwright run; do not retruncate even if
+  // the module re-evaluates across test isolations.
+  process.env.__AUDIT_RESULTS_TRUNCATED__ = '1';
 }
 
 /**
