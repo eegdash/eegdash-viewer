@@ -10,6 +10,8 @@
 
 declare const HttpRange: any;
 declare const ChannelBuffers: any;
+declare const ChannelLabels: any;
+declare const ChannelDecode: any;
 declare const BIDSRecording: any;
 declare const MatV5: any;
 declare const Mat73: any;
@@ -25,6 +27,10 @@ declare global {
   var HttpRange: any;
   // eslint-disable-next-line no-var
   var ChannelBuffers: any;
+  // eslint-disable-next-line no-var
+  var ChannelLabels: any;
+  // eslint-disable-next-line no-var
+  var ChannelDecode: any;
   // eslint-disable-next-line no-var
   var BIDSRecording: any;
   // eslint-disable-next-line no-var
