@@ -407,6 +407,117 @@
     return { data: data.data, srate, nbchan, pnts, trials, dataClass: data.class };
   };
 
+  // Scan top-level MAT v5 elements WITHOUT materializing payloads.
+  // For each miMATRIX element, peek at the first 4 sub-elements
+  // (flags, dims, name, real-data tag) so callers know where the
+  // real-data bytes live without reading them. This enables the
+  // streaming inline-EEGLAB path: scan the first ~16 MB to find
+  // EEG.data's payload offset, then range-fetch column slices on
+  // demand.
+  //
+  // For miCOMPRESSED elements we surface the compressed envelope
+  // metadata but DO NOT decompress; callers fall back to the full
+  // parse() path when any compressed element is encountered.
+  //
+  // Returns an array of:
+  //   {
+  //     miType,                 // 14 (miMATRIX), 15 (miCOMPRESSED), or rare other
+  //     elementOffset,          // absolute byte offset of element header
+  //     payloadOffset,          // absolute byte offset of element payload
+  //     payloadBytes,           // payload length before padding
+  //     mxClass | null,
+  //     dims    | null,         // number[]
+  //     name    | null,         // string
+  //     dataSubOffset  | null,  // absolute byte offset of real-data payload
+  //     dataSubBytes   | null,
+  //     dataSubMiType  | null,
+  //   }
+  api.scanElements = function (buffer) {
+    const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    if (u8.length < 128) {
+      throw new Error(`scanElements: MAT file too short for header: ${u8.length}B`);
+    }
+    const header = new DataView(u8.buffer, u8.byteOffset, 128);
+    const version = header.getUint16(124, true);
+    if (version === 0x0200) {
+      throw new Error('scanElements: MAT v7.3 (HDF5) — call Mat73.parse, not scanElements');
+    }
+    if (version !== 0x0100) {
+      throw new Error(`scanElements: unsupported MAT version 0x${version.toString(16)}`);
+    }
+
+    const baseOff = u8.byteOffset;
+    const fullView = new DataView(u8.buffer, baseOff, u8.length);
+    const results = [];
+
+    for (const elem of iterElements(fullView, 128, u8.length)) {
+      // Reconstruct elementOffset from payloadOffset: small format puts
+      // payload at off+4, long format at off+8. The tag header itself
+      // can be re-read to determine which (small if upper-16 of the
+      // first uint32 is in [1, 4]).
+      const tagWord = fullView.getUint32(elem.payloadOffset - 4, true);
+      const upper16 = (tagWord >>> 16) & 0xffff;
+      const small = upper16 >= 1 && upper16 <= 4;
+      const elementLocalOffset = small ? (elem.payloadOffset - 4) : (elem.payloadOffset - 8);
+
+      const meta = {
+        miType:         elem.miType,
+        elementOffset:  baseOff + elementLocalOffset,
+        payloadOffset:  baseOff + elem.payloadOffset,
+        payloadBytes:   elem.payload.length,
+        mxClass:        null,
+        dims:           null,
+        name:           null,
+        dataSubOffset:  null,
+        dataSubBytes:   null,
+        dataSubMiType:  null,
+      };
+
+      if (elem.miType === 14) {
+        // Peek at sub-elements 0..3 (flags, dims, name, realData).
+        const subView = new DataView(elem.payload.buffer, elem.payload.byteOffset, elem.payload.length);
+        const subs = [];
+        try {
+          for (const s of iterElements(subView, 0, elem.payload.length)) {
+            subs.push(s);
+            if (subs.length === 4) break;
+          }
+        } catch {
+          // Sub-element walk failed → leave fields null; caller will
+          // see {miType:14, mxClass:null} and treat as opaque.
+        }
+        if (subs.length >= 1 && subs[0].miType === 6) {
+          // Read mxClass from low byte of first uint32.
+          const sub0DV = new DataView(subs[0].payload.buffer, subs[0].payload.byteOffset, subs[0].payload.length);
+          const word0 = sub0DV.getUint32(0, true);
+          meta.mxClass = word0 & 0xff;
+        }
+        if (subs.length >= 2 && subs[1].miType === 5) {
+          meta.dims = Array.from(new Int32Array(
+            subs[1].payload.buffer.slice(
+              subs[1].payload.byteOffset,
+              subs[1].payload.byteOffset + subs[1].payload.length,
+            ),
+          ));
+        }
+        if (subs.length >= 3 && (subs[2].miType === 1 || subs[2].miType === 2)) {
+          meta.name = new TextDecoder('ascii').decode(subs[2].payload).replace(/\0+$/, '');
+        }
+        if (subs.length >= 4) {
+          // The real-data sub-element's payload starts at
+          // subs[3].payloadOffset inside the parent matrix payload.
+          // The absolute file offset is therefore:
+          //   baseOff + elem.payloadOffset + subs[3].payloadOffset
+          meta.dataSubOffset  = baseOff + elem.payloadOffset + subs[3].payloadOffset;
+          meta.dataSubBytes   = subs[3].payload.length;
+          meta.dataSubMiType  = subs[3].miType;
+        }
+      }
+      results.push(meta);
+    }
+    return results;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.MatV5 = api;
 })();
