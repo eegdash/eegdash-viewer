@@ -1373,6 +1373,7 @@
         // F09: merge EDF+ annotation-channel events when no _events.tsv
         // was found. Sidecar events always win; annotation events fall
         // back only when the sidecar produced zero events.
+        // Precedence rule pinned by tests/unit-edf-annotation-precedence.test.mjs.
         if ((!meta.events || meta.events.length === 0) && readerInfo.annotation_events?.length) {
           meta.events = readerInfo.annotation_events;
         }
