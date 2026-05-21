@@ -743,10 +743,13 @@
     const out = new Array(nchan);
     for (let c = 0; c < nchan; c++) out[c] = new Float32Array(nWin);
 
-    // Walk buffers in order, range-fetching each that overlaps the window.
-    // For v1 we fetch the entire buffer's payload (typical buffer is
-    // ~64 KB, well under the 256 KB tile threshold so it's a single
-    // single-tile fetch).
+    // Walk buffers in order, range-fetching just the bytes we need for
+    // the requested slice within each buffer. ds003682 has a single
+    // 614 MB DATA_BUFFER; a 10 s window at 600 Hz × 414 ch × float32
+    // should cost 9.5 MB, not 614 MB. Samples are interleaved channel-
+    // major within a buffer (sample[t] occupies nchan × bytesPerSample
+    // bytes at offset t × stride), so the slice math is one
+    // multiplication.
     let writeOff = 0;
     for (let i = firstBufIdx; i < bufIndex.length && writeOff < nWin; i++) {
       const b = bufIndex[i];
@@ -757,19 +760,25 @@
       const nLocal = sliceEnd - sliceStart;
       if (nLocal <= 0) continue;
 
-      // Range-fetch the whole buffer payload (v1; could narrow to
-      // [sliceStart*nchan*bps, sliceEnd*nchan*bps] for huge buffers
-      // but that's an optimisation for later).
-      const payloadStart = b.payloadOffset;
-      const payloadEnd   = b.payloadOffset + b.payloadSize - 1;
+      // Narrow the fetch to just the bytes covering [sliceStart, sliceEnd)
+      // within this buffer's payload. After this change the local sample
+      // index inside `fetched` is 0..nLocal-1 (NOT sliceStart..sliceEnd),
+      // so the decode loop reads from src = t * nchan.
+      const sampleStride = nchan * b.bytesPerSample;
+      const sliceStartBytes = sliceStart * sampleStride;
+      const sliceEndBytes   = sliceEnd   * sampleStride;  // exclusive
+      const fetchStart = b.payloadOffset + sliceStartBytes;
+      const fetchEnd   = b.payloadOffset + sliceEndBytes - 1;  // inclusive
+      const fetchBytes = sliceEndBytes - sliceStartBytes;
       const fetched = await globalThis.HttpRange.rangeFetch(
-        url, payloadStart, payloadEnd, b.payloadSize, opts,
+        url, fetchStart, fetchEnd, fetchBytes, opts,
       );
-      const expectedElemCount = b.samplesInBuf * nchan;
-      const decoded = decodeRawBufferBytes(fetched, b.miType, expectedElemCount);
-      // De-interleave + calibrate the slice we want.
+      const decoded = decodeRawBufferBytes(fetched, b.miType, nLocal * nchan);
+      // De-interleave + calibrate the slice we want. Local sample index
+      // inside `decoded` is 0..nLocal-1 because we only fetched the
+      // requested slice (not the whole buffer payload).
       for (let t = 0; t < nLocal; t++) {
-        const src = (sliceStart + t) * nchan;
+        const src = t * nchan;
         const dst = writeOff + t;
         for (let c = 0; c < nchan; c++) {
           out[c][dst] = decoded[src + c] * cals[c];
@@ -801,14 +810,23 @@
       const nLocal = sliceEnd - sliceStart;
       if (nLocal <= 0) continue;
 
+      // Narrow fetch to the requested slice (see readWindowRange comment).
+      const sampleStride = nchan * b.bytesPerSample;
+      const sliceStartBytes = sliceStart * sampleStride;
+      const sliceEndBytes   = sliceEnd   * sampleStride;
+      const fetchStart = b.payloadOffset + sliceStartBytes;
+      const fetchEnd   = b.payloadOffset + sliceEndBytes - 1;
+      const fetchBytes = sliceEndBytes - sliceStartBytes;
       const fetched = await globalThis.HttpRange.rangeFetch(
-        url, b.payloadOffset, b.payloadOffset + b.payloadSize - 1, b.payloadSize, opts,
+        url, fetchStart, fetchEnd, fetchBytes, opts,
       );
-      const decoded = decodeRawBufferBytes(fetched, b.miType, b.samplesInBuf * nchan);
+      const decoded = decodeRawBufferBytes(fetched, b.miType, nLocal * nchan);
       const channels = new Array(nchan);
       for (let c = 0; c < nchan; c++) channels[c] = new Float32Array(nLocal);
+      // Local sample index inside `decoded` is 0..nLocal-1 because we
+      // only fetched the requested slice.
       for (let t = 0; t < nLocal; t++) {
-        const src = (sliceStart + t) * nchan;
+        const src = t * nchan;
         for (let c = 0; c < nchan; c++) channels[c][t] = decoded[src + c] * cals[c];
       }
       const firstSampleIdx = bufStartSample + sliceStart;
