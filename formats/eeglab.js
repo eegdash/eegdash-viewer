@@ -179,6 +179,23 @@
   async function openInlineSet(meta, nChannelsFromSidecar, fsFromSidecar) {
     const setUrl = meta.eeg_url;
     const totalBytes = await HttpRange.probeLength(setUrl);
+
+    // Bandwidth/memory ceiling for inline .set (no sibling .fdt).
+    // Surfaced by Plan D browser reality-check (commit f524bad):
+    // ds002578 (695 MiB) and ds002718 (224 MiB) both exceeded the
+    // viewer's 60s open() budget. 200 MB cap surfaces a user-readable
+    // error instead of timing out silently. Proper fix is a streaming
+    // MAT v5 parser that only fetches the bytes for the requested
+    // window — tracked as a follow-up.
+    const INLINE_MAX_BYTES = 200 * 1024 * 1024;
+    if (totalBytes > INLINE_MAX_BYTES) {
+      throw new Error(
+        `EEGLAB inline .set is ${(totalBytes / 1024 / 1024).toFixed(0)} MB ` +
+        `(exceeds ${INLINE_MAX_BYTES / 1024 / 1024} MB inline cap). ` +
+        `Upload as split .set+.fdt for streaming, or wait for streaming-inline support.`,
+      );
+    }
+
     const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
 
     let vars;
