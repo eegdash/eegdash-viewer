@@ -132,6 +132,31 @@ if (typeof globalThis !== 'undefined') {
   globalThis._worker_MAX_WINDOW_SAMPLES = MAX_WINDOW_SAMPLES;
 }
 
+// Shared clone helpers — used by rawCachePut, transferable assembly for
+// postMessage, and the filter-or-clone path that owns a buffer for transfer.
+// Pulled out of the message handler because the same 4-line pattern was
+// repeated 6 times across FETCH_WINDOW + FETCH_WINDOW_STREAM (worker dedup E0).
+function cloneChannels(channels) {
+  return channels.map(ch => {
+    const a = new Float32Array(ch.length);
+    a.set(ch);
+    return a;
+  });
+}
+function cloneChannelsWithFilter(channels, filterSnapshot) {
+  return channels.map(rawCh => {
+    const filtered = globalThis.Filters.applyChain(rawCh, filterSnapshot);
+    if (filtered === rawCh) {
+      // applyChain returns the input ref when the chain is empty — own a copy
+      // so the postMessage transfer doesn't neuter the cached raw buffer.
+      const a = new Float32Array(rawCh.length); a.set(rawCh); return a;
+    }
+    // Non-empty chain: applyChain already returns a fresh Float32Array.from(),
+    // so we own it and it's transferable as-is.
+    return filtered;
+  });
+}
+
 // Perf: raw (unfiltered) window cache, keyed by `${start}-${n}`. The
 // viewer's main-thread cache holds FILTERED Float32Arrays (their bytes
 // are transferred to the main thread, zero-copy, so the worker doesn't
@@ -149,11 +174,7 @@ const rawCache = new Map();   // "start-n" → Float32Array[] (one per channel)
 function rawCachePut(key, channels) {
   // Deep-copy into owned buffers — the reader returns subarrays of a
   // shared backing buffer that may be reused on the next readWindow.
-  const owned = channels.map(ch => {
-    const a = new Float32Array(ch.length);
-    a.set(ch);
-    return a;
-  });
+  const owned = cloneChannels(channels);
   // delete-then-set so an existing key is bumped to the MRU end.
   rawCache.delete(key);
   rawCache.set(key, owned);
@@ -293,14 +314,7 @@ self.onmessage = async function (evt) {
         // Apply the snapshot filter chain to a fresh OUTPUT buffer per
         // channel — never mutate the cached raw. Each output buffer
         // is owned + transferable.
-        const owned = rawChannels.map(rawCh => {
-          if (filterSnapshot.length > 0) {
-            return globalThis.Filters.applyChain(rawCh, filterSnapshot);
-          }
-          const a = new Float32Array(rawCh.length);
-          a.set(rawCh);
-          return a;
-        });
+        const owned = cloneChannelsWithFilter(rawChannels, filterSnapshot);
         self.postMessage(
           { type: 'WINDOW', request_id, channels: owned },
           owned.map(a => a.buffer),
@@ -377,14 +391,7 @@ self.onmessage = async function (evt) {
                                     () => localReader.readWindow(start_sample, n_samples));
           if (!isStillCurrent()) return;  // recording switched mid-fetch — drop result
           if (isRequestCancelled(request_id)) return;  // viewer cancelled — bail before paint
-          const owned = rawChannels.map(rawCh => {
-            if (filterSnapshot.length > 0) {
-              return globalThis.Filters.applyChain(rawCh, filterSnapshot);
-            }
-            const a = new Float32Array(rawCh.length);
-            a.set(rawCh);
-            return a;
-          });
+          const owned = cloneChannelsWithFilter(rawChannels, filterSnapshot);
           self.postMessage(
             { type: 'WINDOW_CHUNK', request_id, partial: false,
               sample_start: start_sample, sample_end: start_sample + owned[0].length - 1,
@@ -411,14 +418,7 @@ self.onmessage = async function (evt) {
               message: 'fetch returned no data (end-of-recording or aborted)' });
             return;
           }
-          const owned = raw.map(rawCh => {
-            if (filterSnapshot.length > 0) {
-              return globalThis.Filters.applyChain(rawCh, filterSnapshot);
-            }
-            const a = new Float32Array(rawCh.length);
-            a.set(rawCh);
-            return a;
-          });
+          const owned = cloneChannelsWithFilter(raw, filterSnapshot);
           self.postMessage(
             { type: 'WINDOW_CHUNK', request_id, partial: false,
               sample_start: start_sample, sample_end: start_sample + owned[0].length - 1,
@@ -526,11 +526,7 @@ self.onmessage = async function (evt) {
 
               // Send partial chunk (transferable — transfer ownership; assembledChannels
               // keeps its own copy so we can't transfer from that; must copy for transfer)
-              const transferable = chunk.channels.map(ch => {
-                const a = new Float32Array(ch.length);
-                a.set(ch);
-                return a;
-              });
+              const transferable = cloneChannels(chunk.channels);
               self.postMessage(
                 { type: 'WINDOW_CHUNK', request_id, partial: true,
                   sample_start: chunk.firstSampleIdx, sample_end: chunk.lastSampleIdx,
@@ -547,11 +543,7 @@ self.onmessage = async function (evt) {
             resolveInflight(rawCacheGet(cacheKey));
 
             // Send final chunk (assembled full window, no filter)
-            const ownedFinal = trimmed.map(ch => {
-              const a = new Float32Array(ch.length);
-              a.set(ch);
-              return a;
-            });
+            const ownedFinal = cloneChannels(trimmed);
             self.postMessage(
               { type: 'WINDOW_CHUNK', request_id, partial: false,
                 sample_start: start_sample, sample_end: start_sample + ownedFinal[0].length - 1,
