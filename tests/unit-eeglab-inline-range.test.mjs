@@ -122,6 +122,37 @@ test('eeglab inline range: readWindow only fetches the slice bytes', async () =>
   assert.ok(fetched <= 100, `readWindow fetched ${fetched}B for 40B slice`);
 });
 
+test('eeglab inline range: opens a synth file that REPORTS > 200 MB', async () => {
+  // probeLength fakes a 500 MB file; rangeFetch serves the small real
+  // buffer truncated at its end (mimicking a CDN that returns only the
+  // available bytes for a Range past EOF). If openInlineSet tried to
+  // range-fetch the WHOLE file the head probe (16 MB) would succeed
+  // but the subsequent `data` slice fetch would have to read past
+  // real.byteLength — which we count via the request log.
+  const real = mockSource;
+  const fetchLog = [];
+  globalThis.HttpRange.probeLength = async (url) => {
+    if (url.endsWith('.set')) return 500 * 1024 * 1024;
+    throw new Error(`HTTP 404 (mock) for ${url}`);
+  };
+  globalThis.HttpRange.rangeFetch  = async (url, s, e) => {
+    if (!url.endsWith('.set')) throw new Error(`unexpected rangeFetch to ${url}`);
+    fetchLog.push({ start: s, end: e });
+    // CDN behaviour: return the slice clipped to actual file size.
+    const clip = Math.min(e + 1, real.byteLength);
+    if (s >= real.byteLength) return new ArrayBuffer(0);
+    return real.slice(s, clip);
+  };
+  const reader = await EEGLABReader.open({ eeg_url: 'mock://big-inline.set' });
+  assert.equal(reader.n_samples, 25);
+  // The reader must be marked streaming = true.
+  assert.equal(reader.streaming, true);
+  // No fetch should have asked for > 16 MB (head probe is exactly
+  // 16 MB; anything larger would be a whole-file path).
+  const maxFetched = fetchLog.reduce((m, r) => Math.max(m, r.end - r.start + 1), 0);
+  assert.ok(maxFetched <= 16 * 1024 * 1024, `largest fetch was ${maxFetched}B`);
+});
+
 test('eeglab inline range: openInlineSet handles files larger than the metadata budget by scanning the head', async () => {
   // Verify by probing: if probeLength reports 100 MB but the actual
   // buffer is 1 KB, open should still succeed because all metadata
