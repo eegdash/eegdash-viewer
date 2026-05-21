@@ -20,6 +20,7 @@
     "report:audit-reality": "node scripts/audit-browser-reality-report.mjs",
     "merge:audit-shards": "node scripts/audit-merge-shards.mjs",
     "classify:audit-failures": "node scripts/audit-failure-classifier.mjs",
+    "report:audit-reality:full": "node scripts/audit-browser-reality-full-report.mjs",
     "test:perf": "node bench/check-regression.mjs",
     "test:typecheck": "tsc --noEmit -p jsconfig.json",
     "test:bench": "node bench/run-all.tinybench.mjs",
