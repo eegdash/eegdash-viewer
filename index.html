@@ -21,6 +21,9 @@
      _mat73 patches it for compact storage and exposes Mat73.parse. -->
 <script src="formats/_jsfive.js?v=1"></script>
 <script src="formats/_mat73.js?v=1"></script>
+<!-- bids-recording.js sub-module (Lane E2) — must load BEFORE
+     bids-recording.js so the mount step finds globalThis.BIDSRecordingNemar. -->
+<script src="bids-recording/nemar.js?v=1"></script>
 <script src="bids-recording.js?v=6"></script>
 <script src="formats/eeglab.js?v=2"></script>
 <script src="formats/edf.js?v=2"></script>

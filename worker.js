@@ -38,6 +38,9 @@ importScripts(
   // reader's v5/v7.3 dispatch sees them.
   'formats/_jsfive.js',
   'formats/_mat73.js',
+  // NEMAR sub-module (Lane E2) — must precede bids-recording.js so the
+  // mount step in bids-recording.js finds globalThis.BIDSRecordingNemar.
+  'bids-recording/nemar.js',
   'bids-recording.js',
   'formats/eeglab.js',
   'formats/edf.js',
