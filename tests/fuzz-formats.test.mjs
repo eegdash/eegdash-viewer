@@ -258,3 +258,45 @@ test('fuzz: FIFF read survives 10k corpus-mutated rounds', () => {
     { numRuns: FUZZ_RUNS },
   );
 });
+
+// ---------------------------------------------------------------------
+// CTF MEG
+// ---------------------------------------------------------------------
+//
+// formats/ctf.js's api.read parses a .res4 ArrayBuffer. The synth
+// fixture under tests/fixtures/meg/ctf-tiny.ds/ctf-tiny_meg.res4 seeds
+// the corpus — small (~7 KB) so the mutator can still reach realistic
+// byte distributions across 10k rounds.
+
+// Load helpers so globalThis.CTFRes4 / CTFMarker resolve when ctf.js
+// is required. _bootstrap.mjs doesn't include them yet (they're new
+// in the CTF reader plan) so we side-load here.
+require('../formats/_ctf-res4.js');
+require('../formats/_ctf-marker.js');
+const CTFReader = require('../formats/ctf.js');
+
+test('fuzz: CTF read survives 10k corpus-mutated rounds', () => {
+  fc.assert(
+    fc.property(corpusFuzzedBuffer([
+      'meg/ctf-tiny.ds/ctf-tiny_meg.res4',
+    ]), (bytes) => {
+      const ab = bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      );
+      try {
+        const h = CTFReader.read(ab);
+        if (h !== undefined) {
+          assert.ok(h && typeof h === 'object',
+            'read() returned a non-object on accepted input');
+        }
+      } catch (e) {
+        if (!(e instanceof Error)) {
+          throw new Error(`Non-Error thrown: ${typeof e}: ${e}`);
+        }
+      }
+      return true;
+    }),
+    { numRuns: FUZZ_RUNS },
+  );
+});
