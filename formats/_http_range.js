@@ -79,11 +79,27 @@
   const TILE_MAX_PARALLEL    = 6;
 
   async function rangeFetch(url, byteStart, byteEndInclusive, expectedBytes, opts) {
+    // Security A4: reject pathological inputs at the perimeter.
+    // - Negative byteStart would become `Range: bytes=-N-…`, which S3
+    //   interprets as a SUFFIX RANGE (fetch the trailing N bytes of the
+    //   object) — a reader handing us `start = sampleIdx * frameSize`
+    //   with an underflowed sampleIdx would silently get end-of-file
+    //   data instead of an error.
+    // - Non-integer byteStart is also rejected so callers can't sneak
+    //   in NaN / -0 / 1e30 / "0" / etc.
+    if (!Number.isInteger(byteStart) || byteStart < 0) {
+      throw new Error(`HttpRange: bad byteStart ${byteStart}`);
+    }
+    // end < start collapses to zero-length without hitting the wire.
+    // Non-integer end is treated the same way (still zero-length).
+    if (!Number.isInteger(byteEndInclusive) || byteEndInclusive < byteStart) {
+      return new ArrayBuffer(0);
+    }
     // Zero-length / inverted ranges short-circuit without hitting the
     // network (or the local registry) — every reader has a code path
     // where nSamplesWindow=0 makes the math collapse, and we'd rather
     // return an empty ArrayBuffer than send `Range: bytes=0--1`.
-    if (byteEndInclusive < byteStart || expectedBytes === 0) {
+    if (expectedBytes === 0) {
       return new ArrayBuffer(0);
     }
     if (isLocal(url)) {
