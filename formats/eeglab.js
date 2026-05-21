@@ -17,7 +17,10 @@
    We skip BIDS sidecar `.set` parsing for the split-layout case
    (channel count + sample rate come from `_channels.tsv` and
    `_eeg.json`); the inline case has no choice but to parse the
-   MAT structure since that's where the data is.
+   MAT structure since that's where the data is. Standalone inline
+   .set files without a BIDS sidecar are supported too — nbchan and
+   srate come from the EEG struct and channel labels default to
+   Ch1..ChN when _channels.tsv is absent.
 
    Epoched (3-D) data `[n_channels, n_pnts, n_trials]` is treated
    as continuous: we flatten the trial axis so the viewer's flat
@@ -72,14 +75,18 @@
     if (!HOST_LITTLE_ENDIAN) {
       throw new Error('EEGLAB .fdt reader requires a little-endian host.');
     }
-    if (!meta.channels || !meta.channels.length) {
-      throw new Error('EEGLAB .fdt reader needs _channels.tsv (we skip .set parsing).');
-    }
-    const fs = meta.eeg_json.sampling_frequency;
-    if (!isFinite(fs) || fs <= 0) {
-      throw new Error('EEGLAB .fdt reader needs SamplingFrequency in _eeg.json.');
-    }
-    const nChannels = meta.channels.length;
+    // BIDS-strict gate has been relaxed: when _channels.tsv is absent
+    // we can still serve an inline-data .set (MAT v5 parser fills in
+    // nbchan / srate / labels from the EEG struct itself). The split
+    // .set+.fdt layout, on the other hand, still needs _channels.tsv
+    // because the .fdt is a raw float32 blob with no header — we have
+    // no way to know nChannels without it. So: only require channels
+    // up front; defer the BIDS-sidecar requirement to the .fdt branch.
+    const eegJson = meta.eeg_json || {};
+    const sidecarFs = eegJson.sampling_frequency;
+    const sidecarFsValid = isFinite(sidecarFs) && sidecarFs > 0;
+    const hasChannels = !!(meta.channels && meta.channels.length);
+    const nChannelsFromSidecar = hasChannels ? meta.channels.length : null;
 
     // Resolve the .fdt sibling URL. For BIDS-pathed sources
     // (OpenNeuro) we derive it by string-replace on .set; for SHA-
@@ -99,8 +106,25 @@
       }
     }
     if (totalBytes == null) {
-      return openInlineSet(meta, nChannels, fs);
+      // Inline-data path: nbchan / srate / data live inside the .set;
+      // we can produce a working reader without the BIDS sidecar.
+      // Pass nulls for the sidecar values when missing; openInlineSet
+      // will use the .set's own metadata and warn only if they conflict.
+      return openInlineSet(meta, nChannelsFromSidecar, sidecarFsValid ? sidecarFs : null);
     }
+
+    // Split .set + .fdt path: the .fdt is a flat float32 blob with no
+    // header — we need _channels.tsv (channel count) and _eeg.json
+    // (sampling rate) to interpret it. These can't be derived from the
+    // file itself.
+    if (!hasChannels) {
+      throw new Error('EEGLAB .fdt reader needs _channels.tsv (we skip .set parsing).');
+    }
+    if (!sidecarFsValid) {
+      throw new Error('EEGLAB .fdt reader needs SamplingFrequency in _eeg.json.');
+    }
+    const nChannels = nChannelsFromSidecar;
+    const fs = sidecarFs;
 
     if (totalBytes % (nChannels * BYTES_PER_SAMPLE) !== 0) {
       throw new Error(
@@ -207,13 +231,16 @@
     const eeg = MatV5.extractEegInline(vars);
 
     const nbchan = eeg.nbchan;
-    if (nbchan !== nChannelsFromSidecar) {
+    // Sidecar values are advisory: warn on mismatch, but trust the
+    // .set (it's the actual on-disk header). When the sidecar is
+    // absent entirely (standalone .set), there's nothing to warn about.
+    if (nChannelsFromSidecar != null && nbchan !== nChannelsFromSidecar) {
       console.warn(
         `EEGLAB inline .set: nbchan=${nbchan} disagrees with _channels.tsv ` +
         `(${nChannelsFromSidecar}); trusting the .set.`
       );
     }
-    if (Math.abs(eeg.srate - fsFromSidecar) > 0.5) {
+    if (fsFromSidecar != null && Math.abs(eeg.srate - fsFromSidecar) > 0.5) {
       console.warn(
         `EEGLAB inline .set: srate=${eeg.srate} Hz disagrees with _eeg.json ` +
         `(${fsFromSidecar} Hz); trusting the .set.`
@@ -243,6 +270,18 @@
     }
     const duration_s = nSamples / fs;
 
+    // Channel labels: prefer the BIDS sidecar (gives types + units),
+    // otherwise fall back to Ch1..ChN. Note: EEGLAB's EEG.chanlocs
+    // struct-array carries real labels in MATLAB but the current
+    // MatV5 parser only reads the first element of a struct array,
+    // so we can't extract per-channel labels from there yet — tracked
+    // as a follow-up. Defaulting to indexed labels lets standalone
+    // .set files (no BIDS sidecar) at least open and render.
+    const fallbackLabels = Array.from({ length: nbchan }, (_, i) => `Ch${i + 1}`);
+    const channelLabels = meta.channels && meta.channels.length === nbchan
+      ? meta.channels.map(c => c.name)
+      : fallbackLabels;
+
     return {
       n_channels: nbchan,
       n_samples: nSamples,
@@ -251,7 +290,7 @@
       bytes_per_sample: 4,
       trials_hint: trialsHint,
       url: setUrl,
-      channel_labels: meta.channels ? meta.channels.map(c => c.name) : null,
+      channel_labels: channelLabels,
       bids_channels: meta.channels || null,
       readWindow: async (startSample, nSamplesWindow) => {
         const start = Math.max(0, startSample);
