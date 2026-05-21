@@ -75,12 +75,12 @@ const EXPECTED = {
     'lastTotalChannels',
     'meanStd',
   ],
-  // topo2d.js exports via `window.EEGTopo2D = api` only — no
-  // module.exports fallback. Same export-pattern bug as fiff.js had
-  // pre-c57dc88. Documented as janitor F2 (file loaded by tests but
-  // NOT by production index.html). When F2 is decided (wire in or
-  // archive), add topo2d back to this snapshot OR remove from
-  // tests/unit-topo2d.test.mjs.
+  // topo2d.js was archived 2026-05-21 to archive/topo2d/topo2d.js
+  // (janitor F2 closure — file was tested but never instantiated by
+  // production index.html). If a future PR wires topo2d into the
+  // viewer UI, restore per archive/topo2d/README.md and re-add the
+  // entry here. The original export pattern (window.EEGTopo2D = api,
+  // no module.exports fallback) was the same as fiff.js pre-c57dc88.
   '../bids-loader.js': [
     'parseCoordsystem',
     'parseElectrodesTSV',

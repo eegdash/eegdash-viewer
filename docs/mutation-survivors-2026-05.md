@@ -1122,3 +1122,48 @@ Neither is on the current Tier 1+2+3 plan; both are documented as
 catching REGRESSIONS in the existing 4 well-mutated files (traces,
 filters, topo2d, bids-recording), not in the placeholder floors for
 viewer + worker.
+
+## Iteration 13 (T11, 2026-05-21) — topo2d archived
+
+Janitor F2 closure: `topo2d.js` was moved to `archive/topo2d/` along
+with its unit test. The module had a high mutation score (71.29%) but
+was never instantiated by production `index.html` — wiring the
+controller into a metadata-overlay slot is UX work that's out of
+scope for the Tier 1+2+3 maturation plan. See
+`archive/topo2d/README.md` for the restore procedure.
+
+### Per-file results (fresh baseline, 3604 mutants, ~18 min runtime)
+
+| File | iter-12 | iter-13 | Δ |
+|---|---:|---:|---:|
+| traces.js          | 66.71% | 66.71% | — |
+| filters.js         | 92.37% | 92.37% | — |
+| topo2d.js          | 71.29% | (archived) | n/a |
+| bids-recording.js  | 76.14% | 74.24% | −1.90 (sampling) |
+| viewer.js          | 0.64% | 0.64% | — |
+| worker.js          | 4.56% | 4.56% | — |
+| **Aggregate**      | 40.70% | **35.32%** | **−5.38** |
+
+### Why the aggregate dropped 5.38pp
+
+`topo2d.js` was carrying 613 mutants at 71.29% — well above the
+aggregate. Removing it drops the high-scoring contribution while
+leaving the low-scoring floors (viewer 0.64%, worker 4.56%) at full
+weight. The 5pp drop is arithmetic, not a regression: per-file
+scores for the four remaining real-tested files (traces, filters,
+bids-recording, worker) are unchanged within sampling noise.
+
+bids-recording's small dip (76.14 → 74.24) is sampling noise from
+Stryker's non-deterministic mutant ordering; no test or source
+changes were made.
+
+### Threshold: lowered 38 → 30
+
+Per the documented decision tree: aggregate (35.32%) is below the
+current break (38), so lower to `aggregate − 5 = 30`. This is NOT a
+regression in the actual code — the gate is recalibrated for the
+narrower scope (5 files: traces, filters, bids-recording, viewer,
+worker). The per-file scores for the well-tested files remain the
+durable measurement.
+
+low threshold also lowered: 42 → 34 (mirrors the previous gap).
