@@ -33,6 +33,9 @@ importScripts(
   'formats/edf.js',
   'formats/brainvision.js',
   'formats/fiff.js',
+  'formats/_ctf-res4.js',
+  'formats/_ctf-marker.js',
+  'formats/ctf.js',
   'filters.js',
 );
 
@@ -43,6 +46,7 @@ const READERS = {
   vhdr: globalThis.BrainVisionReader,
   fif:  globalThis.FiffReader,
   fiff: globalThis.FiffReader,
+  ds:   globalThis.CTFReader,
 };
 
 let reader = null;

@@ -268,6 +268,7 @@
       vhdr: globalThis.BrainVisionReader,
       fif:  globalThis.FiffReader,
       fiff: globalThis.FiffReader,
+      ds:   globalThis.CTFReader,
     };
   }
 
