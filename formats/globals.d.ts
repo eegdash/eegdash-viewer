@@ -20,6 +20,7 @@ declare const StreamingUtils: any;
 declare const CTFRes4: any;
 declare const CTFMarker: any;
 declare const FiffDir: any;
+declare const KitReader: any;
 
 // Some call sites reach through globalThis explicitly.
 declare global {
@@ -47,6 +48,8 @@ declare global {
   var CTFMarker: any;
   // eslint-disable-next-line no-var
   var FiffDir: any;
+  // eslint-disable-next-line no-var
+  var KitReader: any;
 }
 
 export {};

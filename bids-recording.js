@@ -66,7 +66,7 @@
     // (e.g. local test fixtures and demo files). Sidecar inheritance will
     // find nothing at these synthetic paths — the format reader extracts
     // everything it needs from the binary header.
-    const KNOWN_EXT = /\.(edf|bdf|set|vhdr|fif|fiff|snirf)$/i;
+    const KNOWN_EXT = /\.(edf|bdf|set|vhdr|fif|fiff|snirf|con|sqd)$/i;
     const m2 = /^(.*\/)([^/]+)$/.exec(physioUrl);
     if (m2 && KNOWN_EXT.test(m2[2])) {
       const dot = m2[2].lastIndexOf('.');

@@ -28,3 +28,4 @@ export const EDFReader         = require('../formats/edf.js');
 export const BrainVisionReader = require('../formats/brainvision.js');
 export const FiffDir           = require('../formats/_fiff-dir.js');
 export const FiffReader        = require('../formats/fiff.js');
+export const KitReader         = require('../formats/kit.js');

@@ -29,7 +29,7 @@ const PROBE_TIMEOUT_MS = 15_000;
 
 // Supported by the viewer.
 const SUPPORTED_DATATYPES = new Set(['eeg', 'ieeg', 'meg', 'emg', 'nirs']);
-const SUPPORTED_EXTS = new Set(['edf', 'bdf', 'set', 'vhdr', 'fif', 'snirf', 'ds']);
+const SUPPORTED_EXTS = new Set(['edf', 'bdf', 'set', 'vhdr', 'fif', 'snirf', 'ds', 'con', 'sqd']);
 
 // --- CLI ------------------------------------------------------------
 

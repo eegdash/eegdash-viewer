@@ -269,6 +269,8 @@
       fif:   globalThis.FiffReader,
       fiff:  globalThis.FiffReader,
       ds:    globalThis.CTFReader,
+      con:   globalThis.KitReader,
+      sqd:   globalThis.KitReader,
       snirf: globalThis.SnirfReader,
     };
   }

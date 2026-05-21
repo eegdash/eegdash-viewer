@@ -52,6 +52,9 @@ importScripts(
   'formats/_ctf-res4.js',
   'formats/_ctf-marker.js',
   'formats/ctf.js',
+  // KIT/Yokogawa/Ricoh MEG (.con / .sqd) — same modality dispatch as
+  // ctf.js, single-file format. No external sub-module dependencies.
+  'formats/kit.js',
   // SNIRF (HDF5) fNIRS reader. Depends on _jsfive loaded above (same
   // engine used for the MAT v7.3 EEGLAB path).
   'formats/snirf.js',
@@ -66,6 +69,8 @@ const READERS = {
   fif:   globalThis.FiffReader,
   fiff:  globalThis.FiffReader,
   ds:    globalThis.CTFReader,
+  con:   globalThis.KitReader,
+  sqd:   globalThis.KitReader,
   snirf: globalThis.SnirfReader,
 };
 
