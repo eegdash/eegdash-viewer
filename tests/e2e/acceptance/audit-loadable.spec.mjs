@@ -266,6 +266,14 @@ for (const c of CASES) {
       // 404s on optional BIDS sidecars are expected (inheritance walk);
       // the same filter as viewer.format-coverage.spec.mjs.
       if (/Failed to load resource/.test(t)) return;
+      // CORS errors against data.eegdash.org are expected when the audit
+      // runs from localhost (the eegdash FastAPI service only allows
+      // eegdash.github.io and its dev mirrors). The viewer code already
+      // catches the fetch rejection silently (bids-recording.js:399-404);
+      // the browser still emits a console.error that JS cannot suppress.
+      // In production (eegdash.github.io origin) the request succeeds.
+      if (/data\.eegdash\.org.*CORS policy/.test(t)) return;
+      if (/Access to fetch at 'https:\/\/data\.eegdash\.org/.test(t)) return;
       consoleErrors.push(`console.error: ${t}`);
     });
 
