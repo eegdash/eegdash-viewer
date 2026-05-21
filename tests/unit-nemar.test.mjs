@@ -56,9 +56,22 @@ test('resolveTargets: on-prefixed (OpenNeuro mirror) → kind=nemar too', () => 
   assert.equal(t.nemar_params.dataset, 'on005262');
 });
 
-test('resolveTargets: ds-prefixed dataset → kind=bids-path (unchanged)', () => {
+test('resolveTargets: ds-prefixed dataset without ?suffix= → kind=bids-path-auto', () => {
+  // After the modality auto-detect change: omitting ?suffix= triggers
+  // the parallel probe path (kind: 'bids-path-auto'). The viewer
+  // resolves the actual suffix at runtime via api.discoverSuffix.
   const t = BIDSRecording.resolveTargets(new URLSearchParams({
     dataset: 'ds002893', sub: '001', task: 'AuditoryVisualShift', run: '01', ext: 'set',
+  }));
+  assert.equal(t.kind, 'bids-path-auto');
+  assert.equal(t.params.dataset, 'ds002893');
+});
+
+test('resolveTargets: ds-prefixed dataset + ?suffix=eeg → kind=bids-path (explicit)', () => {
+  // With explicit suffix the probe is bypassed.
+  const t = BIDSRecording.resolveTargets(new URLSearchParams({
+    dataset: 'ds002893', sub: '001', task: 'AuditoryVisualShift',
+    run: '01', ext: 'set', suffix: 'eeg',
   }));
   assert.equal(t.kind, 'bids-path');
   assert.ok(t.eeg_url.endsWith('/sub-001_task-AuditoryVisualShift_run-01_eeg.set'));

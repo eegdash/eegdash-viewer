@@ -141,6 +141,44 @@
     return `${bucket}/${buildBidsRelpath(params, suffix)}`;
   };
 
+  // Modality auto-detection: probe all 5 BIDS electrophysiology
+  // datatypes in parallel and return the first one that exists. This
+  // lets URLs like ?dataset=ds003688&sub=01&ses=iemu&task=film&
+  // acq=clinical&run=1&ext=vhdr work for iEEG without the user needing
+  // to know ?suffix=ieeg. Uses GET + Range: bytes=0-0 (1-byte probe)
+  // rather than HEAD because some CDN configurations don't support
+  // HEAD for byte-range-cached objects.
+  //
+  // Priority order on tie: eeg, ieeg, meg, emg, nirs. Returns the
+  // suffix string ('eeg'|'ieeg'|'meg'|'emg'|'nirs') of the winner,
+  // or null if all 5 return 404.
+  const _CANDIDATE_SUFFIXES = ['eeg', 'ieeg', 'meg', 'emg', 'nirs'];
+  api.discoverSuffix = async function (params) {
+    const candidates = _CANDIDATE_SUFFIXES.map(suf => ({
+      suf,
+      url: api.buildOpenNeuroEegUrl({ ...params, suffix: suf }),
+    }));
+    // Race all 5 probes. Each probe resolves to { suf, ok } where ok
+    // is true iff the response is 200/206. We can't use Promise.race
+    // because that returns the FIRST to resolve regardless of result;
+    // we want the first SUCCESSFUL one in priority order. So we
+    // Promise.allSettled then walk the results in declared order.
+    const results = await Promise.all(candidates.map(async ({ suf, url }) => {
+      try {
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: { Range: 'bytes=0-0' },
+        });
+        // 200 (server ignored Range) or 206 (partial content) → exists.
+        return { suf, ok: res.status === 200 || res.status === 206 };
+      } catch {
+        return { suf, ok: false };
+      }
+    }));
+    const winner = results.find(r => r.ok);
+    return winner ? winner.suf : null;
+  };
+
   function required(params, key) {
     const v = params[key];
     if (v == null || v === '') throw new Error(`missing required URL param: ${key}`);
@@ -868,17 +906,26 @@
         // shape (latest|vN.N.N) before constructing the manifest URL.
         version: p.get('version') || undefined,
       };
-      // Determine suffix (default to 'eeg', can be overridden with ?suffix=)
-      // For iEEG datasets the user must currently pass ?suffix=ieeg
-      // explicitly. A future iteration could auto-fall-back to ieeg on
-      // 404 of the eeg path; for now the explicit param keeps the URL
-      // unambiguous.
-      const suffix = p.get('suffix') || 'eeg';
-      params.suffix = suffix;
+      // Suffix policy:
+      //   ?suffix=<X> explicit → use that suffix directly (no probe).
+      //   No ?suffix= → kind: 'bids-path-auto' → viewer probes all 5
+      //   suffixes in parallel via api.discoverSuffix and picks the
+      //   winner. ds003688 (iEEG film) is the canonical case: users
+      //   shouldn't need to know whether a dataset is EEG / iEEG / MEG
+      //   to load it.
+      const explicitSuffix = p.get('suffix');
+      if (explicitSuffix) params.suffix = explicitSuffix;
       // NEMAR (nm-prefixed) datasets resolve via the eegdash records
       // API instead of a direct bucket URL — git-annex SHA addressing.
       if (api.isNemarDatasetId(ds)) {
+        // NEMAR loader expects params.suffix; fall back to 'eeg' for
+        // back-compat with existing NEMAR URLs (which have always
+        // assumed eeg).
+        params.suffix = params.suffix || 'eeg';
         return { kind: 'nemar', nemar_params: params };
+      }
+      if (!explicitSuffix) {
+        return { kind: 'bids-path-auto', params };
       }
       return {
         kind: 'bids-path',

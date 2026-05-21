@@ -189,9 +189,24 @@ test('resolveTargets: ?eeg= takes priority', () => {
   assert.equal(t.eeg_url, 'https://s3/foo.set');
 });
 
-test('resolveTargets: ?dataset= builds OpenNeuro URL', () => {
+test('resolveTargets: ?dataset= (no ?suffix=) returns bids-path-auto for modality probe', () => {
+  // After the modality auto-detect change: when ?suffix= is omitted,
+  // resolveTargets defers to api.discoverSuffix. The viewer probes
+  // all 5 BIDS electrophysiology datatypes in parallel and picks the
+  // winner. This lets ds003688 (iEEG) work without ?suffix=ieeg.
   const t = BIDSRecording.resolveTargets(new URLSearchParams(
     'dataset=ds002336&sub=xp101&task=motorloc&ext=vhdr'));
+  assert.equal(t.kind, 'bids-path-auto');
+  assert.equal(t.params.dataset, 'ds002336');
+  assert.equal(t.params.sub, 'xp101');
+  assert.equal(t.params.task, 'motorloc');
+  assert.equal(t.params.ext, 'vhdr');
+});
+
+test('resolveTargets: ?dataset= with explicit ?suffix= still returns bids-path', () => {
+  // Backward compat for URLs that DO pin the suffix.
+  const t = BIDSRecording.resolveTargets(new URLSearchParams(
+    'dataset=ds002336&sub=xp101&task=motorloc&ext=vhdr&suffix=eeg'));
   assert.equal(t.kind, 'bids-path');
   assert.match(t.eeg_url, /ds002336.*sub-xp101.*motorloc.*\.vhdr$/);
 });
@@ -635,15 +650,25 @@ test('resolveTargets: ?dataset=on000001 → kind:nemar (NEMAR-style prefix)', ()
   assert.equal(t.nemar_params.dataset, 'on000001');
 });
 
-test('resolveTargets: ?dataset=ds001 (OpenNeuro) → kind:bids-path with full URL', () => {
-  // Kills the `if (api.isNemarDatasetId(ds))` branch on line 799 —
-  // OpenNeuro datasets must NOT go through the NEMAR path.
+test('resolveTargets: ?dataset=ds001 (OpenNeuro) + ?suffix=eeg → kind:bids-path with full URL', () => {
+  // Kills the `if (api.isNemarDatasetId(ds))` branch — OpenNeuro
+  // datasets must NOT go through the NEMAR path. With explicit
+  // ?suffix=eeg the auto-probe is skipped and a single eeg_url is
+  // returned.
   const t = BIDSRecording.resolveTargets(new URLSearchParams(
-    'dataset=ds001&sub=01&task=rest&ext=edf'));
+    'dataset=ds001&sub=01&task=rest&ext=edf&suffix=eeg'));
   assert.deepEqual(t, {
     kind: 'bids-path',
     eeg_url: 'https://cdn.eegdash.org/ds001/sub-01/eeg/sub-01_task-rest_eeg.edf',
   });
+});
+
+test('resolveTargets: ?dataset=ds001 (no ?suffix=) → kind:bids-path-auto for probe', () => {
+  // Auto-detect path. Viewer probes 5 candidate suffixes in parallel.
+  const t = BIDSRecording.resolveTargets(new URLSearchParams(
+    'dataset=ds001&sub=01&task=rest&ext=edf'));
+  assert.equal(t.kind, 'bids-path-auto');
+  assert.equal(t.params.dataset, 'ds001');
 });
 
 test('resolveTargets: ?dataset= + ?suffix=ieeg → builds /ieeg/ URL', () => {
@@ -1697,5 +1722,74 @@ test('resolveTargets: ?acq= propagated through to params.acq', () => {
   } else if (t.eeg_url) {
     assert.ok(t.eeg_url.includes('_acq-clinical_'),
       `eeg_url missing _acq-clinical_: ${t.eeg_url}`);
+  }
+});
+
+// ─── discoverSuffix: parallel modality probe ──────────────────────
+
+test('discoverSuffix: returns ieeg when ieeg path 200s + eeg 404s', async () => {
+  // Mock fetch to respond 200 only for the ieeg URL.
+  const calls = [];
+  globalThis.fetch = async (url, opts) => {
+    calls.push(url);
+    if (url.includes('/ieeg/') && url.includes('_ieeg.')) {
+      return { status: 206, ok: true };
+    }
+    return { status: 404, ok: false };
+  };
+  try {
+    const suf = await BIDSRecording.discoverSuffix({
+      dataset: 'ds003688', sub: '01', ses: 'iemu', task: 'film',
+      acq: 'clinical', run: '1', ext: 'vhdr',
+    });
+    assert.equal(suf, 'ieeg');
+    // Should have probed all 5 suffixes in parallel.
+    assert.equal(calls.length, 5);
+  } finally {
+    delete globalThis.fetch;
+  }
+});
+
+test('discoverSuffix: returns eeg when eeg path 200s (priority)', async () => {
+  globalThis.fetch = async (url) => {
+    if (url.includes('/eeg/') && url.includes('_eeg.')) {
+      return { status: 200, ok: true };
+    }
+    return { status: 404, ok: false };
+  };
+  try {
+    const suf = await BIDSRecording.discoverSuffix({
+      dataset: 'ds002893', sub: '001', task: 'AuditoryVisualShift',
+      run: '01', ext: 'set',
+    });
+    assert.equal(suf, 'eeg');
+  } finally {
+    delete globalThis.fetch;
+  }
+});
+
+test('discoverSuffix: returns null when all 5 suffixes 404', async () => {
+  globalThis.fetch = async () => ({ status: 404, ok: false });
+  try {
+    const suf = await BIDSRecording.discoverSuffix({
+      dataset: 'nonexistent', sub: '01', task: 'x', ext: 'edf',
+    });
+    assert.equal(suf, null);
+  } finally {
+    delete globalThis.fetch;
+  }
+});
+
+test('discoverSuffix: prefers eeg over ieeg when both 200', async () => {
+  // If somehow both succeed (unlikely but possible if multiple files
+  // exist), priority order is eeg > ieeg > meg > emg > nirs.
+  globalThis.fetch = async () => ({ status: 200, ok: true });
+  try {
+    const suf = await BIDSRecording.discoverSuffix({
+      dataset: 'x', sub: '01', task: 'x', ext: 'edf',
+    });
+    assert.equal(suf, 'eeg');
+  } finally {
+    delete globalThis.fetch;
   }
 });

@@ -1639,6 +1639,25 @@
     const target = BIDSRecording.resolveTargets(params);
     if (target?.kind === 'url' || target?.kind === 'bids-path') {
       load(target.eeg_url);
+    } else if (target?.kind === 'bids-path-auto') {
+      // Modality not specified in URL — probe eeg/ieeg/meg/emg/nirs in
+      // parallel + pick the first that exists. ~50-200 ms wall on
+      // cdn.eegdash.org because all 5 probes race; bandwidth cost is
+      // 5 × 1-byte range requests. Surface a status message so the
+      // user knows discovery is happening.
+      status.textContent = 'Detecting modality...';
+      BIDSRecording.discoverSuffix(target.params)
+        .then(suf => {
+          if (!suf) {
+            status.textContent = `No EEG/iEEG/MEG/EMG/NIRS recording found at ${target.params.dataset}/sub-${target.params.sub}/...`;
+            return;
+          }
+          const resolved = { ...target.params, suffix: suf };
+          load(BIDSRecording.buildOpenNeuroEegUrl(resolved));
+        })
+        .catch(err => {
+          status.textContent = `Modality probe failed: ${err.message || err}`;
+        });
     } else if (target?.kind === 'nemar') {
       // NEMAR (nm/on/xx prefixes): meta is built from the per-version
       // data.nemar.org manifest.json fetched through the cdn-worker
