@@ -89,8 +89,19 @@ const ALL_LOADABLE = loadLoadableRows();
 const CASES = subsample(ALL_LOADABLE, SAMPLE_SIZE, SEED);
 
 // Truncate the JSONL sidecar at suite startup so a new run gets a fresh report.
+// Playwright may load this module multiple times across workers/projects, so
+// we gate truncation behind a per-invocation sentinel: the first eval to see
+// the sentinel "missing or older than 60 s" wins; later evals append-only.
 fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
-fs.writeFileSync(RESULTS_JSONL, '');
+const TRUNCATE_SENTINEL = path.join(EVIDENCE_DIR, '.last-truncate-ms');
+const now = Date.now();
+const lastTruncateMs = fs.existsSync(TRUNCATE_SENTINEL)
+  ? Number.parseInt(fs.readFileSync(TRUNCATE_SENTINEL, 'utf8').trim(), 10) || 0
+  : 0;
+if (now - lastTruncateMs > 60_000) {
+  fs.writeFileSync(RESULTS_JSONL, '');
+  fs.writeFileSync(TRUNCATE_SENTINEL, String(now));
+}
 
 /**
  * Per-test result row written to RESULTS_JSONL.
@@ -123,14 +134,18 @@ function makeResultRow(testCase) {
   };
 }
 
-const EXT_TO_PILL = {
-  set: 'SET',
-  edf: 'EDF',
-  bdf: 'BDF',
-  vhdr: 'BV',
-  fif: 'FIF',
-  snirf: 'SNIRF',
-};
+// The viewer's pill is set via `setPill('pill-format', meta.ext.toUpperCase())`
+// (see src/viewer.js). So the expected pill is simply ext.toUpperCase() for
+// every supported format. .ds (CTF) is the one exception — the viewer's
+// meta.ext may be remapped to 'CTF' or 'MEG4' internally; we record whatever
+// the pill shows and only fail on mismatch for the well-known leaf-format
+// extensions (set/edf/bdf/vhdr/fif/snirf).
+const STRICT_PILL_EXTS = new Set(['set', 'edf', 'bdf', 'vhdr', 'fif', 'snirf']);
+function expectedPillFor(ext) {
+  if (!ext) return null;
+  if (!STRICT_PILL_EXTS.has(ext)) return null; // record-only, no assertion
+  return ext.toUpperCase();
+}
 
 test.describe('audit-loadable: browser reality check', () => {
   test('subsample bootstrap sanity', () => {
@@ -166,3 +181,102 @@ test.afterEach(async ({}, testInfo) => {
   fs.appendFileSync(RESULTS_JSONL, JSON.stringify(row) + '\n');
   PENDING_RESULTS.delete(testInfo.title);
 });
+
+for (const c of CASES) {
+  const title = `loads ${c.dataset_id} (${c.ext}) from ${c.cdn_url}`;
+
+  test(title, async ({ page }) => {
+    const row = makeResultRow(c);
+    PENDING_RESULTS.set(title, row);
+
+    if (SOFT_FAIL) {
+      // Soft-fail mode: mark every per-dataset test as `fixme`. Playwright
+      // skips execution but the title still appears in the report; the
+      // JSONL row stays at verdict='skipped' so the report knows the run
+      // was suppressed, not silently absent.
+      row.verdict = 'skipped';
+      test.fixme(true, 'AUDIT_SOFT_FAIL=1 — report-only mode');
+      return;
+    }
+
+    const consoleErrors = [];
+    const pageErrors = [];
+    page.on('pageerror', (e) => pageErrors.push(`pageerror: ${e.message}`));
+    page.on('console', (m) => {
+      if (m.type() !== 'error') return;
+      const t = m.text();
+      // 404s on optional BIDS sidecars are expected (inheritance walk);
+      // the same filter as viewer.format-coverage.spec.mjs.
+      if (/Failed to load resource/.test(t)) return;
+      consoleErrors.push(`console.error: ${t}`);
+    });
+
+    const url = '/index.html?eeg=' + encodeURIComponent(c.cdn_url);
+    const t0 = Date.now();
+
+    try {
+      await page.goto(url);
+
+      await expect(
+        page.locator('#stage-caption'),
+        `${c.dataset_id}: stage-caption never visible`,
+      ).toBeVisible({ timeout: 60_000 });
+
+      row.render_ms = Date.now() - t0;
+
+      // Pill check — small per-extension table; null entries (e.g. an
+      // unsupported ext that nonetheless 200'd on the range probe) are
+      // tolerated and recorded for the report without failing.
+      const expectedPill = expectedPillFor(c.ext);
+      const pillText = (await page.locator('#pill-format').textContent())?.trim() ?? '';
+      row.pill_format = pillText;
+      if (expectedPill && pillText !== expectedPill) {
+        row.verdict = 'pill-mismatch';
+        row.error_message = `expected pill '${expectedPill}', got '${pillText}'`;
+        throw new Error(row.error_message);
+      }
+
+      // Canvas non-blank check — same pixel-sampling routine as
+      // viewer.format-coverage.spec.mjs:83.
+      const nonBgPixels = await page.locator('#traces').evaluate((canvas) => {
+        if (!canvas.width || !canvas.height) return 0;
+        const ctx = canvas.getContext('2d');
+        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+        let count = 0;
+        for (let i = 0; i < data.length; i += 800) {
+          if (data[i] < 240 || data[i + 1] < 240 || data[i + 2] < 240) count++;
+        }
+        return count;
+      });
+      row.non_bg_pixels = nonBgPixels;
+      if (nonBgPixels < 50) {
+        row.verdict = 'blank-canvas';
+        row.error_message = `only ${nonBgPixels} non-background pixels (threshold 50)`;
+        expect(nonBgPixels, `${c.dataset_id}: canvas non-background pixels`).toBeGreaterThan(50);
+      }
+
+      row.console_errors = consoleErrors.length;
+      row.page_errors = pageErrors.length;
+      if (consoleErrors.length > 0 || pageErrors.length > 0) {
+        row.verdict = 'console-error';
+        row.error_message = [...pageErrors, ...consoleErrors].join(' | ').slice(0, 500);
+        expect(
+          [...pageErrors, ...consoleErrors],
+          `${c.dataset_id}: console/page errors\n${row.error_message}`,
+        ).toHaveLength(0);
+      }
+
+      row.verdict = 'pass';
+    } catch (err) {
+      // Capture the message if a verdict wasn't already set; the afterEach
+      // hook covers timeouts that fire before this catch runs.
+      if (row.verdict === 'unknown') {
+        row.verdict = row.render_ms == null ? 'render-fail' : 'render-fail';
+        row.error_message = String(err && err.message ? err.message : err).slice(0, 500);
+      }
+      row.console_errors = consoleErrors.length;
+      row.page_errors = pageErrors.length;
+      throw err;
+    }
+  });
+}
