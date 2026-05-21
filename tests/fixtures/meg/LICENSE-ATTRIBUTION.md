@@ -44,3 +44,28 @@ the time of authorship.
 - Acquisition mode: CONTINUOUS (acq_type=1). Epoched/evoked KIT files
   are intentionally NOT generated here — the reader rejects them with
   a clean error, and supporting them would be a separate fixture.
+
+## kriss-tiny.kdf (synthesised, CC0)
+
+`kriss-tiny.kdf` is synthesised by `scripts/make-kriss-fixture.mjs`
+(this repo) — no upstream data. Released under CC0.
+
+Unlike `kit-tiny.con`, this fixture is **not** a structurally valid
+KRISS recording — it is a STUB used by the `formats/kriss.js` STUB
+reader. The KRISS (Korea Research Institute of Standards and Science)
+`.kdf` binary format has no public specification: it is documented in
+the BIDS-MEG appendix at the filename level only
+(https://bids-specification.readthedocs.io/en/stable/appendices/meg-file-formats.html#kriss),
+and neither MNE-Python (no `mne/io/kriss/` module) nor FieldTrip (no
+`read_kriss_header.m`) ships a public reader.
+
+The fixture exists solely to exercise the stub reader's two code paths:
+1. KRISS-shaped header detected → throws "not yet implemented" error
+2. Bytes don't look like KRISS → throws "not a valid KRISS file" error
+
+Bytes 0..3 carry the ASCII "KDF\0" magic (the four-byte signature we
+adopt for the stub); bytes 16..29 carry the label "KRISS MEG v0.0".
+The rest is a deterministic sin-byte pattern. When a real .kdf spec
+becomes available, this script will be rewritten to emit a structurally
+valid file and the reader will gain a real parser. See
+`scripts/make-kriss-fixture.mjs` for the layout details.
