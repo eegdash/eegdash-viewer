@@ -87,7 +87,21 @@ let activeFilterCoefs = [];
 // pattern. (Worker sleuth finding 5.)
 const cancelledRequestIds = new Set();
 const MAX_CANCELLED_REQUEST_IDS = 256;
+// Security A5: validate request_id shape BEFORE adding to the
+// cancelled-set. Threat model: a compromised main thread (XSS or
+// hostile script with worker handle) could blow worker memory by
+// flooding `markRequestCancelled` with huge strings or non-string
+// objects (`{a: '…large…'}`) — the Set holds them until evicted.
+// Accept only numbers and short (<=64 char) strings. Anything else
+// is silently dropped — main-thread bugs shouldn't crash the worker.
+const MAX_REQUEST_ID_STRING_LEN = 64;
+function _isValidRequestId(id) {
+  if (typeof id === 'number') return Number.isFinite(id);
+  if (typeof id === 'string') return id.length > 0 && id.length <= MAX_REQUEST_ID_STRING_LEN;
+  return false;
+}
 function markRequestCancelled(id) {
+  if (!_isValidRequestId(id)) return;
   cancelledRequestIds.add(id);
   while (cancelledRequestIds.size > MAX_CANCELLED_REQUEST_IDS) {
     const oldest = cancelledRequestIds.values().next().value;
@@ -96,6 +110,24 @@ function markRequestCancelled(id) {
 }
 function isRequestCancelled(id) {
   return cancelledRequestIds.has(id);
+}
+
+// Security A5: validate (start_sample, n_samples) shape on every
+// FETCH_WINDOW(_STREAM) entry. Caps are loose enough to not affect
+// any real recording (2^28 = ~268M samples per window) but tight
+// enough to refuse pathological allocator math.
+const MAX_WINDOW_SAMPLES = 1 << 28;
+function _isValidSampleCount(start_sample, n_samples) {
+  if (!Number.isFinite(start_sample) || start_sample < 0) return false;
+  if (!Number.isFinite(n_samples) || n_samples <= 0 || n_samples > MAX_WINDOW_SAMPLES) return false;
+  return true;
+}
+// Expose the predicates for unit-testing without spinning a Worker.
+if (typeof globalThis !== 'undefined') {
+  globalThis._worker_isValidRequestId = _isValidRequestId;
+  globalThis._worker_isValidSampleCount = _isValidSampleCount;
+  globalThis._worker_MAX_REQUEST_ID_STRING_LEN = MAX_REQUEST_ID_STRING_LEN;
+  globalThis._worker_MAX_WINDOW_SAMPLES = MAX_WINDOW_SAMPLES;
 }
 
 // Perf: raw (unfiltered) window cache, keyed by `${start}-${n}`. The
@@ -235,6 +267,11 @@ self.onmessage = async function (evt) {
           self.postMessage({ type: 'ERROR', request_id, message: 'No reader loaded' });
           return;
         }
+        // Security A5: reject malformed input before allocator math.
+        if (!_isValidSampleCount(start_sample, n_samples)) {
+          self.postMessage({ type: 'ERROR', request_id, message: `bad sample window: start=${start_sample} n=${n_samples}` });
+          return;
+        }
         // Same epoch + filter snapshot pattern as FETCH_WINDOW_STREAM
         // (Worker sleuth findings 1 + 2). Even though FETCH_WINDOW has
         // only one await, that's enough for APPLY_FILTER or LOAD_FILE
@@ -291,7 +328,11 @@ self.onmessage = async function (evt) {
       // worker happily streams the full window for an abandoned request.
       // (Worker sleuth finding 5.)
       case 'CANCEL_REQUEST': {
-        if (typeof msg.request_id !== 'undefined') {
+        // Security A5: only accept well-formed request_ids. _isValidRequestId
+        // rejects undefined, objects, and oversized strings — same predicate
+        // markRequestCancelled uses internally. We mirror it here so we
+        // don't echo CANCELLED for shapes we refused to record.
+        if (_isValidRequestId(msg.request_id)) {
           markRequestCancelled(msg.request_id);
           // Echo back so the viewer can immediately drop the pendingRequest
           // entry and free any associated state (callback closures, etc.).
@@ -309,6 +350,11 @@ self.onmessage = async function (evt) {
         const { start_sample, n_samples, request_id } = msg;
         if (!reader) {
           self.postMessage({ type: 'ERROR', request_id, message: 'No reader loaded' });
+          return;
+        }
+        // Security A5: reject malformed input before any work.
+        if (!_isValidSampleCount(start_sample, n_samples)) {
+          self.postMessage({ type: 'ERROR', request_id, message: `bad sample window: start=${start_sample} n=${n_samples}` });
           return;
         }
         // Capture epoch + filter chain at entry. Any APPLY_FILTER /
