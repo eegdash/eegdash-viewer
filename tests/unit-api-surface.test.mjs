@@ -190,6 +190,10 @@ test('api-surface: format readers share the open() return shape', async () => {
       const path = url.replace(/^file:\/\//, '');
       return fs.statSync(path).size;
     },
+    async probeLengthNoHead(url) {
+      const path = url.replace(/^file:\/\//, '');
+      return fs.statSync(path).size;
+    },
   };
 
   // FIFF — known shape, smallest fixture with raw data. synth-raw.fif

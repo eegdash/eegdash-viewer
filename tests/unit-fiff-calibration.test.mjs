@@ -20,6 +20,10 @@ globalThis.HttpRange = {
     const filePath = url.replace(/^file:\/\//, '');
     return fs.statSync(filePath).size;
   },
+  probeLengthNoHead: async (url) => {
+    const filePath = url.replace(/^file:\/\//, '');
+    return fs.statSync(filePath).size;
+  },
   rangeFetch: async (url, start, endIncl) => {
     const filePath = url.replace(/^file:\/\//, '');
     const b = fs.readFileSync(filePath);

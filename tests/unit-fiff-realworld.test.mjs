@@ -40,6 +40,9 @@ globalThis.HttpRange = {
   async probeLength(url) {
     return fs.statSync(url.replace(/^file:\/\//, '')).size;
   },
+  async probeLengthNoHead(url) {
+    return fs.statSync(url.replace(/^file:\/\//, '')).size;
+  },
   async rangeFetch(url, start, end) {
     const buf = fs.readFileSync(url.replace(/^file:\/\//, ''));
     const slice = buf.slice(start, end + 1);

@@ -48,6 +48,39 @@
     return Number(m[1]);
   }
 
+  // HEAD-avoidant variant: some CDNs (verified against cdn.eegdash.org
+  // and OpenNeuro S3 fronted by Cloudflare; ds003694 2 GB FIFF, see
+  // tests/evidence/streaming-large/cdn-head-poisons-range.md) cache the
+  // HEAD response with the same cache key as a subsequent GET-with-Range
+  // — the GET then gets served the cached full body (200 + entire file)
+  // instead of a 206 + the requested range. Bypass HEAD by issuing a
+  // 1-byte Range GET; the Content-Range total component (after `/`)
+  // gives the same information without poisoning the cache. Falls back
+  // to probeLength on any error / missing Content-Range (covers local
+  // blobs, file://, and servers that don't honour Range).
+  //
+  // Promoted from formats/fiff.js + formats/eeglab.js (B4) where both
+  // shipped character-identical local copies.
+  async function probeLengthNoHead(url) {
+    try {
+      const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+      if (res.status === 206) {
+        const cr = res.headers.get('content-range');
+        const m = cr && /\/(\d+)$/.exec(cr);
+        if (m) {
+          // Drain the 1-byte body so the connection slot is freed.
+          await res.arrayBuffer();
+          return Number(m[1]);
+        }
+      }
+      // Drain any body anyway so the socket doesn't leak.
+      await res.arrayBuffer().catch(() => null);
+    } catch {
+      // Fall through to legacy probeLength on any error.
+    }
+    return probeLength(url);
+  }
+
   // Inclusive range. `expectedBytes`, when given, also throws if the
   // body length differs (typical sign of a CDN that ignored Range and
   // served the full file). `signal` cancels in-flight HTTP fetches —
@@ -278,7 +311,7 @@
   }
 
   const api = {
-    probeLength, rangeFetch, rangeFetchStreaming, fetchBuffer,
+    probeLength, probeLengthNoHead, rangeFetch, rangeFetchStreaming, fetchBuffer,
     fetchText, fetchTextOrNull,
     registerLocal, clearLocal,
     _STREAM_THRESHOLD: STREAM_THRESHOLD,

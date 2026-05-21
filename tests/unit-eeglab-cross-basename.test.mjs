@@ -34,6 +34,11 @@ globalThis.HttpRange = {
     }
     return fs.statSync(p).size;
   },
+  async probeLengthNoHead(url) {
+    const p = fileFromUrl(url);
+    if (!fs.existsSync(p)) throw new Error(`HTTP 404 on ${url}`);
+    return fs.statSync(p).size;
+  },
   async rangeFetch(url, start, end /*, expectedBytes, opts */) {
     const fd = fs.openSync(fileFromUrl(url), 'r');
     const len = end - start + 1;
@@ -69,6 +74,11 @@ globalThis.HttpRange = {
       // the eeglab reader looks for /HTTP 404/ to fall through to inline.
       throw new Error(`HTTP 404 on ${url}`);
     }
+    return fs.statSync(p).size;
+  },
+  async probeLengthNoHead(url) {
+    const p = fileFromUrl(url);
+    if (!fs.existsSync(p)) throw new Error(`HTTP 404 on ${url}`);
     return fs.statSync(p).size;
   },
   async rangeFetch(url, start, end) {

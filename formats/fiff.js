@@ -364,40 +364,17 @@
   // cache slot as 200 + full body (rather than 206 + the requested
   // range). Verified 2026-05-21 against ds003694 (2 GB FIFF) — see
   // tests/evidence/streaming-large/cdn-head-poisons-range.md.
-  //
-  // The plan's HttpRange.probeLength() uses HEAD-first, which triggers
-  // the cache bug. We use a 1-byte Range GET instead — Content-Range's
-  // total component (after the `/`) gives the same information without
-  // poisoning the cache. Falls back to probeLength when no Content-
-  // Range is returned (local blobs, file://, etc.).
-  async function probeLengthRangeOnly(url) {
-    // Local blobs short-circuit to fast .size — they don't have HTTP cache.
-    try {
-      const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
-      if (res.status === 206) {
-        const cr = res.headers.get('content-range');
-        const m = cr && /\/(\d+)$/.exec(cr);
-        if (m) {
-          // Drain the 1-byte body so the connection slot is freed.
-          await res.arrayBuffer();
-          return Number(m[1]);
-        }
-      }
-      // Drain any body anyway.
-      await res.arrayBuffer().catch(() => null);
-    } catch {
-      // Fall through to legacy probeLength on any error.
-    }
-    return globalThis.HttpRange.probeLength(url);
-  }
+  // Implementation now lives in formats/_http_range.js as
+  // HttpRange.probeLengthNoHead (promoted in B4 — eeglab.js shipped
+  // the same workaround for the same reason).
 
   api.open = async function (meta) {
     const url = meta.eeg_url || meta.url;
     if (!url) throw new Error('fiff.open: meta.eeg_url is required');
 
     // Probe total file length via 1-byte Range GET (HEAD avoidance —
-    // see probeLengthRangeOnly comment above).
-    const totalBytes = await probeLengthRangeOnly(url);
+    // see HttpRange.probeLengthNoHead).
+    const totalBytes = await globalThis.HttpRange.probeLengthNoHead(url);
     if (totalBytes < 36) {
       throw new Error(`fiff: file too small (${totalBytes}B) — need at least 36B for header`);
     }

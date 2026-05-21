@@ -118,6 +118,11 @@ test('fiff: open(meta) returns a reader-shaped object for raw-data file', async 
       const path = url.replace(/^file:\/\//, '');
       return fs.statSync(path).size;
     },
+    // file:// has no CDN cache-poisoning bug — alias to probeLength.
+    async probeLengthNoHead(url) {
+      const path = url.replace(/^file:\/\//, '');
+      return fs.statSync(path).size;
+    },
     async rangeFetch(url, start, endIncl) {
       const path = url.replace(/^file:\/\//, '');
       const buf = fs.readFileSync(path);
@@ -148,6 +153,10 @@ test('fiff: open() throws cleanly on metadata-only files (no FIFFB_RAW_DATA)', a
       return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
     },
     async probeLength(url) {
+      const path = url.replace(/^file:\/\//, '');
+      return fs2.statSync(path).size;
+    },
+    async probeLengthNoHead(url) {
       const path = url.replace(/^file:\/\//, '');
       return fs2.statSync(path).size;
     },

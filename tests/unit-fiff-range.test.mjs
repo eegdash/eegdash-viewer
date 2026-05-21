@@ -132,6 +132,7 @@ beforeEach(() => {
   mockSource = buildSyntheticFiff();
   rangeRequestLog = [];
   globalThis.HttpRange.probeLength = async () => mockSource.byteLength;
+  globalThis.HttpRange.probeLengthNoHead = async () => mockSource.byteLength;
   globalThis.HttpRange.rangeFetch  = async (_url, start, endIncl) => {
     rangeRequestLog.push({ start, end: endIncl });
     return mockSource.slice(start, endIncl + 1);

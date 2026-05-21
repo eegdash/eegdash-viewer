@@ -265,7 +265,7 @@
     // Use a 1-byte Range GET to learn total size — HEAD requests
     // against cdn.eegdash.org poison the Range cache (see
     // tests/evidence/streaming-large/README.md for the discovery).
-    const totalBytes = await probeLengthRangeOnly(setUrl);
+    const totalBytes = await HttpRange.probeLengthNoHead(setUrl);
 
     // Range-fetch the head probe (capped at 16 MB or totalBytes).
     const probeBytes = Math.min(totalBytes, INLINE_METADATA_BUDGET_BYTES);
@@ -455,28 +455,9 @@
     };
   }
 
-  // HEAD-avoidant length probe — see formats/fiff.js for the same
-  // workaround. The cdn.eegdash.org worker caches HEAD responses with
-  // the same cache key as GET, so subsequent GET-with-Range gets the
-  // cached 200 + full body. Use a 1-byte Range GET instead and read
-  // total from Content-Range.
-  async function probeLengthRangeOnly(url) {
-    try {
-      const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
-      if (res.status === 206) {
-        const cr = res.headers.get('content-range');
-        const m = cr && /\/(\d+)$/.exec(cr);
-        if (m) {
-          await res.arrayBuffer();
-          return Number(m[1]);
-        }
-      }
-      await res.arrayBuffer().catch(() => null);
-    } catch {
-      // Fall through.
-    }
-    return HttpRange.probeLength(url);
-  }
+  // HEAD-avoidant length probe lives in formats/_http_range.js as
+  // HttpRange.probeLengthNoHead (promoted in B4 — fiff.js shipped the
+  // same workaround for the same CDN cache-poisoning bug).
 
   // Legacy whole-file parse path. Used as the fallback for v7.3,
   // compressed, struct-wrapped, or non-float32 inline .set files.

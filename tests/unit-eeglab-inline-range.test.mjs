@@ -88,6 +88,10 @@ beforeEach(() => {
     const err = new Error(`HTTP 404 (mock) for ${url}`);
     throw err;
   };
+  globalThis.HttpRange.probeLengthNoHead = async (url) => {
+    if (url.endsWith('.set')) return mockSource.byteLength;
+    throw new Error(`HTTP 404 (mock) for ${url}`);
+  };
   globalThis.HttpRange.rangeFetch  = async (url, s, e) => {
     if (!url.endsWith('.set')) throw new Error(`unexpected rangeFetch to ${url}`);
     rangeRequestLog.push({ start: s, end: e });
@@ -135,6 +139,10 @@ test('eeglab inline range: opens a synth file that REPORTS > 200 MB', async () =
     if (url.endsWith('.set')) return 500 * 1024 * 1024;
     throw new Error(`HTTP 404 (mock) for ${url}`);
   };
+  globalThis.HttpRange.probeLengthNoHead = async (url) => {
+    if (url.endsWith('.set')) return 500 * 1024 * 1024;
+    throw new Error(`HTTP 404 (mock) for ${url}`);
+  };
   globalThis.HttpRange.rangeFetch  = async (url, s, e) => {
     if (!url.endsWith('.set')) throw new Error(`unexpected rangeFetch to ${url}`);
     fetchLog.push({ start: s, end: e });
@@ -159,6 +167,10 @@ test('eeglab inline range: openInlineSet handles files larger than the metadata 
   // is in the first 16 MB.
   const real = mockSource;
   globalThis.HttpRange.probeLength = async (url) => {
+    if (url.endsWith('.set')) return 100 * 1024 * 1024;
+    throw new Error(`HTTP 404 (mock) for ${url}`);
+  };
+  globalThis.HttpRange.probeLengthNoHead = async (url) => {
     if (url.endsWith('.set')) return 100 * 1024 * 1024;
     throw new Error(`HTTP 404 (mock) for ${url}`);
   };

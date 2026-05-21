@@ -74,6 +74,7 @@ let mockSource;
 beforeEach(() => {
   mockSource = buildTwoBufferFiff();
   globalThis.HttpRange.probeLength = async () => mockSource.byteLength;
+  globalThis.HttpRange.probeLengthNoHead = async () => mockSource.byteLength;
   globalThis.HttpRange.rangeFetch  = async (_url, s, e) => mockSource.slice(s, e + 1);
 });
 
