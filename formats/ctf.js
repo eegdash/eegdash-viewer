@@ -64,7 +64,154 @@
     return globalThis.CTFRes4.parse(buf);
   };
 
-  // api.open lives in Task 6.
+  /**
+   * Open a CTF MEG `.ds/` recording for windowed reading.
+   *
+   * `meta.eeg_url` must point at the `.meg4` file INSIDE the bundle
+   * (e.g. `…/foo_meg.ds/foo_meg.meg4`); this is what bids-recording.js
+   * builds when ext=ds. The reader derives the sibling URLs by string
+   * arithmetic: replace `.meg4` with `.res4` / strip filename and
+   * append `MarkerFile.mrk` / `BadChannels`.
+   *
+   * @param {object} meta - { eeg_url: string, … } as produced by
+   *   bids-recording.js or a drag-and-drop bundle.
+   * @returns {Promise<object>} reader with the cross-format contract:
+   *   n_channels, sampling_frequency, n_samples, duration_s,
+   *   channel_labels, bytes_per_sample, recording_start_iso,
+   *   annotation_events, readWindow(start, n).
+   */
+  api.open = async function (meta) {
+    const meg4Url = meta && (meta.eeg_url || meta.url);
+    if (!meg4Url) throw new Error('ctf.open: meta.eeg_url is required (point at <entities>_meg.meg4)');
+
+    const HttpRange = globalThis.HttpRange;
+    if (!HttpRange) throw new Error('ctf.open: globalThis.HttpRange missing');
+
+    // Derive sibling URLs. CTF guarantees the bundle's binary children
+    // share the bundle basename: .meg4 → .res4 within the same .ds/.
+    const res4Url = meg4Url.replace(/\.meg4$/, '.res4');
+    if (res4Url === meg4Url) {
+      throw new Error(`ctf.open: meta.eeg_url must end with .meg4 (got ${meg4Url})`);
+    }
+    const bundleDir = meg4Url.slice(0, meg4Url.lastIndexOf('/') + 1);
+    const markerUrl = `${bundleDir}MarkerFile.mrk`;
+    const badUrl    = `${bundleDir}BadChannels`;
+
+    // Header first — everything else depends on it.
+    const res4Buf = await HttpRange.fetchBuffer(res4Url);
+    const header = api.read(res4Buf);
+
+    // .meg4 body length tells us the true sample count when the recording
+    // is continuous (no_trials=1) and gives us the per-trial chunk size
+    // otherwise. We always trust the body length over no_samples *
+    // no_trials because some converters write the header before knowing
+    // the final sample count.
+    const meg4Length = await HttpRange.probeLength(meg4Url);
+    const bodyBytes = meg4Length - MEG4_HEADER_BYTES;
+    if (bodyBytes < 0) {
+      throw new Error(`ctf.open: .meg4 is ${meg4Length} bytes, smaller than the 8-byte magic header`);
+    }
+    if (bodyBytes % (header.no_channels * BYTES_PER_SAMPLE) !== 0) {
+      throw new Error(
+        `ctf.open: .meg4 body ${bodyBytes} bytes is not a multiple of ` +
+        `${header.no_channels} channels x 2 bytes — header/body mismatch`
+      );
+    }
+    const n_samples = bodyBytes / (header.no_channels * BYTES_PER_SAMPLE);
+
+    // Markers + bad channels are optional. Failures are warnings, never
+    // hard errors — viewer should still load the recording.
+    let annotation_events = [];
+    let bad_channels = [];
+    try {
+      const mrkText = await HttpRange.fetchTextOrNull(markerUrl);
+      if (mrkText && globalThis.CTFMarker) {
+        annotation_events = globalThis.CTFMarker.parseMarkerFile(mrkText);
+      }
+    } catch (e) {
+      console.warn(`ctf.open: MarkerFile.mrk fetch failed (${e.message}); events skipped`);
+    }
+    try {
+      const badText = await HttpRange.fetchTextOrNull(badUrl);
+      if (badText && globalThis.CTFMarker) {
+        bad_channels = globalThis.CTFMarker.parseBadChannels(badText);
+      }
+    } catch (e) {
+      console.warn(`ctf.open: BadChannels fetch failed (${e.message}); bad-list skipped`);
+    }
+
+    // Pre-fetch the whole .meg4 if it fits in the in-memory budget;
+    // otherwise readWindow issues a Range fetch per call. The cutoff
+    // matches what eeglab.js does for inline-data .set files.
+    let cachedBody = null;
+    if (meg4Length <= FULL_LOAD_MAX_BYTES) {
+      cachedBody = await HttpRange.fetchBuffer(meg4Url);
+      // Sanity-check the magic; this is the first byte the user sees
+      // out of the .meg4, so getting it wrong here means something is
+      // very wrong with the bundle.
+      const mag = new Uint8Array(cachedBody, 0, 8);
+      const magStr = String.fromCharCode(...mag).replace(/\0.*$/, '');
+      if (!/^MEG4[12]CP$/.test(magStr)) {
+        throw new Error(`ctf.open: .meg4 bad magic ${JSON.stringify(magStr)} — expected MEG41CP or MEG42CP`);
+      }
+    }
+
+    const channel_labels = header.channels.map(c => c.name);
+    const cals    = header.channels.map(c => c.cal);
+    const offsets = header.channels.map(c => c.io_offset);
+    const nch     = header.no_channels;
+
+    async function readWindow(startSample, nWin) {
+      const start = Math.max(0, startSample | 0);
+      if (start >= n_samples || nWin <= 0) {
+        // Empty channels, length 0 — matches what edf.js returns at EOF.
+        return Array.from({ length: nch }, () => new Float32Array(0));
+      }
+      const end = Math.min(start + nWin, n_samples);
+      const nOut = end - start;
+
+      // CTF samples are interleaved: sample[t] of channel[c] sits at
+      // body byte (t * nch + c) * 2. Read the required byte range
+      // (one shot via Range or one slice of the cached body), then
+      // de-interleave into channel-major Float32 with calibration.
+      const byteStart = MEG4_HEADER_BYTES + start * nch * BYTES_PER_SAMPLE;
+      const byteEnd   = MEG4_HEADER_BYTES + end   * nch * BYTES_PER_SAMPLE - 1;
+      let buf;
+      if (cachedBody) {
+        // cachedBody includes the 8-byte magic; slice by the absolute
+        // byte offsets so the arithmetic matches the range-fetch branch.
+        buf = cachedBody.slice(byteStart, byteEnd + 1);
+      } else {
+        buf = await HttpRange.rangeFetch(meg4Url, byteStart, byteEnd, byteEnd - byteStart + 1);
+      }
+      const dv = new DataView(buf);
+
+      const out = new Array(nch);
+      for (let c = 0; c < nch; c++) out[c] = new Float32Array(nOut);
+
+      for (let t = 0; t < nOut; t++) {
+        const base = t * nch * BYTES_PER_SAMPLE;
+        for (let c = 0; c < nch; c++) {
+          const raw = dv.getInt16(base + c * BYTES_PER_SAMPLE, false);
+          out[c][t] = (raw - offsets[c]) * cals[c];
+        }
+      }
+      return out;
+    }
+
+    return {
+      n_channels:          nch,
+      sampling_frequency:  header.sample_rate,
+      duration_s:          n_samples / header.sample_rate,
+      channel_labels,
+      bytes_per_sample:    BYTES_PER_SAMPLE,
+      n_samples,
+      recording_start_iso: null,  // TODO: parse from .acq dataTime field
+      annotation_events,
+      bad_channels,
+      readWindow,
+    };
+  };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.CTFReader = api;
