@@ -65,10 +65,15 @@ const CASES = [
     notes: 'CTF v4.2 / MEG42RS, rdlen=33, 337 channels @ 2400 Hz',
   },
   {
-    id: 'edfplus-tal-annotations',
+    id: 'ds003810-edfplus-tal',
     evidence_subdir: 'edf-annotations',
+    // ds003810 sub-02 is the only loadable OpenNeuro EDF among the 13
+    // candidates probed in Plan E Task 3 (most loadable EDFs ship with
+    // a separate _events.tsv sidecar — only ds003810 stores events
+    // inside an EDF Annotations TAL channel).
     cdn_url:
-      'https://cdn.eegdash.org/ds002722/sub-A001/eeg/sub-A001_task-Pre_eeg.edf',
+      'https://cdn.eegdash.org/ds003810/sub-02/eeg/' +
+      'sub-02_task-MIvsRest_run-0_eeg.edf',
     expected_pill: 'EDF',
     min_non_bg_pixels: 50,
     notes: 'EDF+ with embedded TAL annotations rendered as on-canvas hairlines',
@@ -125,11 +130,14 @@ for (const c of CASES) {
     );
 
     if (c.assert_events_visible) {
-      // Count green Okabe-Ito event hairlines on the canvas.
-      // EVENT_LINE_COLOR in traces.js is muted green (#009E73 at alpha
-      // ~0.5). The trace colours are blues/oranges and the background
-      // is cream — so a pixel whose green channel clearly dominates
-      // red+blue can only be an event-line stroke.
+      // Count Okabe-Ito green event hairlines on the canvas.
+      // EVENT_LINE_COLOR in traces.js is rgba(0, 158, 115, 0.30) — alpha
+      // 0.30 over a cream background (~245,243,240) blends to roughly
+      // R=171, G=217, B=202 per pixel. The cream background itself is
+      // very close in R/G/B; trace strokes are blues/oranges. The
+      // discriminator that survives the alpha blend: g > r by a clear
+      // margin AND g > b by a smaller margin (the 0.3*115 blue
+      // contribution narrows the g-b gap).
       const eventLinePixels = await page.locator('#traces').evaluate((canvas) => {
         const ctx = canvas.getContext('2d');
         const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -138,7 +146,10 @@ for (const c of CASES) {
           const r = data[i],
             g = data[i + 1],
             b = data[i + 2];
-          if (g > 110 && g - r > 30 && g - b > 30) n++;
+          // g must be the brightest channel by a comfortable margin
+          // over red (Okabe-Ito green has zero red), and at least
+          // marginally brighter than blue.
+          if (g > 180 && g - r > 30 && g - b > 5 && g < 250) n++;
         }
         return n;
       });
