@@ -97,7 +97,15 @@ function subsample(rows, n, seed) {
 }
 
 const ALL_LOADABLE = loadLoadableRows();
-const CASES = subsample(ALL_LOADABLE, SAMPLE_SIZE, SEED);
+// AUDIT_FULL=1 disables Mulberry32 subsampling so we iterate EVERY loadable
+// row in the audit JSON (typically 712 after `node scripts/audit-100-datasets.mjs --full`,
+// or ~57 in the 100-sample dev copy). Sort by cdn_url for stable test title
+// ordering across runs — Playwright requires unique titles, which the dedupe
+// in loadLoadableRows() guarantees, but sorted ordering makes shard
+// distribution deterministic when AUDIT_FULL=1.
+const CASES = process.env.AUDIT_FULL === '1'
+  ? ALL_LOADABLE.slice().sort((a, b) => a.cdn_url.localeCompare(b.cdn_url))
+  : subsample(ALL_LOADABLE, SAMPLE_SIZE, SEED);
 
 // Truncate the JSONL sidecar at the START of a fresh `npx playwright test`
 // invocation. Playwright may re-evaluate this spec file once per test when it
