@@ -38,10 +38,17 @@ const workerSrc = readFileSync(
   'utf8',
 );
 
+// Under Stryker, worker.js is rewritten with mutation switches, so
+// the regex source-inspection sentinels below cannot match.  Skip
+// them when instrumented — Stryker itself catches the underlying
+// mutations these sentinels were guarding against.
+const isStrykerInstrumented = /stryMutAct_9fa48/.test(workerSrc);
+const skipUnderStryker = { skip: isStrykerInstrumented };
+
 // ---- M4 Sentinel: chunk reassembly offset must use totalSamples, not 0 ----------
 // Catches mutation: `assembledChannels[c].set(chunk.channels[c], totalSamples)` → offset 0
 // which causes each chunk to overwrite the start of the buffer (reversed/broken assembly).
-test('M4 sentinel: chunk reassembly in worker.js uses totalSamples offset (not 0)', () => {
+test('M4 sentinel: chunk reassembly in worker.js uses totalSamples offset (not 0)', skipUnderStryker, () => {
   // Count occurrences of the correct assembly pattern.
   const correctPattern = /assembledChannels\[c\]\.set\(chunk\.channels\[c\],\s*totalSamples\)/g;
   const matches = workerSrc.match(correctPattern) || [];
@@ -52,7 +59,7 @@ test('M4 sentinel: chunk reassembly in worker.js uses totalSamples offset (not 0
 // ---- M5 Sentinel: chunk index offset in readWindowStreaming loop -------
 // Catches off-by-one: firstSampleIdx/lastSampleIdx used instead of start+offset-based values.
 // The partial WINDOW_CHUNK must use chunk.firstSampleIdx (not chunk.firstSampleIdx+1 etc.).
-test('M5 sentinel: partial WINDOW_CHUNK uses chunk.firstSampleIdx correctly (no +/- offset) in worker.js', () => {
+test('M5 sentinel: partial WINDOW_CHUNK uses chunk.firstSampleIdx correctly (no +/- offset) in worker.js', skipUnderStryker, () => {
   // The partial message sends sample_start: chunk.firstSampleIdx (NOT chunk.firstSampleIdx + 1).
   // The pattern `sample_start: chunk.firstSampleIdx,` must appear; any `+ N` off-by-one breaks it.
   // We check that the line contains the exact token WITHOUT arithmetic after it.

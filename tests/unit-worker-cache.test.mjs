@@ -23,10 +23,19 @@ const workerSrc = readFileSync(
   'utf8',
 );
 
+// Under Stryker mutation testing, worker.js is rewritten with mutation
+// switches (stryMutAct_9fa48 wrappers around operators), so the regex
+// sentinels below cannot match the literal source.  When that's the
+// case, skip the sentinel block — Stryker itself directly catches the
+// mutations these sentinels were guarding against (the M1/M3 sentinels
+// existed only because worker.js was previously out of mutation scope).
+const isStrykerInstrumented = /stryMutAct_9fa48/.test(workerSrc);
+const skipUnderStryker = { skip: isStrykerInstrumented };
+
 // ---- M1 Sentinel: verify RAW_CACHE_MAX constant in worker.js ----------
 // This test directly reads the constant from worker.js source.
 // If someone applies mutation M1 (changes 6 → 0), this test catches it.
-test('M1 sentinel: RAW_CACHE_MAX in worker.js must be 6', () => {
+test('M1 sentinel: RAW_CACHE_MAX in worker.js must be 6', skipUnderStryker, () => {
   const match = workerSrc.match(/const RAW_CACHE_MAX\s*=\s*(\d+)/);
   assert.ok(match, 'RAW_CACHE_MAX constant must exist in worker.js');
   const value = Number(match[1]);
@@ -38,7 +47,7 @@ test('M1 sentinel: RAW_CACHE_MAX in worker.js must be 6', () => {
 // Catches the mutation: `while (rawCache.size > RAW_CACHE_MAX)` → `< RAW_CACHE_MAX`
 // which would cause rawCachePut to evict entries until the cache is EMPTY
 // (or keep deleting while size < MAX, clearing everything below MAX).
-test('M3 sentinel: rawCachePut eviction condition uses > not < in worker.js', () => {
+test('M3 sentinel: rawCachePut eviction condition uses > not < in worker.js', skipUnderStryker, () => {
   // The line should be: while (rawCache.size > RAW_CACHE_MAX)
   const hasCorrectCondition = /while\s*\(rawCache\.size\s*>\s*RAW_CACHE_MAX\)/.test(workerSrc);
   assert.ok(hasCorrectCondition,
@@ -52,7 +61,7 @@ test('M3 sentinel: rawCachePut eviction condition uses > not < in worker.js', ()
 // tail. This sentinel guards against either (a) someone silently
 // removing the helper and reverting to `rawCache.get`, or (b)
 // someone removing the delete-then-set inside the helper.
-test('rawCacheGet must delete+set to promote on hit (catches LRU→FIFO regression)', () => {
+test('rawCacheGet must delete+set to promote on hit (catches LRU→FIFO regression)', skipUnderStryker, () => {
   // The helper must exist…
   assert.ok(/function\s+rawCacheGet\s*\(/.test(workerSrc),
     'rawCacheGet helper must be defined in worker.js');
@@ -69,7 +78,7 @@ test('rawCacheGet must delete+set to promote on hit (catches LRU→FIFO regressi
 // And the consumers in FETCH_WINDOW / FETCH_WINDOW_STREAM paths
 // must call rawCacheGet (not rawCache.get directly) — otherwise the
 // promote step is silently skipped on the hot path.
-test('FETCH_WINDOW paths must consult rawCacheGet, not rawCache.get directly', () => {
+test('FETCH_WINDOW paths must consult rawCacheGet, not rawCache.get directly', skipUnderStryker, () => {
   // After the helper definition, no remaining call to rawCache.get(
   // is allowed (we ignore the call inside rawCacheGet itself).
   const afterHelper = workerSrc.split(/function\s+rawCacheGet[\s\S]*?^\}/m)[1] || '';
@@ -88,7 +97,7 @@ test('FETCH_WINDOW paths must consult rawCacheGet, not rawCache.get directly', (
 //   - both FETCH_WINDOW non-streaming paths consult inflightRawFetches
 //     (via awaitInflight) when the cache is cold
 
-test('inflightRawFetches dedup map exists and is cleared on file load', () => {
+test('inflightRawFetches dedup map exists and is cleared on file load', skipUnderStryker, () => {
   assert.ok(/const\s+inflightRawFetches\s*=\s*new\s+Map\(/.test(workerSrc),
     'inflightRawFetches Map must be declared in worker.js');
   // Must be cleared together with rawCache when a new file loads.
@@ -96,7 +105,7 @@ test('inflightRawFetches dedup map exists and is cleared on file load', () => {
     'inflightRawFetches.clear() must run on LOAD_FILE');
 });
 
-test('awaitInflight helper dedupes concurrent fetches via the Map', () => {
+test('awaitInflight helper dedupes concurrent fetches via the Map', skipUnderStryker, () => {
   const m = workerSrc.match(/function\s+awaitInflight\s*\([^)]*\)\s*\{[\s\S]*?\n\}/);
   assert.ok(m, 'awaitInflight helper must exist');
   const body = m[0];
@@ -109,7 +118,7 @@ test('awaitInflight helper dedupes concurrent fetches via the Map', () => {
     'awaitInflight must clean up the Map entry once the fetch settles');
 });
 
-test('FETCH_WINDOW path uses awaitInflight to dedupe concurrent misses', () => {
+test('FETCH_WINDOW path uses awaitInflight to dedupe concurrent misses', skipUnderStryker, () => {
   // Both non-streaming branches (FETCH_WINDOW and the
   // streaming-fallback branch) should use awaitInflight when missing
   // the cache.
@@ -121,7 +130,7 @@ test('FETCH_WINDOW path uses awaitInflight to dedupe concurrent misses', () => {
     `expected at least 2 awaitInflight call sites; found ${calls.length}`);
 });
 
-test('FETCH_WINDOW_STREAM dedupes against in-flight streaming requests', () => {
+test('FETCH_WINDOW_STREAM dedupes against in-flight streaming requests', skipUnderStryker, () => {
   // The streaming branch must check inflightRawFetches before starting
   // its own stream — that's what saves the duplicate S3 cost when two
   // callers ask for the same window concurrently.
