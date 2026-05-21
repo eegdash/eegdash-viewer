@@ -64,8 +64,12 @@ test('worker.js: INIT message gets INIT_OK reply', async () => {
 test('worker.js: CANCEL_REQUEST marks the request cancelled (idempotent)', async () => {
   recordedMessages.length = 0;
   await globalThis.self.onmessage({ data: { type: 'CANCEL_REQUEST', request_id: 999 } });
-  // CANCEL_REQUEST produces no reply (fire-and-forget protocol).
-  assert.equal(recordedMessages.length, 0);
+  // CANCEL_REQUEST is now echoed as CANCELLED so the viewer can drop the
+  // pendingRequests entry immediately (see tests/unit-worker-cancelled-ack).
+  assert.equal(recordedMessages.length, 1);
+  assert.equal(recordedMessages[0].msg.type, 'CANCELLED');
+  assert.equal(recordedMessages[0].msg.request_id, 999);
   await globalThis.self.onmessage({ data: { type: 'CANCEL_REQUEST', request_id: 999 } });
-  assert.equal(recordedMessages.length, 0);
+  assert.equal(recordedMessages.length, 2);
+  assert.equal(recordedMessages[1].msg.type, 'CANCELLED');
 });

@@ -274,6 +274,9 @@ self.onmessage = async function (evt) {
       case 'CANCEL_REQUEST': {
         if (typeof msg.request_id !== 'undefined') {
           markRequestCancelled(msg.request_id);
+          // Echo back so the viewer can immediately drop the pendingRequest
+          // entry and free any associated state (callback closures, etc.).
+          self.postMessage({ type: 'CANCELLED', request_id: msg.request_id });
         }
         break;
       }

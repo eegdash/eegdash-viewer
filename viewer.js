@@ -488,6 +488,16 @@
             }
             break;
           }
+
+          case 'CANCELLED': {
+            const { request_id } = msg;
+            if (pendingRequests.has(request_id)) {
+              pendingRequests.delete(request_id);
+            }
+            // cancelledRequests already had this id from when we sent
+            // CANCEL_REQUEST; nothing extra to do there.
+            break;
+          }
         }
       };
 
