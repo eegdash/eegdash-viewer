@@ -197,6 +197,39 @@ Counting out intentional: **18/19 = 94.7%** of expected-to-pass datasets
 render end-to-end through the post-refactor code path. ds002578, ds003682,
 ds003694 (the post-Wave-3 wins from the previous session) all still render.
 
+## Lane J — Reader wiring + demo matrix (post-Lane-H)
+
+After Lanes H1–H5 shipped five new readers (NWB / MEF3 / BTi / ITAB /
+KRISS) as IIFEs but did not register them, Lane J closed the loop:
+
+- `feat(wiring): register NWB + MEF + BTi + ITAB + KRISS readers [#J]`
+  (commit `b502a96`) — wires the five readers into seven shared
+  dispatch surfaces: `viewer.js defaultReaders`, `worker.js`
+  `importScripts` + `READERS`, `index.html` `<script>` block,
+  `bids-recording.js parsePhysioUrl` (path-based dispatch for `.mefd/`
+  bundle and naked BTi directories), `bids-recording.js KNOWN_EXT`
+  regex, `scripts/audit-100-datasets.mjs SUPPORTED_EXTS`,
+  `tests/_bootstrap.mjs` CJS requires, and `formats/globals.d.ts` type
+  declarations.
+
+- `test(demos): add one-demo-per-format matrix + gated render spec [#J]`
+  (commit `79e0b5a`) — `docs/bids-format-demos.md` documents one
+  canonical demo per BIDS-accepted format (cdn.eegdash.org URL for
+  formats verified by audit-loadable.spec.mjs; local synthetic fixture
+  for Lane H formats not yet on EEGDash). `tests/e2e/acceptance/format-demos.spec.mjs`
+  exercises all 13 demos with three assertion tiers (full / metadata /
+  stub) plus a shared crash-free invariant. Gated by `RUN_DEMO_TESTS=1`
+  so CI default runs skip all 13 tests instantly.
+
+Browser audit re-run (seed=42, n=20) after wiring: **18 passed / 3 failed**
+— same three pre-existing failures (ds003392 calibration FIFF, ds002001
+CTF trailing-data, ds003694 FIFF). No regression from the wiring lane.
+
+Unit test count: **896 passing** (no skips, no failures) — the
+new bootstrap requires verified that NwbReader / MefReader /
+BtiReader / ItabReader / KrissReader all load with their dependencies
+in the correct order without IIFE-init crashes.
+
 ## Open follow-ups (intentional non-goals)
 
 | # | Item | Why deferred |
