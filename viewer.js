@@ -262,13 +262,14 @@
   // referencing the globals it loads via script tags.
   function defaultReaders() {
     return {
-      set:  globalThis.EEGLABReader,
-      edf:  globalThis.EDFReader,
-      bdf:  globalThis.EDFReader,
-      vhdr: globalThis.BrainVisionReader,
-      fif:  globalThis.FiffReader,
-      fiff: globalThis.FiffReader,
-      ds:   globalThis.CTFReader,
+      set:   globalThis.EEGLABReader,
+      edf:   globalThis.EDFReader,
+      bdf:   globalThis.EDFReader,
+      vhdr:  globalThis.BrainVisionReader,
+      fif:   globalThis.FiffReader,
+      fiff:  globalThis.FiffReader,
+      ds:    globalThis.CTFReader,
+      snirf: globalThis.SnirfReader,
     };
   }
 

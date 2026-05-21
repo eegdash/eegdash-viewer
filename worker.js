@@ -44,17 +44,21 @@ importScripts(
   'formats/_ctf-res4.js',
   'formats/_ctf-marker.js',
   'formats/ctf.js',
+  // SNIRF (HDF5) fNIRS reader. Depends on _jsfive loaded above (same
+  // engine used for the MAT v7.3 EEGLAB path).
+  'formats/snirf.js',
   'filters.js',
 );
 
 const READERS = {
-  set:  globalThis.EEGLABReader,
-  edf:  globalThis.EDFReader,
-  bdf:  globalThis.EDFReader,
-  vhdr: globalThis.BrainVisionReader,
-  fif:  globalThis.FiffReader,
-  fiff: globalThis.FiffReader,
-  ds:   globalThis.CTFReader,
+  set:   globalThis.EEGLABReader,
+  edf:   globalThis.EDFReader,
+  bdf:   globalThis.EDFReader,
+  vhdr:  globalThis.BrainVisionReader,
+  fif:   globalThis.FiffReader,
+  fiff:  globalThis.FiffReader,
+  ds:    globalThis.CTFReader,
+  snirf: globalThis.SnirfReader,
 };
 
 let reader = null;
