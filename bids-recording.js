@@ -978,12 +978,23 @@
       if (explicitSuffix) params.suffix = explicitSuffix;
       // NEMAR (nm-prefixed) datasets resolve via the eegdash records
       // API instead of a direct bucket URL — git-annex SHA addressing.
+      // NEMAR manifests enumerate subjects, so subject discovery is
+      // not needed for the NEMAR branch — it falls through to nemar
+      // regardless of whether sub is set.
       if (api.isNemarDatasetId(ds)) {
         // NEMAR loader expects params.suffix; fall back to 'eeg' for
         // back-compat with existing NEMAR URLs (which have always
         // assumed eeg).
         params.suffix = params.suffix || 'eeg';
         return { kind: 'nemar', nemar_params: params };
+      }
+      // Subject discovery: when ?sub= is omitted, defer building the
+      // URL to boot(), which calls api.discoverSubject and then
+      // re-enters the (sub-set) resolution path. Owns both discovery
+      // passes — once the sub is known, modality discovery may also
+      // need to run if ?suffix= was also omitted.
+      if (!params.sub) {
+        return { kind: 'bids-path-discover-sub', params };
       }
       if (!explicitSuffix) {
         return { kind: 'bids-path-auto', params };

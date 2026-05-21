@@ -1725,6 +1725,53 @@ test('resolveTargets: ?acq= propagated through to params.acq', () => {
   }
 });
 
+test('resolveTargets: ?dataset= without ?sub= returns bids-path-discover-sub', () => {
+  // ds003774 omits ?sub= → resolveTargets defers subject discovery to
+  // the viewer's boot dispatcher, which calls discoverSubject. This
+  // avoids the prior failure mode where buildBidsRelpath blindly used
+  // 'sub-01' and 404'd against a dataset using 'sub-001'.
+  const t = BIDSRecording.resolveTargets(new URLSearchParams(
+    'dataset=ds003774&task=MusicListening&ext=set'));
+  assert.equal(t.kind, 'bids-path-discover-sub');
+  assert.equal(t.params.dataset, 'ds003774');
+  assert.equal(t.params.sub, null,
+    'sub should be null — discovery happens in boot()');
+  assert.equal(t.params.task, 'MusicListening');
+  assert.equal(t.params.ext, 'set');
+});
+
+test('resolveTargets: ?dataset= without ?sub= AND without ?suffix= still returns bids-path-discover-sub (discovery handles both)', () => {
+  // Both suffix and sub are missing. The new descriptor kind owns both
+  // discovery passes — once the sub is known, the existing
+  // discoverSuffix pipeline runs in boot() to find the modality.
+  const t = BIDSRecording.resolveTargets(new URLSearchParams(
+    'dataset=ds003774&ext=set'));
+  assert.equal(t.kind, 'bids-path-discover-sub');
+  assert.equal(t.params.sub, null);
+  assert.equal(t.params.suffix, undefined,
+    'no explicit suffix yet — boot() will discover after sub');
+});
+
+test('resolveTargets: ?dataset= WITH explicit ?sub= still returns bids-path-auto (no subject discovery)', () => {
+  // Regression guard: when the user spelled out ?sub=, we MUST NOT
+  // engage subject discovery — that would be wasted fetches. The
+  // existing modality-auto-detect path is used unchanged.
+  const t = BIDSRecording.resolveTargets(new URLSearchParams(
+    'dataset=ds003774&sub=001&task=MusicListening&ext=set'));
+  assert.equal(t.kind, 'bids-path-auto',
+    'explicit ?sub= should bypass subject discovery entirely');
+  assert.equal(t.params.sub, '001');
+});
+
+test('resolveTargets: ?dataset= WITH ?sub= AND ?suffix= still returns bids-path (no discovery at all)', () => {
+  // Full deep-link path. Zero discovery overhead.
+  const t = BIDSRecording.resolveTargets(new URLSearchParams(
+    'dataset=ds003774&sub=001&task=MusicListening&suffix=eeg&ext=set'));
+  assert.equal(t.kind, 'bids-path');
+  assert.ok(t.eeg_url.includes('/sub-001/'),
+    'URL should be pre-built with the explicit sub');
+});
+
 // ─── discoverSuffix: parallel modality probe ──────────────────────
 
 test('discoverSuffix: returns ieeg when ieeg path 200s + eeg 404s', async () => {
