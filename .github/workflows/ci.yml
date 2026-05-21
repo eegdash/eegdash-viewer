@@ -37,6 +37,9 @@ jobs:
 
       - run: npm run test:unit
 
+      - name: Type check (tsc on JSDoc-annotated files)
+        run: npm run test:typecheck
+
   # Coverage gate. c8 wraps the same unit-only test set as the `unit`
   # job above and enforces thresholds from `.c8rc.json` (derived from
   # the 2026-05-20 baseline, set 5% below baseline). Gated behind
