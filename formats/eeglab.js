@@ -34,6 +34,24 @@
   const HOST_LITTLE_ENDIAN =
     new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
 
+  // Security: when a v7.3 .set CHAR pointer names a sibling .fdt file
+  // we treat the value as a BASENAME ONLY. Reject anything that could
+  // escape the .set's directory (path separator, leading dot, scheme).
+  // Threat model: hostile .set embeds e.g. "../../../etc/passwd" or
+  // "//evil.com/x" as the /EEG/data CHAR; the reader would otherwise
+  // concatenate dir + namedFdt and fetch the resulting URL.
+  function _validateCrossFdtName(namedFdt) {
+    if (typeof namedFdt !== 'string' || namedFdt.length === 0) {
+      throw new Error(`eeglab: refusing cross-basename .fdt with empty or non-string name`);
+    }
+    if (namedFdt.includes('/') || namedFdt.includes('\\') ||
+        namedFdt.startsWith('.') || /^[a-z]+:/i.test(namedFdt)) {
+      throw new Error(`eeglab: refusing cross-basename .fdt with path separator or scheme: ${namedFdt}`);
+    }
+    return namedFdt;
+  }
+  api._validateCrossFdtName = _validateCrossFdtName;
+
   api.fdtUrlFor = function (eegUrl) {
     const { dir, prefix, ext } = BIDSRecording.parseEegUrl(eegUrl);
     if (ext !== 'set') {
@@ -459,7 +477,7 @@
         // tests/evidence/v73-real-data/README.md for the rationale.
         const fdtMatch = /CHAR sidecar filename \("([^"]+)"\)/.exec(e.message || '');
         if (fdtMatch) {
-          const namedFdt = fdtMatch[1];
+          const namedFdt = _validateCrossFdtName(fdtMatch[1]);
           const dir = setUrl.slice(0, setUrl.lastIndexOf('/') + 1);
           const fdtUrl = dir + namedFdt;
           console.warn(
