@@ -49,6 +49,14 @@ const EXPECTED = {
     'fdtUrlFor',
     'open',
   ],
+  // MAT v7.3 (HDF5) reader for modern EEGLAB .set files. Mirrors
+  // MatV5's surface — extractEegInline is reused; we only add parse()
+  // + isHdf5() probe. Wired by formats/eeglab.js after v5 vs v7.3
+  // detection.
+  '../formats/_mat73.js': [
+    'isHdf5',
+    'parse',
+  ],
   '../formats/fiff.js': [
     'open',
     'read',

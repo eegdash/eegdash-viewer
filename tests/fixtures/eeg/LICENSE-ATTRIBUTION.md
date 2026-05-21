@@ -21,6 +21,7 @@ We attribute even where the license does not require it.
 | BrainVision (.vmrk) | EEG | `eeg/sub-xp101_task-motorloc_eeg.vmrk` | 6 KB | [ds002336](https://openneuro.org/datasets/ds002336) | CC0 |
 | BrainVision (.eeg)  | EEG | `eeg/sub-xp101_task-motorloc_eeg.eeg` | 32 KB | [ds002336](https://openneuro.org/datasets/ds002336) | CC0 |
 | EEGLAB (.set) | EEG | `eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.set` | 64 KB | [ds002893](https://openneuro.org/datasets/ds002893) | CC0 |
+| EEGLAB (.set, MAT v7.3 / HDF5) | EEG | `eeg/tiny_v73_eeg.set` | 6 KB | Synthesised locally by `scripts/build_tiny_v73_fixture.py` (seed=42, BSD-3 by extension of dep MNE-Python) | BSD-3 |
 | BrainVision (.vhdr) | iEEG | `ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vhdr` | 2.6 KB | [ds003688](https://openneuro.org/datasets/ds003688) | CC0 |
 | BrainVision (.vmrk) | iEEG | `ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vmrk` | 1.0 KB | [ds003688](https://openneuro.org/datasets/ds003688) | CC0 |
 | BrainVision (.eeg)  | iEEG | `ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.eeg` | 32 KB | [ds003688](https://openneuro.org/datasets/ds003688) | CC0 |
