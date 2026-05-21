@@ -260,6 +260,26 @@
   const INLINE_METADATA_BUDGET_BYTES = 16 * 1024 * 1024;  // 16 MB head probe
   const INLINE_LEGACY_FALLBACK_CAP   = 200 * 1024 * 1024;  // 200 MB cap
 
+  // Shared fallback shape used by 6 different branches inside
+  // openInlineSet (v7.3, scan-failed, compressed, no-data, no-srate,
+  // non-float32). Each branch needs to either throw a branch-specific
+  // error when the file exceeds INLINE_LEGACY_FALLBACK_CAP, or pull
+  // the whole file and hand it to openInlineSetLegacy. The error
+  // strings differ per branch (and some embed extra context like
+  // `miType` or `probeBytes`) so the caller passes a builder lambda
+  // that receives (mbStr, capMb) and returns the exact message.
+  async function fallbackToLegacyOrThrow(
+    setUrl, totalBytes, meta, nChannelsFromSidecar, fsFromSidecar, matVersion, buildErr,
+  ) {
+    if (totalBytes > INLINE_LEGACY_FALLBACK_CAP) {
+      const mb  = (totalBytes / 1024 / 1024).toFixed(0);
+      const cap = INLINE_LEGACY_FALLBACK_CAP / 1024 / 1024;
+      throw new Error(buildErr(mb, cap));
+    }
+    const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
+    return await openInlineSetLegacy(setUrl, meta, buf, nChannelsFromSidecar, fsFromSidecar, matVersion);
+  }
+
   async function openInlineSet(meta, nChannelsFromSidecar, fsFromSidecar) {
     const setUrl = meta.eeg_url;
     // Use a 1-byte Range GET to learn total size — HEAD requests
@@ -276,15 +296,13 @@
     // path, with the 200 MB cap kept as a safety net.
     const matVersion = MatV5.detectMatVersion(probeBuf);
     if (matVersion === 'v7.3') {
-      if (totalBytes > INLINE_LEGACY_FALLBACK_CAP) {
-        throw new Error(
-          `EEGLAB inline v7.3 .set is ${(totalBytes / 1024 / 1024).toFixed(0)} MB ` +
-          `(exceeds ${INLINE_LEGACY_FALLBACK_CAP / 1024 / 1024} MB v7.3 cap). ` +
+      return await fallbackToLegacyOrThrow(
+        setUrl, totalBytes, meta, nChannelsFromSidecar, fsFromSidecar, matVersion,
+        (mb, cap) =>
+          `EEGLAB inline v7.3 .set is ${mb} MB ` +
+          `(exceeds ${cap} MB v7.3 cap). ` +
           `Streaming v7.3 is not supported in v1.`,
-        );
-      }
-      const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
-      return await openInlineSetLegacy(setUrl, meta, buf, nChannelsFromSidecar, fsFromSidecar, matVersion);
+      );
     }
 
     // v5 path: scan the probe buffer for top-level elements.
@@ -295,29 +313,25 @@
     try {
       elements = MatV5.scanElements(probeBuf);
     } catch (e) {
-      if (totalBytes > INLINE_LEGACY_FALLBACK_CAP) {
-        throw new Error(
+      return await fallbackToLegacyOrThrow(
+        setUrl, totalBytes, meta, nChannelsFromSidecar, fsFromSidecar, 'v5',
+        (mb, cap) =>
           `EEGLAB inline .set scan failed and file is ` +
-          `${(totalBytes / 1024 / 1024).toFixed(0)} MB ` +
-          `(exceeds ${INLINE_LEGACY_FALLBACK_CAP / 1024 / 1024} MB ` +
+          `${mb} MB ` +
+          `(exceeds ${cap} MB ` +
           `legacy cap). Original error: ${e.message}`,
-        );
-      }
-      const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
-      return await openInlineSetLegacy(setUrl, meta, buf, nChannelsFromSidecar, fsFromSidecar, 'v5');
+      );
     }
 
     // If any compressed element is present, fall back to whole-file parse.
     const hasCompressed = elements.some(el => el.miType === 15);
     if (hasCompressed) {
-      if (totalBytes > INLINE_LEGACY_FALLBACK_CAP) {
-        throw new Error(
-          `EEGLAB inline .set is compressed and ${(totalBytes / 1024 / 1024).toFixed(0)} MB ` +
-          `(exceeds ${INLINE_LEGACY_FALLBACK_CAP / 1024 / 1024} MB legacy cap).`,
-        );
-      }
-      const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
-      return await openInlineSetLegacy(setUrl, meta, buf, nChannelsFromSidecar, fsFromSidecar, 'v5');
+      return await fallbackToLegacyOrThrow(
+        setUrl, totalBytes, meta, nChannelsFromSidecar, fsFromSidecar, 'v5',
+        (mb, cap) =>
+          `EEGLAB inline .set is compressed and ${mb} MB ` +
+          `(exceeds ${cap} MB legacy cap).`,
+      );
     }
 
     // Find the top-level `data` matrix. EEGLAB writes either a single
@@ -328,15 +342,13 @@
     if (!dataElem) {
       // Probably EEG-wrapped struct, or the head probe didn't reach
       // far enough. Either way, fall back to whole-file parse.
-      if (totalBytes > INLINE_LEGACY_FALLBACK_CAP) {
-        throw new Error(
+      return await fallbackToLegacyOrThrow(
+        setUrl, totalBytes, meta, nChannelsFromSidecar, fsFromSidecar, 'v5',
+        (mb, _cap) =>
           `EEGLAB inline .set: top-level 'data' not found in first ${probeBytes}B ` +
-          `(file is ${(totalBytes / 1024 / 1024).toFixed(0)} MB, exceeds legacy cap). ` +
+          `(file is ${mb} MB, exceeds legacy cap). ` +
           `Re-export as top-level (non-struct-wrapped) inline .set or split .set+.fdt.`,
-        );
-      }
-      const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
-      return await openInlineSetLegacy(setUrl, meta, buf, nChannelsFromSidecar, fsFromSidecar, 'v5');
+      );
     }
 
     // Pull the small metadata fields from the scanned elements. EEGLAB
@@ -373,14 +385,12 @@
       // EEG.srate isn't a top-level matrix — file is struct-wrapped or
       // uses miCOMPRESSED scalars. Fall back to whole-file parse so
       // extractEegInline can descend into the EEG struct.
-      if (totalBytes > INLINE_LEGACY_FALLBACK_CAP) {
-        throw new Error(
-          `EEGLAB inline .set: srate not at top level and file is ${(totalBytes / 1024 / 1024).toFixed(0)} MB ` +
-          `(exceeds ${INLINE_LEGACY_FALLBACK_CAP / 1024 / 1024} MB legacy cap).`,
-        );
-      }
-      const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
-      return await openInlineSetLegacy(setUrl, meta, buf, nChannelsFromSidecar, fsFromSidecar, 'v5');
+      return await fallbackToLegacyOrThrow(
+        setUrl, totalBytes, meta, nChannelsFromSidecar, fsFromSidecar, 'v5',
+        (mb, cap) =>
+          `EEGLAB inline .set: srate not at top level and file is ${mb} MB ` +
+          `(exceeds ${cap} MB legacy cap).`,
+      );
     }
     if (nChannelsFromSidecar != null && nbchan !== nChannelsFromSidecar) {
       console.warn(
@@ -401,14 +411,12 @@
     const expectedDataBytes = nbchan * nSamples * 4;
     if (dataElem.dataSubMiType !== 7) {
       // Non-float32 data — fall back to whole-file parse.
-      if (totalBytes > INLINE_LEGACY_FALLBACK_CAP) {
-        throw new Error(
+      return await fallbackToLegacyOrThrow(
+        setUrl, totalBytes, meta, nChannelsFromSidecar, fsFromSidecar, 'v5',
+        (mb, cap) =>
           `EEGLAB inline .set: data is non-float32 (miType=${dataElem.dataSubMiType}) ` +
-          `and file is ${(totalBytes / 1024 / 1024).toFixed(0)} MB — exceeds ${INLINE_LEGACY_FALLBACK_CAP / 1024 / 1024} MB legacy cap.`,
-        );
-      }
-      const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
-      return await openInlineSetLegacy(setUrl, meta, buf, nChannelsFromSidecar, fsFromSidecar, 'v5');
+          `and file is ${mb} MB — exceeds ${cap} MB legacy cap.`,
+      );
     }
     if (dataElem.dataSubBytes !== expectedDataBytes) {
       // Keep the canonical "data length != nbchan × pnts × trials" wording
