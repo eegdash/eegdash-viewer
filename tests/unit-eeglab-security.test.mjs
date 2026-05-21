@@ -107,6 +107,79 @@ test('eeglab security: rejects leading dot (hidden file or relative)', () => {
   );
 });
 
+// ---------------------------------------------------------------
+// Fix A2: integer overflow / OOM guard on (nbchan, pnts, trials).
+// A hostile .set advertising pnts=1e9, nbchan=10000 would push
+// nbchan*pnts*trials*4 ≥ 4e13 → instant OOM at the allocator.
+// ---------------------------------------------------------------
+
+test('eeglab security A2: accepts realistic EEG dimensions', () => {
+  // Typical: 64 channels, 1 hour at 1 kHz, 1 trial
+  assert.doesNotThrow(() => EEGLABReader._validateScalars(64, 3_600_000, 1));
+  // Typical epoched: 32 channels, 1024 samples, 200 trials
+  assert.doesNotThrow(() => EEGLABReader._validateScalars(32, 1024, 200));
+  // HD-EEG: 256 channels, modest length
+  assert.doesNotThrow(() => EEGLABReader._validateScalars(256, 100_000, 1));
+});
+
+test('eeglab security A2: rejects nbchan > MAX_CH', () => {
+  const { MAX_CH } = EEGLABReader._SCALAR_CAPS;
+  assert.throws(
+    () => EEGLABReader._validateScalars(MAX_CH + 1, 1000, 1),
+    /rejecting nbchan/,
+  );
+  assert.throws(
+    () => EEGLABReader._validateScalars(10000, 1000, 1),
+    /rejecting nbchan/,
+  );
+});
+
+test('eeglab security A2: rejects pnts > MAX_SAMPLES', () => {
+  const { MAX_SAMPLES } = EEGLABReader._SCALAR_CAPS;
+  assert.throws(
+    () => EEGLABReader._validateScalars(1, MAX_SAMPLES + 1, 1),
+    /rejecting pnts/,
+  );
+  assert.throws(
+    () => EEGLABReader._validateScalars(1, 1e10, 1),
+    /rejecting pnts/,
+  );
+});
+
+test('eeglab security A2: rejects trials > MAX_TRIALS', () => {
+  const { MAX_TRIALS } = EEGLABReader._SCALAR_CAPS;
+  assert.throws(
+    () => EEGLABReader._validateScalars(1, 1000, MAX_TRIALS + 1),
+    /rejecting trials/,
+  );
+});
+
+test('eeglab security A2: rejects non-positive / non-integer', () => {
+  assert.throws(() => EEGLABReader._validateScalars(0, 1000, 1), /rejecting nbchan/);
+  assert.throws(() => EEGLABReader._validateScalars(-1, 1000, 1), /rejecting nbchan/);
+  assert.throws(() => EEGLABReader._validateScalars(64, 0, 1), /rejecting pnts/);
+  assert.throws(() => EEGLABReader._validateScalars(64, 1000, 0), /rejecting trials/);
+  assert.throws(() => EEGLABReader._validateScalars(NaN, 1000, 1), /rejecting nbchan/);
+  assert.throws(() => EEGLABReader._validateScalars(64, NaN, 1), /rejecting pnts/);
+  assert.throws(() => EEGLABReader._validateScalars(64, 1000, NaN), /rejecting trials/);
+  assert.throws(() => EEGLABReader._validateScalars(64.5, 1000, 1), /rejecting nbchan/);
+  assert.throws(() => EEGLABReader._validateScalars(64, 1000.5, 1), /rejecting pnts/);
+});
+
+test('eeglab security A2: rejects total samples product over cap', () => {
+  // Each scalar in range, but the product blows past MAX_SAMPLES.
+  // 4096 ch × 1e6 samples × 1 trial = 4.1e9 > 2^30 (~1.07e9).
+  assert.throws(
+    () => EEGLABReader._validateScalars(4096, 1_000_000, 1),
+    /exceeds cap/,
+  );
+  // 100 ch × 100k samples × 2000 trials = 2e10 ≫ cap
+  assert.throws(
+    () => EEGLABReader._validateScalars(100, 100_000, 2000),
+    /exceeds cap/,
+  );
+});
+
 test('eeglab security: rejects empty / non-string', () => {
   assert.throws(
     () => EEGLABReader._validateCrossFdtName(''),

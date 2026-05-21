@@ -52,6 +52,33 @@
   }
   api._validateCrossFdtName = _validateCrossFdtName;
 
+  // Security: reject pathological nbchan/pnts/trials advertised by a
+  // hostile .set before they reach the allocator. Threat model: a .set
+  // with pnts=1e9, nbchan=10000, trials=1 makes nbchan*pnts*trials*4
+  // ≥ 4e13 bytes, triggering OOM the moment downstream code allocates.
+  // Caps chosen well above any plausible real-world EEG recording.
+  const _MAX_SAMPLES = 1 << 30;   // ~1.07B samples per channel
+  const _MAX_CH = 4096;
+  const _MAX_TRIALS = 4096;
+  function _validateScalars(nbchan, pnts, trials) {
+    if (!Number.isInteger(nbchan) || nbchan <= 0 || nbchan > _MAX_CH) {
+      throw new Error(`eeglab: rejecting nbchan=${nbchan} (must be 1..${_MAX_CH})`);
+    }
+    if (!Number.isInteger(pnts) || pnts <= 0 || pnts > _MAX_SAMPLES) {
+      throw new Error(`eeglab: rejecting pnts=${pnts} (must be 1..${_MAX_SAMPLES})`);
+    }
+    if (!Number.isInteger(trials) || trials <= 0 || trials > _MAX_TRIALS) {
+      throw new Error(`eeglab: rejecting trials=${trials} (must be 1..${_MAX_TRIALS})`);
+    }
+    // Overflow-safe product check: each cap below 2^31 so the products
+    // can't overflow Number precision before we compare.
+    if (nbchan * pnts > _MAX_SAMPLES || nbchan * pnts * trials > _MAX_SAMPLES) {
+      throw new Error(`eeglab: nbchan*pnts*trials=${nbchan * pnts * trials} exceeds cap ${_MAX_SAMPLES}`);
+    }
+  }
+  api._validateScalars = _validateScalars;
+  api._SCALAR_CAPS = { MAX_SAMPLES: _MAX_SAMPLES, MAX_CH: _MAX_CH, MAX_TRIALS: _MAX_TRIALS };
+
   api.fdtUrlFor = function (eegUrl) {
     const { dir, prefix, ext } = BIDSRecording.parseEegUrl(eegUrl);
     if (ext !== 'set') {
@@ -369,6 +396,8 @@
       );
     }
 
+    // Security A2: reject hostile scalar values before allocator math.
+    _validateScalars(nbchan, pnts, trials);
     const nSamples = pnts * trials;
     const expectedDataBytes = nbchan * nSamples * 4;
     if (dataElem.dataSubMiType !== 7) {
