@@ -74,7 +74,17 @@
   // Chops a flat ArrayBuffer (or Uint8Array view) into MAT v5 elements,
   // honouring the small/long element format and 8-byte padding.
   // Returns an iterator of { miType, payload: Uint8Array, payloadOffset }.
-  function* iterElements(view, baseOffset, endOffset) {
+  //
+  // When `opts.allowTruncated` is true and an element declares more
+  // payload bytes than the buffer holds, we yield a partial-payload
+  // entry flagged `truncated: true` and stop iteration. This is the
+  // scanElements path: it only needs each element's ~50-byte header
+  // (mxClass / dims / name / dataSubOffset/Bytes/MiType — all read
+  // from the first sub-elements of the payload) and does not need
+  // the tail bytes. The materializing path (parse) must NOT pass
+  // this flag — its callers consume the full payload.
+  function* iterElements(view, baseOffset, endOffset, opts) {
+    const allowTruncated = !!(opts && opts.allowTruncated);
     let off = baseOffset;
     while (off + 8 <= endOffset) {
       const tag = view.getUint32(off, true);
@@ -91,6 +101,21 @@
         payloadStart = off + 8;
       }
       if (payloadStart + nbytes > endOffset) {
+        if (allowTruncated) {
+          // Yield with whatever bytes ARE available, mark truncated.
+          // Consumers that only need the header (e.g. scanElements)
+          // can still extract name/dims/dataSubOffset from the partial
+          // payload's first sub-elements.
+          const available = Math.max(0, endOffset - payloadStart);
+          yield {
+            miType,
+            payloadOffset: payloadStart,
+            payload: new Uint8Array(view.buffer, view.byteOffset + payloadStart, available),
+            truncated: true,
+            declaredBytes: nbytes,
+          };
+          return;  // stop iteration — truncated element is the LAST one
+        }
         throw new Error(`MAT element overruns container at ${off}: claims ${nbytes}B, only ${endOffset - payloadStart}B left`);
       }
       yield {
@@ -450,7 +475,7 @@
     const fullView = new DataView(u8.buffer, baseOff, u8.length);
     const results = [];
 
-    for (const elem of iterElements(fullView, 128, u8.length)) {
+    for (const elem of iterElements(fullView, 128, u8.length, { allowTruncated: true })) {
       // Reconstruct elementOffset from payloadOffset: small format puts
       // payload at off+4, long format at off+8. The tag header itself
       // can be re-read to determine which (small if upper-16 of the
@@ -478,7 +503,7 @@
         const subView = new DataView(elem.payload.buffer, elem.payload.byteOffset, elem.payload.length);
         const subs = [];
         try {
-          for (const s of iterElements(subView, 0, elem.payload.length)) {
+          for (const s of iterElements(subView, 0, elem.payload.length, { allowTruncated: true })) {
             subs.push(s);
             if (subs.length === 4) break;
           }
