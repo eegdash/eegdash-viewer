@@ -17,6 +17,7 @@ declare const SidecarChecks: any;
 declare const StreamingUtils: any;
 declare const CTFRes4: any;
 declare const CTFMarker: any;
+declare const FiffDir: any;
 
 // Some call sites reach through globalThis explicitly.
 declare global {
@@ -38,6 +39,8 @@ declare global {
   var CTFRes4: any;
   // eslint-disable-next-line no-var
   var CTFMarker: any;
+  // eslint-disable-next-line no-var
+  var FiffDir: any;
 }
 
 export {};

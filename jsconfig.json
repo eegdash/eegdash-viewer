@@ -19,7 +19,8 @@
     "formats/brainvision.js",
     "formats/eeglab.js",
     "formats/fiff.js",
-    "formats/ctf.js"
+    "formats/ctf.js",
+    "formats/_fiff-dir.js"
   ],
   "exclude": [
     "node_modules",

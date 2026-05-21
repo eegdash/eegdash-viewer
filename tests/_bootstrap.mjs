@@ -13,6 +13,7 @@ const require = createRequire(import.meta.url);
 // to globalThis, which the format readers consume.
 require('../bids-loader.js');
 require('../formats/_buffers.js');
+require('../formats/_fiff-dir.js');
 
 export const HttpRange         = require('../formats/_http_range.js');
 export const StreamingUtils    = require('../formats/_streaming.js');
@@ -23,3 +24,5 @@ export const BIDSRecording     = require('../bids-recording.js');
 export const EEGLABReader      = require('../formats/eeglab.js');
 export const EDFReader         = require('../formats/edf.js');
 export const BrainVisionReader = require('../formats/brainvision.js');
+export const FiffDir           = require('../formats/_fiff-dir.js');
+export const FiffReader        = require('../formats/fiff.js');
