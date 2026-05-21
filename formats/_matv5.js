@@ -292,6 +292,21 @@
     return { name, class: info.name, dims, data: typed };
   }
 
+  // Sniffs the on-disk MAT version from the header. Returns one of
+  // 'v5' (0x0100, the format this module reads), 'v7.3' (0x0200,
+  // HDF5-backed — out of scope), or 'unknown'. The ASCII description
+  // at offset 0 corroborates the version uint16: v5 files start with
+  // 'MATLAB 5.0 MAT-file', v7.3 with 'MATLAB 7.3 MAT-file'.
+  api.detectMatVersion = function (buffer) {
+    const u8 = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    if (u8.length < 128) return 'unknown';
+    const dv = new DataView(u8.buffer, u8.byteOffset, 128);
+    const version = dv.getUint16(124, true);
+    if (version === 0x0100) return 'v5';
+    if (version === 0x0200) return 'v7.3';
+    return 'unknown';
+  };
+
   // Top-level entry point. Accepts an ArrayBuffer or Uint8Array,
   // returns a Promise<Map<string, Var>> of named variables.
   api.parse = async function (buffer) {
@@ -300,14 +315,28 @@
       throw new Error(`MAT file too short for header: ${u8.length}B`);
     }
     const header = new DataView(u8.buffer, u8.byteOffset, 128);
+    // MAT v7.3 detection FIRST: byte 124-125 is the version field.
+    // 0x0100 = v5 (this module), 0x0200 = v7.3 (HDF5-backed — out of
+    // scope). Surface a user-actionable error so callers know how to
+    // re-export the file in a supported format. Surfaced by mne-
+    // testing-data's test_raw_h5.set / test_raw_hdf5.set, where the
+    // pre-fix code raised a generic "unsupported MAT version" without
+    // telling the user what to do.
+    const version = header.getUint16(124, true);
+    if (version === 0x0200) {
+      throw new Error(
+        'MAT v7.3 (HDF5) format detected. The viewer only supports MAT v5. ' +
+        "Re-save in MATLAB with: save(..., '-v6') or in EEGLAB with " +
+        "'Save dataset as' (option: 'v6.5 file format', not 'v7.3').",
+      );
+    }
     // Endian indicator: 0x4D49 ('IM' bytes 'M','I' → little-endian on disk).
     const endian = header.getUint16(126, true);
     if (endian !== 0x4d49) {
       throw new Error(`MAT file is not little-endian (endian indicator = 0x${endian.toString(16)})`);
     }
-    const version = header.getUint16(124, true);
     if (version !== 0x0100) {
-      throw new Error(`unsupported MAT version 0x${version.toString(16)} (only v5/v6 = 0x0100 supported, not v7.3 HDF5)`);
+      throw new Error(`unsupported MAT version 0x${version.toString(16)} (only v5/v6 = 0x0100 supported)`);
     }
 
     const view = new DataView(u8.buffer, u8.byteOffset, u8.length);

@@ -180,7 +180,28 @@ test('parse: header rejects MAT v7.3 (HDF5)', async () => {
   const view = new DataView(buf);
   writeHeader(view);
   view.setUint16(124, 0x0200, true);  // pretend v7.3
-  await assert.rejects(() => MatV5.parse(buf), /unsupported MAT version/);
+  // Surface an actionable error: tell the user how to re-save the file
+  // in a supported format. Pre-fix the message was the generic
+  // "unsupported MAT version" which left the user stuck.
+  await assert.rejects(() => MatV5.parse(buf), /MAT v7\.3 \(HDF5\) format detected/);
+  await assert.rejects(() => MatV5.parse(buf), /-v6/);
+});
+
+test('detectMatVersion: classifies v5 vs v7.3 from header', () => {
+  const v5 = new ArrayBuffer(128);
+  const dvV5 = new DataView(v5);
+  dvV5.setUint16(124, 0x0100, true);
+  dvV5.setUint16(126, 0x4d49, true);
+  assert.equal(MatV5.detectMatVersion(v5), 'v5');
+
+  const v7 = new ArrayBuffer(128);
+  const dvV7 = new DataView(v7);
+  dvV7.setUint16(124, 0x0200, true);
+  dvV7.setUint16(126, 0x4d49, true);
+  assert.equal(MatV5.detectMatVersion(v7), 'v7.3');
+
+  // Too-short buffer: unknown rather than crash.
+  assert.equal(MatV5.detectMatVersion(new ArrayBuffer(64)), 'unknown');
 });
 
 test('parse: a 2x3 single-class numeric matrix', async () => {
