@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
+require('../formats/_buffers.js');
 require('../formats/_fiff-dir.js');
 const FIFFReader = require('../formats/fiff.js');
 

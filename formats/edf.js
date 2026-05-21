@@ -464,10 +464,9 @@
   // dedicated `readWindowEDF` / `readWindowBDF` so the inner loop
   // is branch-free.
   async function fetchWindowBuffer(layout, startSample, nWinReq, opts) {
-    const start = Math.max(0, startSample);
-    if (start >= layout.n_samples || nWinReq <= 0) return null;
-    const end = Math.min(start + nWinReq, layout.n_samples);
-    const nWin = end - start;
+    const win = ChannelBuffers.clampWindow(startSample, nWinReq, layout.n_samples);
+    if (!win) return null;
+    const { start, end, nWin } = win;
     const spr = layout.samples_per_record;
     const firstRec = Math.floor(start / spr);
     const lastRec = Math.ceil(end / spr);
@@ -548,10 +547,9 @@
   const STREAM_BATCH_RECORDS = 8;
 
   async function* streamWindowEDF(layout, isBDF, startSample, nWinReq, opts) {
-    const start = Math.max(0, startSample);
-    if (start >= layout.n_samples || nWinReq <= 0) return;
-    const end = Math.min(start + nWinReq, layout.n_samples);
-    const nWin = end - start;
+    const win = ChannelBuffers.clampWindow(startSample, nWinReq, layout.n_samples);
+    if (!win) return;
+    const { start, end, nWin } = win;
     const spr = layout.samples_per_record;
     const nCh = layout.n_channels;
     const firstRec = Math.floor(start / spr);

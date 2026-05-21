@@ -298,11 +298,9 @@
       recording_start_iso: null,
       annotation_events,
       readWindow: async (startSample, nWin) => {
-        const start = Math.max(0, startSample | 0);
-        if (start >= nSamples || nWin <= 0) {
-          return globalThis.ChannelBuffers.empty(nChannels);
-        }
-        const end = Math.min(start + nWin, nSamples);
+        const win = globalThis.ChannelBuffers.clampWindow(startSample, nWin, nSamples);
+        if (!win) return globalThis.ChannelBuffers.empty(nChannels);
+        const { start, end } = win;
         const out = globalThis.ChannelBuffers.alloc(nChannels, end - start);
         // dataTimeSeries is row-major [nSamples, nChannels]: sample s
         // channel c lives at flat[s * nChannels + c].

@@ -27,6 +27,7 @@ globalThis.HttpRange = {
   },
 };
 
+require('../formats/_buffers.js');
 require('../formats/_fiff-dir.js');
 const FiffReader = require('../formats/fiff.js');
 

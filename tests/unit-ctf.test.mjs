@@ -11,6 +11,7 @@ import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 // Helper modules attach to globalThis on require — load them first.
+require('../formats/_buffers.js');
 require('../formats/_ctf-res4.js');
 require('../formats/_ctf-marker.js');
 const CTFReader = require('../formats/ctf.js');

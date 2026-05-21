@@ -15,6 +15,7 @@ import { createRequire } from 'node:module';
 import { fc, uint8Buffer } from './_arbitraries.mjs';
 
 const require = createRequire(import.meta.url);
+require('../formats/_buffers.js');
 const FIFFReader = require('../formats/fiff.js');
 
 test('property: fiff.read never crashes on arbitrary byte input', () => {

@@ -18,6 +18,7 @@ import fs from 'node:fs';
 const require = createRequire(import.meta.url);
 // Load the tag-directory walker first — fiff.js range-based open()
 // reaches through globalThis.FiffDir.
+require('../formats/_buffers.js');
 require('../formats/_fiff-dir.js');
 const FIFFReader = require('../formats/fiff.js');
 

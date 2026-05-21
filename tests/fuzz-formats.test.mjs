@@ -271,6 +271,7 @@ test('fuzz: FIFF read survives 10k corpus-mutated rounds', () => {
 // Load helpers so globalThis.CTFRes4 / CTFMarker resolve when ctf.js
 // is required. _bootstrap.mjs doesn't include them yet (they're new
 // in the CTF reader plan) so we side-load here.
+require('../formats/_buffers.js');
 require('../formats/_ctf-res4.js');
 require('../formats/_ctf-marker.js');
 const CTFReader = require('../formats/ctf.js');

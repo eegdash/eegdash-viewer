@@ -211,13 +211,9 @@
       // Bounds-clamp here so callers can pan past the end without
       // worrying about negative ranges or off-by-one near EOF.
       readWindow: async (startSample, nSamplesWindow, opts) => {
-        const start = Math.max(0, startSample);
-        if (start >= nSamples || nSamplesWindow <= 0) {
-          return ChannelBuffers.empty(nChannels);
-        }
-        const end = Math.min(start + nSamplesWindow, nSamples);
-        if (end <= start) return ChannelBuffers.empty(nChannels);
-        return readInterleavedWindow(fdtUrl, nChannels, start, end - start, opts);
+        const win = ChannelBuffers.clampWindow(startSample, nSamplesWindow, nSamples);
+        if (!win) return ChannelBuffers.empty(nChannels);
+        return readInterleavedWindow(fdtUrl, nChannels, win.start, win.nWin, opts);
       },
       readWindowStreaming: (startSample, nSamplesWindow, opts) =>
         streamInterleavedWindow(fdtUrl, nChannels, nSamples, startSample, nSamplesWindow, opts),
@@ -444,12 +440,9 @@
       bids_channels:      meta.channels || null,
       streaming:          true,
       async readWindow(startSample, nSamplesWindow, opts) {
-        const start = Math.max(0, startSample);
-        if (start >= nSamples || nSamplesWindow <= 0) {
-          return ChannelBuffers.empty(nbchan);
-        }
-        const end = Math.min(start + nSamplesWindow, nSamples);
-        const nWin = end - start;
+        const win = ChannelBuffers.clampWindow(startSample, nSamplesWindow, nSamples);
+        if (!win) return ChannelBuffers.empty(nbchan);
+        const { start, end, nWin } = win;
         const byteStart = dataAbsOffset + start * nbchan * 4;
         const byteEnd   = dataAbsOffset + end   * nbchan * 4 - 1;
         const buf = await HttpRange.rangeFetch(setUrl, byteStart, byteEnd, nWin * nbchan * 4, opts);
@@ -547,16 +540,13 @@
             channel_labels: labels,
             bids_channels: meta.channels || null,
             readWindow: async (startSample, nSamplesWindow, opts) => {
-              const start = Math.max(0, startSample);
-              if (start >= nSamplesFdt || nSamplesWindow <= 0) {
-                return ChannelBuffers.empty(nChannelsFromSidecar);
-              }
-              const end = Math.min(start + nSamplesWindow, nSamplesFdt);
+              const win = ChannelBuffers.clampWindow(startSample, nSamplesWindow, nSamplesFdt);
+              if (!win) return ChannelBuffers.empty(nChannelsFromSidecar);
               return readInterleavedWindow(
                 fdtUrl,
                 nChannelsFromSidecar,
-                start,
-                end - start,
+                win.start,
+                win.nWin,
                 opts,
               );
             },
@@ -636,12 +626,9 @@
       channel_labels: channelLabels,
       bids_channels: meta.channels || null,
       readWindow: async (startSample, nSamplesWindow) => {
-        const start = Math.max(0, startSample);
-        if (start >= nSamples || nSamplesWindow <= 0) {
-          return ChannelBuffers.empty(nbchan);
-        }
-        const end = Math.min(start + nSamplesWindow, nSamples);
-        return sliceColumnMajor(data32, nbchan, start, end - start);
+        const win = ChannelBuffers.clampWindow(startSample, nSamplesWindow, nSamples);
+        if (!win) return ChannelBuffers.empty(nbchan);
+        return sliceColumnMajor(data32, nbchan, win.start, win.nWin);
       },
     };
   }
@@ -691,10 +678,9 @@
   const STREAM_BATCH_FRAMES = 512;
 
   async function* streamInterleavedWindow(url, nChannels, nSamples, startSample, nWinReq, opts) {
-    const start = Math.max(0, startSample);
-    if (start >= nSamples || nWinReq <= 0) return;
-    const end = Math.min(start + nWinReq, nSamples);
-    const nWin = end - start;
+    const win = ChannelBuffers.clampWindow(startSample, nWinReq, nSamples);
+    if (!win) return;
+    const { start, nWin } = win;
 
     const byteStart = start * nChannels * BYTES_PER_SAMPLE;
     const expectedBytes = nWin * nChannels * BYTES_PER_SAMPLE;

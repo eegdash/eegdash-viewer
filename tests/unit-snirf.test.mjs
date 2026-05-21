@@ -35,6 +35,13 @@ globalThis.HttpRange = {
 globalThis.ChannelBuffers = {
   alloc: (nCh, n) => Array.from({ length: nCh }, () => new Float32Array(n)),
   empty: (nCh) => Array.from({ length: nCh }, () => new Float32Array(0)),
+  clampWindow: (startSample, nWin, nSamples) => {
+    const start = Math.max(0, startSample | 0);
+    const n = Math.max(0, nWin | 0);
+    if (start >= nSamples || n === 0) return null;
+    const end = Math.min(start + n, nSamples);
+    return { start, end, nWin: end - start };
+  },
 };
 
 const SnirfReader = require('../formats/snirf.js');

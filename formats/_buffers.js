@@ -24,7 +24,21 @@
     return out;
   }
 
-  const api = { empty, alloc };
+  // Bounds-clamp a requested window against [0, nSamples). Returns
+  // null when the request is degenerate (past EOF or zero-width), so
+  // callers can early-return their own empty/null sentinel. Otherwise
+  // returns the clamped {start, end, nWin} where 0 <= start < end <= nSamples.
+  // Centralises the off-by-one near EOF + negative-start pattern that
+  // every format reader implemented (subtly differently) before B1.
+  function clampWindow(startSample, nWin, nSamples) {
+    const start = Math.max(0, startSample | 0);
+    const n = Math.max(0, nWin | 0);
+    if (start >= nSamples || n === 0) return null;
+    const end = Math.min(start + n, nSamples);
+    return { start, end, nWin: end - start };
+  }
+
+  const api = { empty, alloc, clampWindow };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.ChannelBuffers = api;
 })();

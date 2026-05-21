@@ -728,14 +728,9 @@
   }
 
   async function readWindowRange(url, nchan, cals, bufIndex, totalSamples, startReq, nReq, opts) {
-    const start = Math.max(0, startReq);
-    if (start >= totalSamples || nReq <= 0) {
-      const out = new Array(nchan);
-      for (let c = 0; c < nchan; c++) out[c] = new Float32Array(0);
-      return out;
-    }
-    const end = Math.min(start + nReq, totalSamples);
-    const nWin = end - start;
+    const win = ChannelBuffers.clampWindow(startReq, nReq, totalSamples);
+    if (!win) return ChannelBuffers.empty(nchan);
+    const { start, end, nWin } = win;
     const firstBufIdx = findBufferForSample(bufIndex, start);
     if (firstBufIdx === -1) throw new Error(`fiff: no buffer covers sample ${start}`);
 
@@ -794,9 +789,9 @@
   // channels } where channels is an Array<Float32Array> of length
   // nchan, one entry per channel, each of length nLocal.
   async function* readWindowRangeStreaming(url, nchan, cals, bufIndex, totalSamples, startReq, nReq, opts) {
-    const start = Math.max(0, startReq);
-    if (start >= totalSamples || nReq <= 0) return;
-    const end = Math.min(start + nReq, totalSamples);
+    const win = ChannelBuffers.clampWindow(startReq, nReq, totalSamples);
+    if (!win) return;
+    const { start, end } = win;
     const firstBufIdx = findBufferForSample(bufIndex, start);
     if (firstBufIdx === -1) return;
 

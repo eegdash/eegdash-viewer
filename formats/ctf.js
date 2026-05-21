@@ -167,12 +167,10 @@
     const nch     = header.no_channels;
 
     async function readWindow(startSample, nWin) {
-      const start = Math.max(0, startSample | 0);
-      if (start >= n_samples || nWin <= 0) {
-        // Empty channels, length 0 — matches what edf.js returns at EOF.
-        return Array.from({ length: nch }, () => new Float32Array(0));
-      }
-      const end = Math.min(start + nWin, n_samples);
+      // Empty channels, length 0 — matches what edf.js returns at EOF.
+      const win = globalThis.ChannelBuffers.clampWindow(startSample, nWin, n_samples);
+      if (!win) return globalThis.ChannelBuffers.empty(nch);
+      const { start, end } = win;
       const nOut = end - start;
 
       // CTF samples are interleaved: sample[t] of channel[c] sits at

@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 import { fc, uint8Buffer } from './_arbitraries.mjs';
 
 const require = createRequire(import.meta.url);
+require('../formats/_buffers.js');
 require('../formats/_ctf-res4.js');
 require('../formats/_ctf-marker.js');
 const CTFReader = require('../formats/ctf.js');

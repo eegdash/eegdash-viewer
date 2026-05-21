@@ -237,10 +237,9 @@
   // over the buffer chosen at open() time, then a linear walk that
   // deinterleaves + applies per-channel scale in one pass.
   async function readMultiplexedWindow(layout, startSample, nWinReq, opts) {
-    const start = Math.max(0, startSample);
-    if (start >= layout.n_samples || nWinReq <= 0) return ChannelBuffers.empty(layout.n_channels);
-    const end = Math.min(start + nWinReq, layout.n_samples);
-    const nWin = end - start;
+    const win = ChannelBuffers.clampWindow(startSample, nWinReq, layout.n_samples);
+    if (!win) return ChannelBuffers.empty(layout.n_channels);
+    const { start, nWin } = win;
     const nCh = layout.n_channels;
     const byteStart = start * nCh * layout.bytes_per_sample;
     const expectedBytes = nWin * nCh * layout.bytes_per_sample;
@@ -264,10 +263,9 @@
   const STREAM_BATCH_FRAMES_BV = 512;
 
   async function* streamMultiplexedWindow(layout, startSample, nWinReq, opts) {
-    const start = Math.max(0, startSample);
-    if (start >= layout.n_samples || nWinReq <= 0) return;
-    const end = Math.min(start + nWinReq, layout.n_samples);
-    const nWin = end - start;
+    const win = ChannelBuffers.clampWindow(startSample, nWinReq, layout.n_samples);
+    if (!win) return;
+    const { start, nWin } = win;
     const nCh = layout.n_channels;
     const bps = layout.bytes_per_sample;
     const frameSize = nCh * bps;
