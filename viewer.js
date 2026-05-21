@@ -1639,6 +1639,50 @@
     const target = BIDSRecording.resolveTargets(params);
     if (target?.kind === 'url' || target?.kind === 'bids-path') {
       load(target.eeg_url);
+    } else if (target?.kind === 'bids-path-discover-sub') {
+      // Subject not specified in URL — probe participants.tsv then
+      // S3-list to find the first real subject ID. After the sub is
+      // discovered, fall through to modality discovery (if ?suffix=
+      // also omitted) or direct URL build. Mirrors bids-path-auto.
+      status.textContent = 'Detecting subject...';
+      BIDSRecording.discoverSubject(target.params)
+        .then(sub => {
+          if (!sub) {
+            status.textContent =
+              `No subjects found at ${target.params.dataset}/ ` +
+              `(participants.tsv missing and no sub-* directories listed). ` +
+              `Try adding &sub=<id> to the URL.`;
+            return;
+          }
+          // Re-enter resolution with the discovered sub baked in.
+          // If ?suffix= was also missing, we still need modality
+          // discovery; we run that ourselves rather than calling
+          // resolveTargets again (which would re-parse URL).
+          const resolvedParams = { ...target.params, sub };
+          if (resolvedParams.suffix) {
+            // Both sub (discovered) and suffix (explicit) — direct build.
+            load(BIDSRecording.buildOpenNeuroEegUrl(resolvedParams));
+            return;
+          }
+          // sub discovered, suffix unknown — run modality probe.
+          status.textContent = 'Detecting modality...';
+          BIDSRecording.discoverSuffix(resolvedParams)
+            .then(suf => {
+              if (!suf) {
+                status.textContent =
+                  `No EEG/iEEG/MEG/EMG/NIRS recording found at ` +
+                  `${resolvedParams.dataset}/sub-${sub}/...`;
+                return;
+              }
+              load(BIDSRecording.buildOpenNeuroEegUrl({ ...resolvedParams, suffix: suf }));
+            })
+            .catch(err => {
+              status.textContent = `Modality probe failed: ${err.message || err}`;
+            });
+        })
+        .catch(err => {
+          status.textContent = `Subject probe failed: ${err.message || err}`;
+        });
     } else if (target?.kind === 'bids-path-auto') {
       // Modality not specified in URL — probe eeg/ieeg/meg/emg/nirs in
       // parallel + pick the first that exists. ~50-200 ms wall on
