@@ -232,8 +232,38 @@
     }
   }
 
+  /**
+   * Fetch the entire body of `url` as an ArrayBuffer. Used by readers
+   * that need the whole file in memory (FIFF, CTF .res4 + .meg4).
+   * Includes a 1 GB cap to surface the bandwidth/memory ceiling
+   * before the browser OOMs. Range: 0-N-1 is used (not a plain GET)
+   * so this routes through the same cache as range fetches.
+   *
+   * @param {string} url
+   * @param {object} [opts]
+   * @param {number} [opts.maxBytes=1073741824] - hard cap, default 1 GiB
+   * @returns {Promise<ArrayBuffer>}
+   * @throws if Content-Length / probeLength exceeds maxBytes, or the
+   *         response is non-2xx
+   */
+  async function fetchBuffer(url, opts = {}) {
+    const maxBytes = opts.maxBytes ?? 1073741824;  // 1 GiB
+    // Probe size first so we can fail-fast with a clear message.
+    const size = await probeLength(url);
+    if (size > maxBytes) {
+      throw new Error(
+        `fetchBuffer: ${url} is ${(size / 1024 / 1024).toFixed(0)} MB ` +
+        `(exceeds ${(maxBytes / 1024 / 1024).toFixed(0)} MB cap); ` +
+        `use range-based readWindow instead.`,
+      );
+    }
+    // Range request for the whole body — routes through CDN range cache.
+    return rangeFetch(url, 0, size - 1);
+  }
+
   const api = {
-    probeLength, rangeFetch, rangeFetchStreaming, fetchText, fetchTextOrNull,
+    probeLength, rangeFetch, rangeFetchStreaming, fetchBuffer,
+    fetchText, fetchTextOrNull,
     registerLocal, clearLocal,
     _STREAM_THRESHOLD: STREAM_THRESHOLD,
   };
