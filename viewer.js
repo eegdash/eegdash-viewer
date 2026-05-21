@@ -513,7 +513,14 @@
 
       // Environment (getter so globals can be lazily resolved):
       get TraceRenderer()        { return globalThis.TraceRenderer; },
-      get requestAnimationFrame() { return requestAnimationFrame; },
+      // Bind to globalThis: requestAnimationFrame is a Window method and
+      // throws "Illegal invocation" if called with `this === ctx`. The
+      // raw reference (returned by the previous version of this getter)
+      // works when invoked as a bare function via the scope chain, but
+      // breaks the moment a consumer calls it as `ctx.requestAnimationFrame()`
+      // — which render-pipeline.js does. (Lane F4 regression — caught by
+      // the post-F4 browser audit.)
+      get requestAnimationFrame() { return globalThis.requestAnimationFrame.bind(globalThis); },
     };
     const _renderPipeline = _RenderPipelineMod.createRenderPipeline(_renderCtx);
     function requestRender() { _renderPipeline.requestRender(); }
