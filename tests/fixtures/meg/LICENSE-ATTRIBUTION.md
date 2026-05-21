@@ -45,6 +45,39 @@ the time of authorship.
   are intentionally NOT generated here — the reader rejects them with
   a clean error, and supporting them would be a separate fixture.
 
+## bti-tiny/ (synthesised, CC0)
+
+Files in `bti-tiny/` are synthesised by `scripts/make-bti-fixture.mjs`
+(this repo) — no upstream data. Released under CC0. Binary layout
+follows the 4D Neuroimaging / BTi (Magnes WH3600) PDF format
+documented in MNE-Python's `mne/io/bti/bti.py` + `mne/io/bti/read.py`
++ `mne/io/bti/constants.py` (BSD-3-clause). Field offsets in the PDF
+tail header and per-epoch / per-channel records were cross-checked
+against the vendored sources at `/tmp/mne_bti.py` (lines 766-848) at
+the time of authorship.
+
+- 4 channels, 500 samples @ 100 Hz = 5 s recording.
+- `data_format` = 3 → float32 big-endian on disk (per the MNE DTYPES
+  table; the other documented modes — int16 / int32 / float64 BE —
+  are exercised by their own decode branches but not by this fixture).
+- Per-channel deterministic sine waves: `sin(2π · t/100 · (c+1))`
+  written as float32 BE, interleaved per sample.
+- Single epoch (continuous acquisition). Multi-epoch / evoked PDFs
+  are intentionally NOT generated here — the reader rejects them
+  with a clean error.
+- Bundle layout:
+  - `config` — minimal stub (128 B). The real BTi `config` is a
+    multi-MB binary with many user blocks (channel maps, calibration,
+    weight tables). The reader opens recordings purely from the PDF
+    tail header and falls back to indexed channel labels Ch1..ChN,
+    so the stub config is sufficient for current tests. See
+    `formats/_bti-config.js` for the deferred config-block parser.
+  - `c,rfDC` — the PDF (Patient Data File). Filename literal — BTi
+    bundles carry no file extensions. `c,rfDC` is the most common
+    naming (raw, no high-pass); alternates like `c,rfhp1.0Hz` exist
+    and the reader probes for all known variants when the caller
+    passes the bundle directory.
+
 ## kriss-tiny.kdf (synthesised, CC0)
 
 `kriss-tiny.kdf` is synthesised by `scripts/make-kriss-fixture.mjs`
