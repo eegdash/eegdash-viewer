@@ -1793,3 +1793,142 @@ test('discoverSuffix: prefers eeg over ieeg when both 200', async () => {
     delete globalThis.fetch;
   }
 });
+
+// ─── discoverSubject: participants.tsv + S3-list fallback ─────────
+//
+// Mirrors discoverSuffix's mock-fetch pattern. The helper probes two
+// sources in order:
+//   1. participants.tsv  (fast, 1 fetch, parses TSV column 0)
+//   2. S3 ListObjectsV2  (1 fetch, parses XML <Key> tags)
+// Returns the first subject ID (without 'sub-' prefix) or null.
+
+test('discoverSubject: returns first sub from participants.tsv when present', async () => {
+  // Mock fetch: participants.tsv responds with a valid TSV body; S3
+  // listing would never be called because participants.tsv hit first.
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    if (url.endsWith('/participants.tsv')) {
+      return {
+        ok: true, status: 200,
+        text: async () => 'participant_id\tage\tsex\nsub-001\t25\tF\nsub-002\t30\tM\n',
+      };
+    }
+    return { ok: false, status: 404, text: async () => '' };
+  };
+  try {
+    const sub = await BIDSRecording.discoverSubject({ dataset: 'ds003774' });
+    assert.equal(sub, '001');
+    assert.equal(calls.length, 1, 'should not have fallen back to S3-list');
+    assert.match(calls[0], /\/ds003774\/participants\.tsv$/);
+  } finally {
+    delete globalThis.fetch;
+  }
+});
+
+test('discoverSubject: strips sub- prefix from participants.tsv row', async () => {
+  // participant_id values are stored as `sub-XXX` per BIDS spec. The
+  // helper returns the bare ID (no prefix) because buildBidsRelpath
+  // re-adds the prefix.
+  globalThis.fetch = async () => ({
+    ok: true, status: 200,
+    text: async () => 'participant_id\nsub-hc1\nsub-hc2\n',
+  });
+  try {
+    const sub = await BIDSRecording.discoverSubject({ dataset: 'ds002778' });
+    assert.equal(sub, 'hc1');
+  } finally {
+    delete globalThis.fetch;
+  }
+});
+
+test('discoverSubject: falls back to S3 list when participants.tsv 404s', async () => {
+  // ds003774 is the canonical case — no participants.tsv, but the
+  // bucket has sub-001/ under the dataset prefix.
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    if (url.endsWith('/participants.tsv')) {
+      return { ok: false, status: 404, text: async () => '' };
+    }
+    if (url.includes('list-type=2') && url.includes('prefix=ds003774%2Fsub-')) {
+      return {
+        ok: true, status: 200,
+        text: async () =>
+          '<?xml version="1.0"?><ListBucketResult>' +
+          '<Key>ds003774/sub-001/eeg/sub-001_task-MusicListening_eeg.set</Key>' +
+          '<Key>ds003774/sub-001/eeg/sub-001_task-MusicListening_eeg.fdt</Key>' +
+          '</ListBucketResult>',
+      };
+    }
+    return { ok: false, status: 404, text: async () => '' };
+  };
+  try {
+    const sub = await BIDSRecording.discoverSubject({ dataset: 'ds003774' });
+    assert.equal(sub, '001');
+    assert.equal(calls.length, 2, 'should have tried participants.tsv then S3 list');
+  } finally {
+    delete globalThis.fetch;
+  }
+});
+
+test('discoverSubject: S3 list parses non-numeric subject IDs (sub-hc1)', async () => {
+  // ds002778 uses sub-hc1, sub-hc2, etc. — letters allowed in BIDS.
+  // Regression test that the extract regex doesn't anchor on digits.
+  globalThis.fetch = async (url) => {
+    if (url.endsWith('/participants.tsv')) {
+      return { ok: false, status: 404, text: async () => '' };
+    }
+    return {
+      ok: true, status: 200,
+      text: async () =>
+        '<ListBucketResult>' +
+        '<Key>ds002778/sub-hc1/ses-hc/eeg/sub-hc1_ses-hc_task-rest_eeg.bdf</Key>' +
+        '</ListBucketResult>',
+    };
+  };
+  try {
+    const sub = await BIDSRecording.discoverSubject({ dataset: 'ds002778' });
+    assert.equal(sub, 'hc1');
+  } finally {
+    delete globalThis.fetch;
+  }
+});
+
+test('discoverSubject: returns null when both participants.tsv AND S3 list fail', async () => {
+  // Truly empty / nonexistent dataset — caller surfaces an error.
+  globalThis.fetch = async () => ({
+    ok: false, status: 404, text: async () => '',
+  });
+  try {
+    const sub = await BIDSRecording.discoverSubject({ dataset: 'nonexistent000' });
+    assert.equal(sub, null);
+  } finally {
+    delete globalThis.fetch;
+  }
+});
+
+test('discoverSubject: returns null when S3 list returns no sub- keys', async () => {
+  // Defensive: bucket exists but contains only top-level files (e.g.
+  // CHANGES, dataset_description.json) — listing returns 200 with no
+  // sub-* matches.
+  globalThis.fetch = async (url) => {
+    if (url.endsWith('/participants.tsv')) {
+      return { ok: false, status: 404, text: async () => '' };
+    }
+    return {
+      ok: true, status: 200,
+      text: async () =>
+        '<ListBucketResult>' +
+        '<Key>ds999999/dataset_description.json</Key>' +
+        '<Key>ds999999/CHANGES</Key>' +
+        '</ListBucketResult>',
+    };
+  };
+  try {
+    const sub = await BIDSRecording.discoverSubject({ dataset: 'ds999999' });
+    assert.equal(sub, null);
+  } finally {
+    delete globalThis.fetch;
+  }
+});
