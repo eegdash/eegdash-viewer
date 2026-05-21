@@ -233,6 +233,70 @@
       try {
         vars = await Mat73.parse(buf);
       } catch (e) {
+        // Cross-basename .fdt fallback: when /EEG/data is a CHAR
+        // pointer to a sibling whose basename differs from the .set,
+        // Mat73.parse throws a precise message containing the filename
+        // in double-quoted form. Parse the filename out, derive the
+        // sibling URL, and serve windows from the named .fdt. See
+        // tests/evidence/v73-real-data/README.md for the rationale.
+        const fdtMatch = /CHAR sidecar filename \("([^"]+)"\)/.exec(e.message || '');
+        if (fdtMatch) {
+          const namedFdt = fdtMatch[1];
+          const dir = setUrl.slice(0, setUrl.lastIndexOf('/') + 1);
+          const fdtUrl = dir + namedFdt;
+          console.warn(
+            `EEGLAB v7.3: /EEG/data points at sibling "${namedFdt}" ` +
+            `(different basename from the .set); following the named .fdt.`
+          );
+          // Without the .set's inline numeric data we can't recover
+          // nbchan/srate from the file itself. The BIDS sidecar
+          // (passed in `meta`) is the only source.
+          if (!nChannelsFromSidecar || !fsFromSidecar) {
+            throw new Error(
+              `EEGLAB v7.3 cross-basename: need _channels.tsv and ` +
+              `SamplingFrequency in _eeg.json to interpret the named ` +
+              `.fdt sibling "${namedFdt}"`
+            );
+          }
+          const totalBytesFdt = await HttpRange.probeLength(fdtUrl);
+          if (totalBytesFdt % (nChannelsFromSidecar * BYTES_PER_SAMPLE) !== 0) {
+            throw new Error(
+              `.fdt size ${totalBytesFdt} is not a multiple of ` +
+              `${nChannelsFromSidecar}×${BYTES_PER_SAMPLE} — sidecar ` +
+              `channel count may be wrong`
+            );
+          }
+          const nSamplesFdt = totalBytesFdt / (nChannelsFromSidecar * BYTES_PER_SAMPLE);
+          const durationFdt = nSamplesFdt / fsFromSidecar;
+          const labels =
+            meta.channels && meta.channels.length === nChannelsFromSidecar
+              ? meta.channels.map((c) => c.name)
+              : Array.from({ length: nChannelsFromSidecar }, (_, i) => `Ch${i + 1}`);
+          return {
+            n_channels: nChannelsFromSidecar,
+            n_samples: nSamplesFdt,
+            sampling_frequency: fsFromSidecar,
+            duration_s: durationFdt,
+            bytes_per_sample: BYTES_PER_SAMPLE,
+            url: fdtUrl,
+            channel_labels: labels,
+            bids_channels: meta.channels || null,
+            readWindow: async (startSample, nSamplesWindow, opts) => {
+              const start = Math.max(0, startSample);
+              if (start >= nSamplesFdt || nSamplesWindow <= 0) {
+                return ChannelBuffers.empty(nChannelsFromSidecar);
+              }
+              const end = Math.min(start + nSamplesWindow, nSamplesFdt);
+              return readInterleavedWindow(
+                fdtUrl,
+                nChannelsFromSidecar,
+                start,
+                end - start,
+                opts,
+              );
+            },
+          };
+        }
         throw new Error(`EEGLAB inline .set (v7.3) parse failed at ${setUrl}: ${e.message}`);
       }
     } else {
