@@ -61,3 +61,45 @@ npm run report:audit-reality
 
 - The audit JSON (`scripts/audit-100-datasets.json`) marks "loadable" based on a 1-byte HEAD-range probe. This report verifies the viewer's reader actually decodes + renders.
 - Failures here that the audit marked loadable are real reader/parser bugs (or sidecar-resolution bugs); failures that the audit also missed are network flakes — re-run with a different `AUDIT_SEED` to subsample a different slice.
+
+---
+
+## 2026-05-21 — Plan A re-run after streaming readers landed
+
+Re-ran the same 20-sample audit (`AUDIT_SAMPLE_SIZE=20 AUDIT_SEED=42 npm run test:audit-reality`) after Plan A's range-based FIFF + EEGLAB-inline readers landed.
+
+**Result: 15/20 pass (75.0%), +1 net vs the Plan E baseline above.**
+
+The single dataset that flipped from FAIL → PASS is the largest target the plan was designed to unblock:
+
+- **ds003694** (FIFF, 2 GB) — was `render-fail` (whole-file `fetchBuffer` exhausted browser memory); now PASS at `render_ms=8112` via the tag-directory walker + range-based readWindow.
+
+The four other previously-failing rows are still failing, with diagnosed root causes that are out of Plan A v1 scope or are file-level limitations:
+
+| dataset_id | format | bytes | root cause | scope |
+|---|---|---:|---|---|
+| ds003682 | FIFF  | 644 MB | `FIFF_DIR_POINTER = -1` (no tag directory; stream-writer output). The 200 MB whole-file fallback rejects, as designed. | Documented in `tests/evidence/streaming-large/README.md` Blocker B. |
+| ds002578 | EEGLAB inline `.set` | 695 MB | `EEG.data` is wrapped inside an `EEG` struct (mxClass=2), not a top-level matrix; v1 scan only finds top-level `data`. | Documented in the plan's Task 9 follow-up note (struct-wrapped variant). |
+| ds002718 | EEGLAB inline `.set` | 224 MB | Same struct-wrapped variant as ds002578. | Same. |
+| ds002001 | CTF `.ds/.meg4`      | — | Not a Plan A format (CTF). | Out of plan scope. |
+| ds003392 | FIFF crosstalk-calib | small | Calibration file (not raw data). Different fault than Plan A targets. | Diagnosed by Plan E; not addressed by streaming work. |
+
+### Streaming-reader commits
+
+The 9 Plan A commits that produced this win are:
+
+```
+7e5b121 feat(fiff): add tag-directory walker for range-based reads
+0a5489c feat(fiff): range-based api.open via tag-directory walk
+7f753b1 feat(fiff): range-based readWindow over per-buffer byte index
+cc00285 feat(fiff): readWindowStreaming async generator over data buffers
+4bbc060 test(fiff): real-browser evidence gate for >200 MB FIFF reads
+d45fa3c feat(matv5): add scanElements for metadata-only top-level walk
+4458d90 feat(eeglab): range-based inline .set via MatV5.scanElements
+5643ad2 feat(eeglab): remove 200 MB inline cap for streaming v5 path
+5a25aac test(eeglab): real-browser evidence for >200 MB inline .set reads
+```
+
+### Post-A jsonl snapshot
+
+`tests/evidence/audit-browser-reality-plan-a/results.jsonl` (mirrors the post-run state at the moment Plan A finished, so future plans can A/B against it without re-running the audit).

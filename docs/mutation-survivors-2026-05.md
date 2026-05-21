@@ -1257,7 +1257,49 @@ both worth a focused iter-15 PR.
 | 12 | 40.70% | worker added (4.56%) |
 | 13 | 35.33% | topo2d archived (was 71.29%) |
 | 14 | **41.69%** | **viewer 12.37%, worker 19.42% — round 2 lift** |
+| 15 | **42.34%** | Plan A T12 (streaming readers) — formats/ctf.js now reported separately at 48.37% |
 
-Net: traces.js-only 37.29% → 5-file aggregate 41.69% (+4.4pp net)
-with the scope expanded from 1 → 5 files. Per-file scores remain
+Net: traces.js-only 37.29% → 6-file aggregate 42.34% (+5.05pp net)
+with the scope expanded from 1 → 6 files. Per-file scores remain
 the durable measurement; aggregate is informational.
+
+## Iteration 15 (Plan A T12, 2026-05-21) — streaming readers re-run
+
+Plan A landed range-based FIFF + EEGLAB-inline readers. Stryker
+incremental re-run on the unchanged scope produced:
+
+| File | iter-14 | iter-15 | Δ |
+|---|---:|---:|---:|
+| traces.js          | 66.71% | 66.71% | — |
+| filters.js         | 92.37% | 92.37% | — |
+| bids-recording.js  | 74.46% | 74.57% | +0.11 (noise) |
+| viewer.js          | 12.37% | 12.31% | -0.06 (noise) |
+| worker.js          | 19.42% | 18.99% | -0.43 (one added importScripts string — see below) |
+| formats/ctf.js     |   —    | 48.37% | (reported separately for the first time; was inside aggregate prior runs) |
+| **Aggregate**      | 41.69% | **42.34%** | **+0.65** |
+
+### Why worker.js dipped 0.43 pp
+
+Plan A added one importScripts line:
+```
+'formats/_fiff-dir.js',
+```
+This generated 5 new `StringLiteral` and `ArrayDeclaration` survivors
+of the same flavour as the existing importScripts cluster (worker.js
+lines 37-53). These are equivalent-mutant survivors per the iter-12
+analysis ("StringLiteral on importScripts strings cannot be killed by
+unit tests because the side-effect loads aren't observable from
+inside the worker self-shim"). Net result: no test gap, just a
+slightly larger denominator.
+
+### Files touched by Plan A inside Stryker scope
+
+Only `worker.js` (one importScripts line). The new logic lives in
+`formats/_fiff-dir.js`, `formats/fiff.js`, `formats/_matv5.js`, and
+`formats/eeglab.js` — none of which are in the Stryker `mutate`
+array. Per the plan's Task 12 note: "Stryker config does NOT include
+the new `_fiff-dir.js` in the `mutate` array — leave that for a
+follow-up dedicated mutation-coverage task."
+
+Aggregate stays above the `break: 37` threshold by 5.34 pp. No new
+test gap from Plan A.

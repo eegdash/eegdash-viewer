@@ -174,6 +174,39 @@ Run all rapid-input tests:
 npm run test:e2e:rapid
 ```
 
+## Large-File Streaming Readers (Plan A, 2026-05-21)
+
+The FIFF reader (`formats/fiff.js`) and the EEGLAB inline-`.set` reader
+(`formats/eeglab.js` `openInlineSet`) walk the file via HTTP Range
+instead of `HttpRange.fetchBuffer`. This lifts the 200 MB whole-file
+cap for the common-case top-level v5 inline EEGLAB and the
+directory-bearing FIFF file. Datasets that previously rendered-failed
+in the audit (e.g. ds003694 — 2 GB FIFF) now PASS.
+
+| Layer | File | Covers |
+|---|---|---|
+| Unit | tests/unit-fiff-dir.test.mjs            | tag-directory walker (synth + real fixture) |
+| Unit | tests/unit-fiff-range.test.mjs          | range-based `api.open` (mocked HttpRange) |
+| Unit | tests/unit-fiff-streaming.test.mjs      | `readWindowStreaming` chunk ordering |
+| Unit | tests/unit-matv5-scan.test.mjs          | top-level element scan |
+| Unit | tests/unit-eeglab-inline-range.test.mjs | inline `.set` open + readWindow via slice fetches |
+| E2E  | tests/e2e/acceptance/streaming-large.spec.mjs | real `>200 MB` browser reality-check (open<5s, readWindow<2s, heap<100MB) |
+| Bench | bench/readwindow.{bench,tinybench}.mjs | `readwindow_fiff_range`, `readwindow_eeglab_inline_range` fixtures |
+
+Fallback paths that still hit the 200 MB cap (out of v1 scope, by
+design):
+
+- FIFF without a tag directory (`FIFF_DIR_POINTER = -1`) — stream-
+  writer output, ~5 % of OpenNeuro FIFFs.
+- EEGLAB inline `.set` that wraps `data` inside an `EEG` struct
+  (mxClass=2) rather than emitting a top-level `data` matrix.
+- Compressed (`miCOMPRESSED`) or non-`float32` data elements.
+- MAT v7.3 (HDF5) — jsfive needs the whole file in memory.
+
+Evidence: `tests/evidence/streaming-large/README.md` documents the
+two real-world blockers (CDN HEAD-poisons-Range cache, ds003682
+no-directory).
+
 ## Coverage Gate
 
 The repo enforces a minimum coverage floor via c8 (V8-native, node:test-compatible).
