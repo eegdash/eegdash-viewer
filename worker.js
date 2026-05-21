@@ -58,6 +58,25 @@ importScripts(
   // SNIRF (HDF5) fNIRS reader. Depends on _jsfive loaded above (same
   // engine used for the MAT v7.3 EEGLAB path).
   'formats/snirf.js',
+  // NWB (HDF5) iEEG reader — reuses _jsfive loaded above for SNIRF + MAT v7.3.
+  'formats/nwb.js',
+  // MEF3 iEEG (Mayo) — metadata-only (RED decompression deferred). The
+  // segment parser must load BEFORE mef.js because the public reader
+  // reaches through globalThis.MefSegment.
+  'formats/_mef-segment.js',
+  'formats/mef.js',
+  // BTi/4D Neuroimaging MEG — directory bundle (no .ext). The config
+  // parser must load BEFORE bti.js because the public reader reaches
+  // through globalThis.BtiConfig.
+  'formats/_bti-config.js',
+  'formats/bti.js',
+  // ITAB MEG (Chieti ARGOS) — .raw + .mhd companion. Single-file binary,
+  // no sub-module dependencies.
+  'formats/itab.js',
+  // KRISS .kdf — stub-reader pending public spec. Emits clean error on
+  // open() until the format is documented; wired so the dispatch table
+  // can list it as a known (unsupported) format rather than 404'ing.
+  'formats/kriss.js',
   'filters.js',
 );
 
@@ -72,6 +91,13 @@ const READERS = {
   con:   globalThis.KitReader,
   sqd:   globalThis.KitReader,
   snirf: globalThis.SnirfReader,
+  // Lane H: BIDS-allowed formats. See formats/<name>.js for the support tier
+  // (full / metadata-only / stub). Stub-readers throw a clean error on open().
+  nwb:   globalThis.NwbReader,
+  mefd:  globalThis.MefReader,
+  raw:   globalThis.ItabReader,   // ITAB MEG only (BIDS-accepted .raw)
+  kdf:   globalThis.KrissReader,  // stub-reader pending public KRISS spec
+  bti:   globalThis.BtiReader,    // BTi/4D — no extension, routed by path detection
 };
 
 let reader = null;

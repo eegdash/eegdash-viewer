@@ -41,6 +41,19 @@
 <!-- SNIRF (Shared NIR Spectroscopy Format) — pure HDF5; depends on
      formats/_jsfive.js loaded above for the MAT v7.3 EEGLAB reader. -->
 <script src="formats/snirf.js?v=1"></script>
+<!-- Lane H: BIDS-allowed formats. See formats/<name>.js for support tier. -->
+<!-- NWB (HDF5) iEEG — reuses _jsfive loaded above. -->
+<script src="formats/nwb.js?v=1"></script>
+<!-- MEF3 iEEG (Mayo) — metadata-only. Segment parser must load BEFORE mef.js. -->
+<script src="formats/_mef-segment.js?v=1"></script>
+<script src="formats/mef.js?v=1"></script>
+<!-- BTi/4D Neuroimaging MEG — directory bundle, no .ext. Config parser first. -->
+<script src="formats/_bti-config.js?v=1"></script>
+<script src="formats/bti.js?v=1"></script>
+<!-- ITAB MEG (Chieti ARGOS) — .raw + .mhd companion. Single-file binary. -->
+<script src="formats/itab.js?v=1"></script>
+<!-- KRISS .kdf — stub-reader pending public spec. -->
+<script src="formats/kriss.js?v=1"></script>
 <!-- traces.js sub-modules (Lane E1) — must load BEFORE traces.js so
      the IIFE finds globalThis.TraceScaleBar / .TraceEventMarkers. -->
 <script src="traces/scale-bar.js?v=1"></script>

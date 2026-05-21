@@ -29,3 +29,13 @@ export const BrainVisionReader = require('../formats/brainvision.js');
 export const FiffDir           = require('../formats/_fiff-dir.js');
 export const FiffReader        = require('../formats/fiff.js');
 export const KitReader         = require('../formats/kit.js');
+// Lane H readers (BIDS-allowed formats). Dependency order: helpers first,
+// then the public reader. Each module attaches its API to globalThis on
+// require so other code can reach through globalThis.<Name>Reader.
+export const NwbReader         = require('../formats/nwb.js');
+export const MefSegment        = require('../formats/_mef-segment.js');
+export const MefReader         = require('../formats/mef.js');
+export const BtiConfig         = require('../formats/_bti-config.js');
+export const BtiReader         = require('../formats/bti.js');
+export const ItabReader        = require('../formats/itab.js');
+export const KrissReader       = require('../formats/kriss.js');

@@ -21,6 +21,15 @@ declare const CTFRes4: any;
 declare const CTFMarker: any;
 declare const FiffDir: any;
 declare const KitReader: any;
+// Lane H: BIDS-allowed formats. See formats/<name>.js for support tier
+// (full / metadata-only / stub).
+declare const NwbReader: any;
+declare const MefReader: any;
+declare const MefSegment: any;
+declare const BtiReader: any;
+declare const BtiConfig: any;
+declare const ItabReader: any;
+declare const KrissReader: any;
 
 // Some call sites reach through globalThis explicitly.
 declare global {
@@ -50,6 +59,21 @@ declare global {
   var FiffDir: any;
   // eslint-disable-next-line no-var
   var KitReader: any;
+  // Lane H: BIDS-allowed formats.
+  // eslint-disable-next-line no-var
+  var NwbReader: any;
+  // eslint-disable-next-line no-var
+  var MefReader: any;
+  // eslint-disable-next-line no-var
+  var MefSegment: any;
+  // eslint-disable-next-line no-var
+  var BtiReader: any;
+  // eslint-disable-next-line no-var
+  var BtiConfig: any;
+  // eslint-disable-next-line no-var
+  var ItabReader: any;
+  // eslint-disable-next-line no-var
+  var KrissReader: any;
 }
 
 export {};

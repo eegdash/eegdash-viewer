@@ -272,6 +272,16 @@
       con:   globalThis.KitReader,
       sqd:   globalThis.KitReader,
       snirf: globalThis.SnirfReader,
+      // BIDS-allowed formats (Lane H — see formats/<name>.js for support tier)
+      nwb:   globalThis.NwbReader,
+      mefd:  globalThis.MefReader,
+      // ITAB MEG only — collides with EGI Net Station .raw which BIDS doesn't
+      // accept. Routed by ext when the URL is a BIDS *_meg.raw + *_meg.mhd pair.
+      raw:   globalThis.ItabReader,
+      kdf:   globalThis.KrissReader,  // stub-reader — emits clean error until KRISS spec is public
+      // BTi has no extension — handled via path detection in loadFromMeta below
+      // (URLs ending in /config or matching /c,rf<…> route to BtiReader).
+      bti:   globalThis.BtiReader,
     };
   }
 
@@ -932,7 +942,16 @@
           });
         } else {
           // Fallback: open reader directly (Node unit tests, no Worker).
-          const readerModule = READERS[meta.ext];
+          // BTi/4D Neuroimaging directory bundles have no file extension — the
+          // URL points at a file inside the directory (e.g. `.../config` or
+          // `.../c,rfDC`). Detect those paths and route to BtiReader.
+          let dispatchExt = meta.ext;
+          if ((!dispatchExt || !READERS[dispatchExt]) &&
+              typeof meta.eeg_url === 'string' &&
+              (/\/config(?:$|\?)/.test(meta.eeg_url) || /\/c,rf[A-Za-z0-9.]+(?:$|\?)/.test(meta.eeg_url))) {
+            dispatchExt = 'bti';
+          }
+          const readerModule = READERS[dispatchExt];
           if (!readerModule) {
             throw new Error(`No reader for *_eeg.${meta.ext} (supported: ${Object.keys(READERS).join(', ')})`);
           }

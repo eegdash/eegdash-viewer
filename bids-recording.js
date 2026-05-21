@@ -58,6 +58,20 @@
     // ctf.js, not the inheritance walker.
     const ctf = /^(.*\/)([^/]+?)_(eeg|ieeg|emg|meg|nirs)\.ds\/\2_\3\.meg4$/.exec(physioUrl);
     if (ctf) return { dir: ctf[1], prefix: ctf[2], suffix: ctf[3], ext: 'ds' };
+    // MEF3 iEEG directory bundle: URLs look like
+    //   .../<entities>_ieeg.mefd/<segment>/...
+    // Mirrors the .ds/ handling above — surface ext='mefd', and keep
+    // dir = the parent ieeg/ directory so BIDS sidecar inheritance
+    // walks the canonical chain (never into the bundle).
+    const mefd = /^(.*\/)([^/]+?)_(eeg|ieeg|emg|meg|nirs)\.mefd\//.exec(physioUrl);
+    if (mefd) return { dir: mefd[1], prefix: mefd[2], suffix: mefd[3], ext: 'mefd' };
+    // BTi/4D Neuroimaging MEG bundle: directory with NO extension. URLs
+    // look like .../sub-XX_task-YYY_meg/config or .../c,rfDC (the binary
+    // data file uses a comma-prefixed naming scheme). We surface ext='bti'
+    // and dir = the BTi bundle directory itself (parent of the config
+    // file). Sidecar inheritance walks up from there.
+    const bti = /^(.*\/)([^/]+?)_(eeg|ieeg|emg|meg|nirs)\/(?:config|c,rf[A-Za-z0-9.]+)$/.exec(physioUrl);
+    if (bti) return { dir: bti[1], prefix: bti[2], suffix: bti[3], ext: 'bti' };
     // Primary: BIDS canonical `<prefix>_{suffix}.<ext>` form.
     // Matches any suffix (eeg, ieeg, emg, meg, nirs, etc.)
     const m = /^(.*\/)([^/]+?)_(eeg|ieeg|emg|meg|nirs)\.([A-Za-z0-9+]+)$/.exec(physioUrl);
@@ -66,7 +80,7 @@
     // (e.g. local test fixtures and demo files). Sidecar inheritance will
     // find nothing at these synthetic paths — the format reader extracts
     // everything it needs from the binary header.
-    const KNOWN_EXT = /\.(edf|bdf|set|vhdr|fif|fiff|snirf|con|sqd)$/i;
+    const KNOWN_EXT = /\.(edf|bdf|set|vhdr|fif|fiff|snirf|con|sqd|nwb|raw|kdf)$/i;
     const m2 = /^(.*\/)([^/]+)$/.exec(physioUrl);
     if (m2 && KNOWN_EXT.test(m2[2])) {
       const dot = m2[2].lastIndexOf('.');
