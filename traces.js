@@ -18,6 +18,22 @@
 (function () {
   'use strict';
 
+  // Sub-modules (Lane E1). Browser side-loads them via <script> tags
+  // before this file, exposing globalThis.TraceScaleBar /
+  // .TraceEventMarkers. Node tests fall back to require() so
+  // `require('../traces.js')` continues to work standalone.
+  const TraceScaleBar = (typeof globalThis !== 'undefined' && globalThis.TraceScaleBar)
+    || (typeof require !== 'undefined' ? require('./traces/scale-bar.js') : null);
+  const TraceEventMarkers = (typeof globalThis !== 'undefined' && globalThis.TraceEventMarkers)
+    || (typeof require !== 'undefined' ? require('./traces/event-markers.js') : null);
+  // Local aliases — used by drawTimeAxis call sites + the legacy
+  // _computeScaleBarGeometry test seam. Pulled out of the sub-module
+  // so the rest of traces.js doesn't need to know it's been split.
+  const niceRound = TraceScaleBar.niceRound;
+  const formatScale = TraceScaleBar.formatScale;
+  const drawScaleBar = TraceScaleBar.drawScaleBar;
+  const drawEventMarkers = TraceEventMarkers.drawEventMarkers;
+
   // Plot-area inset; rest of the canvas is reserved for channel
   // labels (left), the time axis (bottom), and a vertical amplitude
   // scale bar (right). PAD_RIGHT was 12 before adding the scale bar
@@ -59,10 +75,8 @@
   const TYPE_LABEL_COLOR = '#8b8e94';   // --muted in styles.css
   const TYPE_LABEL_FONT  = "8.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
 
-  // Event onset markers — muted Okabe-Ito green so events read as
-  // background scaffolding rather than as another data trace.
-  const EVENT_LINE_COLOR  = 'rgba(0, 158, 115, 0.30)';
-  const EVENT_LABEL_COLOR = 'rgba(0, 110, 80, 0.95)';
+  // Event onset markers moved to traces/event-markers.js (Lane E1) —
+  // the EVENT_LINE_COLOR / EVENT_LABEL_COLOR constants live there now.
 
   // Per-channel-type dash pattern. Redundant encoding for grayscale
   // print readability — colour alone collapses to mid-grey when
@@ -195,115 +209,11 @@
     }
   }
 
-  // Round a positive number up to a "nice" round value from the
-  // 1/2/5×10^N family. Used by the amplitude scale bar so its label
-  // is human-friendly (50/100/200/500 µV, never 173 µV).
-  function niceRound(v) {
-    if (v <= 0) return 1;
-    const exp = Math.floor(Math.log10(v));
-    const f = v / Math.pow(10, exp);
-    const niceF = f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10;
-    return niceF * Math.pow(10, exp);
-  }
-
-  // Format an amplitude scale value in human-readable units. EEG is
-  // typically 1-500 µV; large drift channels can reach mV.
-  function formatScale(microvolts) {
-    if (microvolts < 1)    return microvolts.toFixed(2) + ' µV';
-    if (microvolts < 1000) return Math.round(microvolts) + ' µV';
-    return (microvolts / 1000).toFixed(1) + ' mV';
-  }
-
-  // Vertical amplitude scale bar in the right gutter. Picks a nice
-  // round µV value that maps to ~50% of a slot height so the glyph
-  // is visible without crowding adjacent slots.
-  function drawScaleBar(ctx, slotH, slotMicrovolts, plotX1, plotY0, plotH) {
-    if (!isFinite(slotMicrovolts) || slotMicrovolts <= 0) return;
-    const targetMv = niceRound(slotMicrovolts * 0.5);
-    const px = (targetMv / slotMicrovolts) * slotH;
-    if (!isFinite(px) || px < 8) return;
-
-    const x = plotX1 + 18;
-    const yBottom = plotY0 + plotH - 12;
-    const yTop = yBottom - px;
-
-    ctx.save();
-    ctx.strokeStyle = LABEL_COLOR;
-    ctx.fillStyle = LABEL_COLOR;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(x + 0.5, yTop);
-    ctx.lineTo(x + 0.5, yBottom);
-    ctx.moveTo(x - 3, yTop + 0.5);
-    ctx.lineTo(x + 4, yTop + 0.5);
-    ctx.moveTo(x - 3, yBottom + 0.5);
-    ctx.lineTo(x + 4, yBottom + 0.5);
-    ctx.stroke();
-    ctx.font = AXIS_FONT;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(formatScale(targetMv), x + 8, (yTop + yBottom) / 2);
-    ctx.restore();
-  }
-
-  // Render event onsets as muted vertical hairlines, labelled at the
-  // top edge. Filters to those falling in the visible window. Labels
-  // are dropped when they would collide (< 32 px apart) so a
-  // dense burst of events looks like a comb instead of a wall of text.
-  //
-  // `clearedBand` — when set to { xStart, xEnd }, ONLY draws events
-  // whose line or label falls inside that band. Used by streaming
-  // partial_fill draws so we don't redraw the same event over and
-  // over (the event colors are semi-transparent — successive draws
-  // at the same pixel compound the alpha, producing a darker-and-
-  // darker "ghost trace"). Events outside the band were drawn on
-  // the first chunk's full_clear pass and are still on the canvas.
-  // Label-width slack (~100 px) ensures we also redraw events whose
-  // line is just LEFT of the band but whose label extends INTO it.
-  const EVENT_LABEL_MAX_PX = 100;
-  function drawEventMarkers(ctx, events, t0, t1, plotX0, plotX1, plotY0, plotH, clearedBand) {
-    if (!events || !events.length) return;
-    const span = t1 - t0;
-    if (span <= 0) return;
-    const xFor = (ev) => plotX0 + ((ev.onset - t0) / span) * (plotX1 - plotX0);
-    const inBand = clearedBand
-      ? (ev) => {
-          const x = xFor(ev);
-          return x >= clearedBand.xStart - EVENT_LABEL_MAX_PX && x <= clearedBand.xEnd + 2;
-        }
-      : null;
-    const visible = [];
-    for (const ev of events) {
-      if (ev.onset < t0 || ev.onset > t1) continue;
-      if (inBand && !inBand(ev)) continue;
-      visible.push(ev);
-    }
-    if (!visible.length) return;
-    ctx.save();
-    ctx.strokeStyle = EVENT_LINE_COLOR;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (const ev of visible) {
-      const x = Math.round(xFor(ev)) + 0.5;
-      ctx.moveTo(x, plotY0);
-      ctx.lineTo(x, plotY0 + plotH);
-    }
-    ctx.stroke();
-    ctx.fillStyle = EVENT_LABEL_COLOR;
-    ctx.font = AXIS_FONT;
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    let lastLabelX = -100;
-    for (const ev of visible) {
-      const x = Math.round(xFor(ev));
-      if (x - lastLabelX < 32) continue;
-      if (ev.label) {
-        ctx.fillText(String(ev.label).slice(0, 14), x + 3, plotY0 + 1);
-        lastLabelX = x;
-      }
-    }
-    ctx.restore();
-  }
+  // niceRound + formatScale + drawScaleBar moved to traces/scale-bar.js (Lane E1).
+  // drawEventMarkers moved to traces/event-markers.js (Lane E1).
+  // Both surface via the TraceScaleBar / TraceEventMarkers aliases at the
+  // top of this IIFE; tests still hit `_niceRound` / `_formatScale` /
+  // `_computeScaleBarGeometry` via the api{} re-exports at the bottom.
 
   // Format an absolute number of seconds-since-midnight as HH:MM:SS.
   // Works for recording offsets that may wrap past midnight.

@@ -35,6 +35,10 @@
 <!-- SNIRF (Shared NIR Spectroscopy Format) — pure HDF5; depends on
      formats/_jsfive.js loaded above for the MAT v7.3 EEGLAB reader. -->
 <script src="formats/snirf.js?v=1"></script>
+<!-- traces.js sub-modules (Lane E1) — must load BEFORE traces.js so
+     the IIFE finds globalThis.TraceScaleBar / .TraceEventMarkers. -->
+<script src="traces/scale-bar.js?v=1"></script>
+<script src="traces/event-markers.js?v=1"></script>
 <script src="traces.js?v=2"></script>
 <script src="filters.js?v=1"></script>
 <script src="viewer.js?v=5"></script>
