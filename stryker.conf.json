@@ -5,7 +5,7 @@
   "reporters": ["html", "clear-text", "progress", "json"],
   "testRunner": "command",
   "commandRunner": {
-    "command": "node --test tests/unit-traces-draw.test.mjs tests/unit-traces-partial-fill.test.mjs tests/unit-traces-nice-round.test.mjs tests/unit-traces-time-axis.test.mjs tests/unit-traces-scalebar-axis.test.mjs tests/traces.test.mjs tests/unit-filters.test.mjs tests/unit-bids-recording.test.mjs tests/unit-bids-recording-assemble.test.mjs tests/unit-viewer-jsdom.test.mjs tests/unit-viewer-render-loop.test.mjs tests/unit-viewer-races.test.mjs tests/unit-viewer-api.test.mjs tests/unit-viewer-boot.test.mjs tests/unit-worker-jsdom.test.mjs tests/unit-worker-protocol.test.mjs tests/unit-worker-faults.test.mjs tests/unit-worker-cache.test.mjs tests/unit-worker-races.test.mjs"
+    "command": "node --test tests/unit-traces-draw.test.mjs tests/unit-traces-partial-fill.test.mjs tests/unit-traces-nice-round.test.mjs tests/unit-traces-time-axis.test.mjs tests/unit-traces-scalebar-axis.test.mjs tests/traces.test.mjs tests/unit-filters.test.mjs tests/unit-bids-recording.test.mjs tests/unit-bids-recording-assemble.test.mjs tests/unit-viewer-jsdom.test.mjs tests/unit-viewer-render-loop.test.mjs tests/unit-viewer-races.test.mjs tests/unit-viewer-api.test.mjs tests/unit-viewer-boot.test.mjs tests/unit-worker-jsdom.test.mjs tests/unit-worker-protocol.test.mjs tests/unit-worker-faults.test.mjs tests/unit-worker-cache.test.mjs tests/unit-worker-races.test.mjs tests/unit-worker-roundtrip.test.mjs"
   },
   "coverageAnalysis": "off",
   "mutate": [
