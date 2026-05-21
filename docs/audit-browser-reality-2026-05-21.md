@@ -7,39 +7,39 @@
 
 ## Headline
 
-**13 of 20 datasets (65.0%) actually render in the browser.**
+**18 of 20 datasets (90.0%) actually render in the browser.**
 
-Median end-to-end render time: 1066 ms.
+Median end-to-end render time: 2126 ms.
 
 ## Verdict breakdown
 
-- **PASS**: 13
-- **FAIL (render)**: 7
+- **PASS**: 18
+- **FAIL (render)**: 2
 
 ## Per-dataset results
 
 | dataset_id | ext | datatype | verdict | render_time | pill | console_errors |
 |---|---|---|---|---:|---|---|
 | ds002578 | set | eeg | FAIL (render) | — | — | 1 (ds002578: stage-caption never visible expect(locator).toBeVisible() failed Locator: locator('#stage-caption') Expecte |
-| ds002718 | set | eeg | FAIL (render) | — | — | 1 (ds002718: stage-caption never visible expect(locator).toBeVisible() failed Locator: locator('#stage-caption') Expecte |
-| ds003392 | fif | meg | FAIL (render) | — | — | 1 (ds003392: stage-caption never visible expect(locator).toBeVisible() failed Locator: locator('#stage-caption') Expecte |
-| ds002001 | ds | meg | FAIL (render) | — | — | 1 (ds002001: stage-caption never visible expect(locator).toBeVisible() failed Locator: locator('#stage-caption') Expecte |
 | ds003694 | fif | meg | FAIL (render) | — | — | 1 (ds003694: stage-caption never visible expect(locator).toBeVisible() failed Locator: locator('#stage-caption') Expecte |
-| ds003682 | fif | meg | FAIL (render) | — | — | 1 (ds003682: stage-caption never visible expect(locator).toBeVisible() failed Locator: locator('#stage-caption') Expecte |
-| ds002908 | ds | meg | FAIL (render) | — | — | 1 (ds002908: stage-caption never visible expect(locator).toBeVisible() failed Locator: locator('#stage-caption') Expecte |
-| ds003506 | set | eeg | PASS | 355 ms | SET | 0 |
-| ds001971 | set | eeg | PASS | 355 ms | SET | 0 |
-| ds002725 | edf | eeg | PASS | 1155 ms | EDF | 0 |
-| ds003801 | set | eeg | PASS | 232 ms | SET | 0 |
-| ds003029 | vhdr | ieeg | PASS | 1103 ms | VHDR | 0 |
-| ds003768 | vhdr | eeg | PASS | 1066 ms | VHDR | 0 |
-| ds003602 | set | eeg | PASS | 1094 ms | SET | 0 |
-| ds003490 | set | eeg | PASS | 345 ms | SET | 0 |
-| ds003516 | set | eeg | PASS | 375 ms | SET | 0 |
-| ds003766 | set | eeg | PASS | 19120 ms | SET | 0 |
-| ds002691 | set | eeg | PASS | 574 ms | SET | 0 |
-| ds003190 | vhdr | eeg | PASS | 1091 ms | VHDR | 0 |
-| ds001849 | set | eeg | PASS | 16126 ms | SET | 0 |
+| ds002722 | edf | eeg | PASS | 2126 ms | EDF | 0 |
+| ds002908 | ds | meg | PASS | 35132 ms | DS | 0 |
+| ds002094 | vhdr | eeg | PASS | 3110 ms | VHDR | 0 |
+| ds003392 | fif | meg | PASS | 1070 ms | FIF | 0 |
+| ds003801 | set | eeg | PASS | 244 ms | SET | 0 |
+| ds003638 | bdf | eeg | PASS | 1090 ms | BDF | 0 |
+| ds003498 | vhdr | ieeg | PASS | 3114 ms | VHDR | 0 |
+| ds003478 | set | eeg | PASS | 375 ms | SET | 0 |
+| ds002725 | edf | eeg | PASS | 1081 ms | EDF | 0 |
+| ds001971 | set | eeg | PASS | 326 ms | SET | 0 |
+| ds003194 | edf | eeg | PASS | 3100 ms | EDF | 0 |
+| ds002761 | ds | meg | PASS | 36087 ms | DS | 0 |
+| ds003710 | vhdr | eeg | PASS | 3070 ms | VHDR | 0 |
+| ds003509 | set | eeg | PASS | 348 ms | SET | 0 |
+| ds003506 | set | eeg | PASS | 321 ms | SET | 0 |
+| ds003655 | set | eeg | PASS | 2175 ms | SET | 0 |
+| ds003519 | set | eeg | PASS | 2273 ms | SET | 0 |
+| ds002721 | edf | eeg | PASS | 2080 ms | EDF | 0 |
 
 ## How to reproduce
 
