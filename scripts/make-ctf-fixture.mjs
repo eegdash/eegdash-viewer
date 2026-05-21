@@ -28,10 +28,19 @@ fs.mkdirSync(outDir, { recursive: true });
 const prefix = 'ctf-tiny_meg';
 
 // ---- .res4 ----------------------------------------------------------
-const HEADER_FIXED = 1844;
+// Layout (matches MNE-Python's CTF.FUNNY_POS = 1844 jump):
+//   0..1843        fixed header + the int32 BE `rdlen` at offset 1836
+//   1844..1845     int16 BE `nfilt` (we set rdlen=0 so run_desc is empty
+//                  and the cursor sits right at FUNNY_POS)
+//   1846..         channel-name table, 32 bytes/channel
+// rdlen=0 + nfilt=0 keeps the synth as small as possible while still
+// matching the per-MNE variable-length section layout the production
+// reader walks for real ds002001 / ds002908 files.
+const FUNNY_POS = 1844;
 const NAME_BYTES = 32;
 const SENSOR_BYTES = 1328;
-const res4Size = HEADER_FIXED + N_CHANNELS * (NAME_BYTES + SENSOR_BYTES);
+const NAMES_OFFSET = FUNNY_POS + 2;  // rdlen=0 + 2 bytes for nfilt int16
+const res4Size = NAMES_OFFSET + N_CHANNELS * (NAME_BYTES + SENSOR_BYTES);
 const res4 = Buffer.alloc(res4Size, 0);
 
 // Magic
@@ -52,14 +61,24 @@ res4.writeDoubleBE(SAMPLE_RATE, 1296);
 res4.writeDoubleBE(N_SAMPLES_PER_TRIAL / SAMPLE_RATE, 1304);
 // no_trials (offset 1312, int16 BE)
 res4.writeInt16BE(N_TRIALS, 1312);
+// rdlen (offset 1836, int32 BE) — explicit 0 so run_desc is empty.
+// The Buffer.alloc above already zero-fills, but writing it explicitly
+// documents intent and protects against a future change to the alloc.
+res4.writeInt32BE(0, 1836);
+// nfilt (offset FUNNY_POS = 1844, int16 BE) — explicit 0 so no filter
+// blocks are inserted between the fixed header and the channel names.
+res4.writeInt16BE(0, FUNNY_POS);
 
-// Channel names: 32 bytes each, null-padded ASCII, starting at offset 1844
-const namesOff = HEADER_FIXED;
+// Channel names: 32 bytes each, null-padded ASCII, starting at offset
+// FUNNY_POS + 2 = 1846 (the +2 is the nfilt int16). For real CTF files
+// where rdlen>0 or nfilt>0, the offset shifts accordingly — the reader
+// computes it from the header fields, not from a constant.
+const namesOff = NAMES_OFFSET;
 for (let c = 0; c < N_CHANNELS; c++) {
   res4.write(CHANNEL_NAMES[c], namesOff + c * NAME_BYTES, NAME_BYTES, 'ascii');
 }
 
-// Sensor_res structs: 1328 bytes each, starting after names
+// Sensor_res structs: 1328 bytes each, starting after the name table.
 const sensorOff = namesOff + N_CHANNELS * NAME_BYTES;
 for (let c = 0; c < N_CHANNELS; c++) {
   const base = sensorOff + c * SENSOR_BYTES;

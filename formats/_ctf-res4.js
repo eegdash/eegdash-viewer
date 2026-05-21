@@ -6,7 +6,7 @@
    sub-001 .res4 files on 2026-05-21 (matches MNE-Python's
    mne/io/ctf/res4.py — BSD-3-clause).
 
-   Fixed header (1844 bytes):
+   Fixed-header reads (offsets verified empirically 2026-05-21):
      0..7      "MEG41RS\0" or "MEG42RS\0" magic
      8..1287   appName / dataOrigin / dataDescription / sample-info
                text fields and timestamps (ignored by this reader)
@@ -15,14 +15,37 @@
      1296..1303  sample_rate          float64 BE
      1304..1311  epoch_time           float64 BE  (trial length, s)
      1312..1313  no_trials            int16 BE
-     1314..1843  trigger / display / artifact-flag bag (ignored)
+     1314..1835  trigger / display / artifact-flag / sensor-file bag
+     1836..1839  rdlen                int32 BE  (length of run_desc)
 
-   After the fixed header:
-     1844                  channel-name table: 32 bytes per channel,
-                           null-padded ASCII.
-     1844 + 32*nchan       sensor_res structs: 1328 bytes per channel
-                           (only the first ~44 bytes carry gain/type
-                           fields we use; the rest is per-coil geometry).
+   At offset FUNNY_POS=1844 (MNE-Python's `_read_res4` seeks here
+   after reading the fixed-header fields), the variable-length run
+   description and filter blocks begin:
+     1844..(1844+rdlen-1)            run_desc      ASCII, rdlen bytes
+     (1844+rdlen)..(1844+rdlen+1)    nfilt         int16 BE
+     per filter (nfilt of them):
+       8   freq   float64 BE
+       4   class  int32 BE
+       4   type   int32 BE
+       2   npar   int16 BE
+       8*npar  pars  float64 BE  (variable!)
+     → total filter bytes = nfilt*(18) + sum(8*npar_i)
+
+   Only AFTER that variable-length block do channel names begin:
+     names_off  = 1844 + rdlen + 2 + filter_bytes
+                  channel-name table: 32 bytes per channel,
+                  null-padded ASCII.
+     sensor_off = names_off + 32*nchan
+                  sensor_res structs: 1328 bytes per channel
+                  (only the first ~44 bytes carry gain/type
+                  fields we use; the rest is per-coil geometry).
+
+   The previous implementation hardcoded names_off=1844 which only
+   happened to work for synth fixtures with rdlen=0 + nfilt=0 + no
+   inserted filter bytes. Real CTF files almost always have a non-zero
+   rdlen ("writeCTFds  NOT FOR CLINICAL USE" for clinical recordings)
+   and the names landed at a different offset, surfaced as misaligned
+   channel labels in ds002908 (Plan E follow-up to a52b74c).
 
    sensor_res fields used by the viewer (offsets within the 1328-B struct):
      0..1   sensor_type      int16 BE  (5=MEGref, 9=MEG, 14=EEG, …)
@@ -44,7 +67,18 @@
 
   const api = {};
 
-  const HEADER_FIXED = 1844;
+  // FUNNY_POS: the offset at which the variable-length section
+  // (run_desc + filter block + channel names) begins. Named after the
+  // MNE-Python constant `CTF.FUNNY_POS = 1844`.
+  const FUNNY_POS = 1844;
+  // Largest practical rdlen we'll accept (run descriptions are
+  // typically 0..256 bytes; cap to bound the seek before we even
+  // attempt the channel-name read).
+  const MAX_RDLEN = 1 << 16;
+  // Largest practical nfilt + npar — protects us from a corrupt
+  // header demanding gigabytes of filter parameters.
+  const MAX_NFILT = 1024;
+  const MAX_NPAR = 4096;
   const NAME_BYTES = 32;
   const SENSOR_BYTES = 1328;
 
@@ -79,8 +113,8 @@
    *   MAX_CHANNELS / leaves the buffer over-/under-flown.
    */
   api.parse = function (buf) {
-    if (!buf || buf.byteLength < HEADER_FIXED) {
-      throw new Error(`CTF .res4 too small: need >=${HEADER_FIXED} bytes, got ${buf ? buf.byteLength : 0}`);
+    if (!buf || buf.byteLength < FUNNY_POS) {
+      throw new Error(`CTF .res4 too small: need >=${FUNNY_POS} bytes, got ${buf ? buf.byteLength : 0}`);
     }
     const v = new DataView(buf);
     const bytes = new Uint8Array(buf);
@@ -112,6 +146,11 @@
     const sample_rate = v.getFloat64(1296, false);
     const epoch_time  = v.getFloat64(1304, false);
     const no_trials   = v.getInt16  (1312, false);
+    // rdlen lives just before FUNNY_POS — int32 BE at offset 1836.
+    // MNE-Python reads it after `_move_to_next(fid, 4)` following the
+    // 60-byte nf_sensor_file_name. Verified empirically against ds002001
+    // (rdlen=1) and ds002908 (rdlen=33) on 2026-05-21.
+    const rdlen = v.getInt32(1836, false);
 
     if (no_channels <= 0 || no_channels > MAX_CHANNELS) {
       throw new Error(`CTF .res4: no_channels ${no_channels} out of range (1..${MAX_CHANNELS})`);
@@ -125,14 +164,65 @@
     if (!(sample_rate > 0) || !Number.isFinite(sample_rate)) {
       throw new Error(`CTF .res4: sample_rate ${sample_rate} invalid`);
     }
-
-    const expectedSize = HEADER_FIXED + no_channels * (NAME_BYTES + SENSOR_BYTES);
-    if (buf.byteLength < expectedSize) {
-      throw new Error(`CTF .res4: ${buf.byteLength} bytes < expected ${expectedSize} for ${no_channels} channels`);
+    // rdlen is bounded to a sane range so a corrupt int32 here can't
+    // make the cursor overshoot into the channel-name table or the
+    // EOF unintentionally.
+    if (rdlen < 0 || rdlen > MAX_RDLEN) {
+      throw new Error(`CTF .res4: rdlen ${rdlen} out of range (0..${MAX_RDLEN})`);
     }
 
-    // Channel names
-    const namesOff = HEADER_FIXED;
+    // Walk the variable-length section starting at FUNNY_POS = 1844:
+    //   - run_desc: rdlen bytes (skip)
+    //   - nfilt:    int16 BE
+    //   - per filter: 18 + 8*npar bytes (skip)
+    // The cursor after this block is where channel names begin.
+    let cursor = FUNNY_POS + rdlen;
+    if (cursor + 2 > buf.byteLength) {
+      throw new Error(
+        `CTF .res4: header truncated reading nfilt (cursor=${cursor}, ` +
+        `file=${buf.byteLength})`
+      );
+    }
+    const nfilt = v.getInt16(cursor, false);
+    if (nfilt < 0 || nfilt > MAX_NFILT) {
+      throw new Error(`CTF .res4: nfilt ${nfilt} out of range (0..${MAX_NFILT})`);
+    }
+    cursor += 2;
+    for (let f = 0; f < nfilt; f++) {
+      // freq(8) + class(4) + type(4) + npar(2) = 18 bytes
+      if (cursor + 18 > buf.byteLength) {
+        throw new Error(
+          `CTF .res4: header truncated reading filter ${f}/${nfilt} ` +
+          `at cursor=${cursor}`
+        );
+      }
+      cursor += 16;  // freq + class + type
+      const npar = v.getInt16(cursor, false);
+      cursor += 2;
+      if (npar < 0 || npar > MAX_NPAR) {
+        throw new Error(
+          `CTF .res4: filter ${f} npar=${npar} out of range (0..${MAX_NPAR})`
+        );
+      }
+      cursor += 8 * npar;
+      if (cursor > buf.byteLength) {
+        throw new Error(
+          `CTF .res4: header truncated reading filter ${f} pars ` +
+          `(cursor=${cursor}, file=${buf.byteLength})`
+        );
+      }
+    }
+
+    const namesOff = cursor;
+    const expectedSize = namesOff + no_channels * (NAME_BYTES + SENSOR_BYTES);
+    if (buf.byteLength < expectedSize) {
+      throw new Error(
+        `CTF .res4: ${buf.byteLength} bytes < expected ${expectedSize} ` +
+        `for ${no_channels} channels (names start at ${namesOff} after ` +
+        `rdlen=${rdlen} + ${nfilt} filters)`
+      );
+    }
+
     const channels = new Array(no_channels);
     for (let c = 0; c < no_channels; c++) {
       const off = namesOff + c * NAME_BYTES;
