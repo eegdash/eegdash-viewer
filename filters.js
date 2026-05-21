@@ -125,15 +125,14 @@
    * @returns {Float64Array}
    */
   function filtfilt(samples, coefs) {
+    // apply() always returns a fresh Float64Array we exclusively own, so
+    // in-place .reverse() (native, no allocation) is safe and avoids the
+    // 2×N temporary allocations the previous index-copy loops produced.
     const fwd = apply(samples, coefs);
-    // Reverse in-place into a new typed array.
-    const rev = new Float64Array(fwd.length);
-    for (let i = 0; i < fwd.length; i++) rev[i] = fwd[fwd.length - 1 - i];
-    const bk  = apply(rev, coefs);
-    // Reverse the result back.
-    const out = new Float64Array(bk.length);
-    for (let i = 0; i < bk.length; i++) out[i] = bk[bk.length - 1 - i];
-    return out;
+    fwd.reverse();
+    const bk  = apply(fwd, coefs);
+    bk.reverse();
+    return bk;
   }
 
   /**
