@@ -48,6 +48,16 @@
   // Supports _eeg, _ieeg, _emg, and other electrophysiology suffixes.
   // Returns { dir, prefix, ext, suffix } where dir always ends with '/'.
   api.parsePhysioUrl = function (physioUrl) {
+    // CTF MEG directory bundle: URLs look like
+    //   .../<entities>_meg.ds/<entities>_meg.meg4
+    // We surface ext='ds' (the bundle is what the reader registers
+    // against in READERS) but dir = the *parent meg directory* so
+    // BIDS sidecar inheritance walks the meg/ → ses/ → sub/ → root
+    // chain, never into the bundle. The bundle itself owns the
+    // .res4/.meg4/.mrk/BadChannels siblings — those are resolved by
+    // ctf.js, not the inheritance walker.
+    const ctf = /^(.*\/)([^/]+?)_(eeg|ieeg|emg|meg|nirs)\.ds\/\2_\3\.meg4$/.exec(physioUrl);
+    if (ctf) return { dir: ctf[1], prefix: ctf[2], suffix: ctf[3], ext: 'ds' };
     // Primary: BIDS canonical `<prefix>_{suffix}.<ext>` form.
     // Matches any suffix (eeg, ieeg, emg, meg, nirs, etc.)
     const m = /^(.*\/)([^/]+?)_(eeg|ieeg|emg|meg|nirs)\.([A-Za-z0-9+]+)$/.exec(physioUrl);
@@ -115,6 +125,16 @@
     if (task) entities += `_task-${task}`;
     if (acq)  entities += `_acq-${acq}`;
     if (run)  entities += `_run-${run}`;
+    if (ext === 'ds') {
+      // CTF directory-bundle: the URL the reader fetches is
+      // `<entities>_meg.ds/<entities>_meg.meg4`, the actual binary
+      // inside the bundle. The bundle directory and the inner file
+      // share the same entity-prefixed basename, just with different
+      // extensions (.ds for the directory, .meg4 for the binary).
+      // This mirrors how mne-python's mne.io.read_raw_ctf opens the
+      // .ds/ path and discovers .meg4/.res4 siblings.
+      return `${segs.join('/')}/${entities}_${suf}.ds/${entities}_${suf}.meg4`;
+    }
     return `${segs.join('/')}/${entities}_${suf}.${ext}`;
   }
 
