@@ -95,33 +95,34 @@
         `(viewBase=${viewBase}, viewLen=${view.byteLength})`,
       );
     }
-    // dirView is local-anchored: its byteOffset within the parent buffer
-    // is viewBase + localOff, but offset 0 inside the view corresponds to
-    // the directory tag header.
-    const dirView = new DataView(view.buffer, viewBase + localOff, view.byteLength - localOff);
-    const kind = dirView.getInt32(0, false);
+    // Read directory entries by indexing directly into the input view
+    // at local offsets. We avoid `new DataView(view.buffer, ...)` because
+    // `view.buffer` may be a tail-only ArrayBuffer (the caller's view
+    // may be a Proxy with synthetic byteOffset). All reads use the
+    // local offset relative to `view.byteOffset === viewBase`.
+    const kind = view.getInt32(localOff + 0, false);
     if (kind !== FIFF_DIR) {
       throw new Error(`fiff-dir: tag at ${absDirOffset} kind=${kind}, expected FIFF_DIR (${FIFF_DIR})`);
     }
-    const size = dirView.getInt32(8, false);
+    const size = view.getInt32(localOff + 8, false);
     if (size < 0 || size % 16 !== 0) {
       throw new Error(`fiff-dir: bad directory size=${size} (must be multiple of 16)`);
     }
     const nEntries = size / 16;
-    if (16 + size > dirView.byteLength) {
+    if (localOff + 16 + size > view.byteLength) {
       throw new Error(
         `fiff-dir: directory body (${size}B) overflows view tail ` +
-        `(have ${dirView.byteLength - 16}B from dir header)`,
+        `(have ${view.byteLength - localOff - 16}B from dir header)`,
       );
     }
     const entries = new Array(nEntries);
     for (let i = 0; i < nEntries; i++) {
-      const eOff = 16 + i * 16;
+      const eOff = localOff + 16 + i * 16;
       entries[i] = {
-        kind:     dirView.getInt32(eOff + 0,  false),
-        type:     dirView.getInt32(eOff + 4,  false),
-        size:     dirView.getInt32(eOff + 8,  false),
-        position: dirView.getInt32(eOff + 12, false),
+        kind:     view.getInt32(eOff + 0,  false),
+        type:     view.getInt32(eOff + 4,  false),
+        size:     view.getInt32(eOff + 8,  false),
+        position: view.getInt32(eOff + 12, false),
       };
     }
     return { entries };
@@ -132,21 +133,26 @@
   // For RAW_DATA we additionally enumerate the FIFF_DATA_BUFFER tags
   // inside the block — that's the buffer index readWindow needs.
   //
-  // `view` only needs to cover the BLOCK_START / BLOCK_END payloads
-  // (4 bytes each, one int32 BE = block id). If a START/END payload is
-  // outside the view, we infer block-id pairing by stack — works for
-  // non-nested blocks (all our targets are non-nested at the top level).
-  api.indexBlocks = function (view, entries) {
-    const viewBase = view.byteOffset || 0;
-    const viewEnd  = viewBase + view.byteLength;
-
-    // First pass: for every START/END entry try to read its payload
-    // (the block-id int32 BE at entry.position + 16). If payload is
-    // inside our view, we know the block-id; otherwise mark unknown.
-    function readBlockId(entryPosition) {
-      const payloadAbs = entryPosition + 16;
-      if (payloadAbs < viewBase || payloadAbs + 4 > viewEnd) return null;
-      return view.getInt32(payloadAbs - viewBase, false);
+  // `readBlockId` is a function (entryPosition) -> blockIdInt or null.
+  // For tail-of-file views the legacy form passes the DataView itself —
+  // we accept either a DataView or a function for backward compat.
+  //
+  // When the BLOCK_START payload (4 bytes at position+16) is not
+  // available, we cannot identify which block this is. The plan
+  // assumes the caller has range-fetched these 4-byte spans first.
+  api.indexBlocks = function (viewOrReader, entries) {
+    let readBlockId;
+    if (typeof viewOrReader === 'function') {
+      readBlockId = viewOrReader;
+    } else {
+      const view = viewOrReader;
+      const viewBase = view.byteOffset || 0;
+      const viewEnd  = viewBase + view.byteLength;
+      readBlockId = function (entryPosition) {
+        const payloadAbs = entryPosition + 16;
+        if (payloadAbs < viewBase || payloadAbs + 4 > viewEnd) return null;
+        return view.getInt32(payloadAbs - viewBase, false);
+      };
     }
 
     // Walk the stream of START/END/DATA_BUFFER entries.

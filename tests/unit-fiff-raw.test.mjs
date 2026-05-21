@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
+require('../formats/_fiff-dir.js');
 const FIFFReader = require('../formats/fiff.js');
 
 globalThis.HttpRange = {
@@ -12,6 +13,15 @@ globalThis.HttpRange = {
     const p = url.replace(/^file:\/\//, '');
     const buf = fs.readFileSync(p);
     return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  },
+  async probeLength(url) {
+    const p = url.replace(/^file:\/\//, '');
+    return fs.statSync(p).size;
+  },
+  async rangeFetch(url, start, endIncl) {
+    const p = url.replace(/^file:\/\//, '');
+    const buf = fs.readFileSync(p);
+    return buf.buffer.slice(buf.byteOffset + start, buf.byteOffset + endIncl + 1);
   },
 };
 

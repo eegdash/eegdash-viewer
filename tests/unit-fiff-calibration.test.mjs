@@ -16,8 +16,18 @@ globalThis.HttpRange = {
     const b = fs.readFileSync(filePath);
     return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
   },
+  probeLength: async (url) => {
+    const filePath = url.replace(/^file:\/\//, '');
+    return fs.statSync(filePath).size;
+  },
+  rangeFetch: async (url, start, endIncl) => {
+    const filePath = url.replace(/^file:\/\//, '');
+    const b = fs.readFileSync(filePath);
+    return b.buffer.slice(b.byteOffset + start, b.byteOffset + endIncl + 1);
+  },
 };
 
+require('../formats/_fiff-dir.js');
 const FiffReader = require('../formats/fiff.js');
 
 // tests/fixtures/meg/test-proj.fif is a projection-only fixture with

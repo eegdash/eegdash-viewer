@@ -326,104 +326,330 @@
   // This implementation fetches the file once, parses it via `api.read`,
   // and serves windows from the buffered raw data.
 
-  api.open = async function (meta) {
-    // The eeg_url is the file URL; HttpRange.fetchBuffer fetches the
-    // full body. We don't try to range-fetch FIFF — the standard
-    // implementation must walk the tag directory at the end of the
-    // file, which a range request would miss without two round-trips.
-    const url = meta.eeg_url || meta.url;
-    if (!url) throw new Error('fiff.open: meta.eeg_url is required');
-    const buf = await globalThis.HttpRange.fetchBuffer(url);
-    const meas = api.read(buf);
+  // Internal constant: how many bytes from end-of-file to range-fetch
+  // for the directory probe. 256 KB is well above the largest FIFF
+  // directories we've observed (10-50 KB for 1-2h recordings) yet
+  // small enough to load on a slow link in < 1 s.
+  const FIFF_DIR_TAIL_BYTES = 256 * 1024;
 
-    const channelLabels = Array.isArray(meas.chs) && meas.chs.length > 0
-      ? meas.chs.map((c, i) => (c && c.name) || `Ch${i + 1}`)
-      : Array.from({ length: meas.nchan || 0 }, (_, i) => `Ch${i + 1}`);
-
-    const sfreq = meas.sfreq || 0;
-    const nchan = meas.nchan || 0;
-    // The parser collected FIFFB_DATA_BUFFER tags into meas.raw.buffers
-    // (interleaved samples: samples[t*nchan + c] gives channel c at
-    // time t within that buffer). De-interleave + apply per-channel
-    // cal*range calibration to produce a channel-major Float32Array
-    // array — the shape readWindow() expects. Files that are pure
-    // metadata (events, projections, annotations) have no raw — open()
-    // still returns a reader so the viewer can render the metadata
-    // pane, but readWindow throws.
-    function assembleChannels(measObj) {
-      if (!measObj.raw || !Array.isArray(measObj.raw.buffers) || !measObj.raw.buffers.length) {
-        return null;
-      }
-      const nch = measObj.nchan;
-      const total = measObj.raw.nsamp || 0;
-      if (nch <= 0 || total <= 0) return null;
-      const cals = [];
-      for (let c = 0; c < nch; c++) {
-        const ch = (measObj.chs && measObj.chs[c]) || null;
-        const cal = ch && Number.isFinite(ch.cal) ? ch.cal : 1;
-        const range = ch && Number.isFinite(ch.range) ? ch.range : 1;
-        cals.push(cal * range);
-      }
-      const out = new Array(nch);
-      for (let c = 0; c < nch; c++) out[c] = new Float32Array(total);
-      let writeIdx = 0;
-      for (const buf of measObj.raw.buffers) {
-        const samples = buf && typeof buf.length === 'number' ? buf : (buf && buf.data) || null;
-        if (!samples || typeof samples.length !== 'number') continue;
-        const samplesInBuf = Math.floor(samples.length / nch);
-        for (let t = 0; t < samplesInBuf; t++) {
-          const dst = writeIdx + t;
-          if (dst >= total) break;
-          const baseSrc = t * nch;
-          for (let c = 0; c < nch; c++) {
-            out[c][dst] = samples[baseSrc + c] * cals[c];
-          }
-        }
-        writeIdx += samplesInBuf;
-        if (writeIdx >= total) break;
-      }
+  // Decode the bytes of one FIFF_DATA_BUFFER tag's payload into a
+  // typed array matching the on-disk miType. This duplicates the
+  // logic in extractDataBuffer (which works from a DataView over the
+  // full file) for the range-based path where each call sees only
+  // ONE payload's bytes.
+  function decodeRawBufferBytes(payloadBuf, miType, expectedElemCount) {
+    const elemBytes = (miType === FIFF.TYPE_INT16 ? 2 : 4);
+    const elemCount = Math.floor(payloadBuf.byteLength / elemBytes);
+    const n = Math.min(elemCount, expectedElemCount);
+    const view = new DataView(payloadBuf);
+    if (miType === FIFF.TYPE_INT16) {
+      const out = new Int16Array(n);
+      for (let i = 0; i < n; i++) out[i] = view.getInt16(i * 2, false);
       return out;
     }
+    if (miType === FIFF.TYPE_INT32) {
+      const out = new Int32Array(n);
+      for (let i = 0; i < n; i++) out[i] = view.getInt32(i * 4, false);
+      return out;
+    }
+    // type=4 float32 (most common) or anything else → treat as float32
+    const out = new Float32Array(n);
+    for (let i = 0; i < n; i++) out[i] = view.getFloat32(i * 4, false);
+    return out;
+  }
 
-    // Calibration / events-only FIFF: no FIFFB_RAW_DATA block AND
-    // nchan === 0 in MEAS_INFO means there is no signal to display.
-    // ds003392 is the canonical example. Surface a clean error at
-    // open() time so the viewer can show a user-readable message
-    // instead of letting the worker crash on the first readWindow.
-    if (meas.nchan === 0 && meas.raw === null) {
+  api.open = async function (meta) {
+    const url = meta.eeg_url || meta.url;
+    if (!url) throw new Error('fiff.open: meta.eeg_url is required');
+
+    // Probe total file length so we can compute the tail-range to fetch.
+    const totalBytes = await globalThis.HttpRange.probeLength(url);
+    if (totalBytes < 36) {
+      throw new Error(`fiff: file too small (${totalBytes}B) — need at least 36B for header`);
+    }
+
+    // Range-fetch the tail to find FIFF_DIR (the directory is the last
+    // tag in well-formed files; tail=256KB covers typical 10-50KB dirs
+    // plus the FIFF_FILE_ID + FIFF_DIR_POINTER preamble overlap, which
+    // we re-fetch separately because for huge files the head won't be
+    // in the tail slice).
+    const tailStart = Math.max(0, totalBytes - FIFF_DIR_TAIL_BYTES);
+    const tailBuf   = await globalThis.HttpRange.rangeFetch(
+      url, tailStart, totalBytes - 1, totalBytes - tailStart,
+    );
+    // Build a "shifted" view object FiffDir can use. FiffDir expects
+    // view.byteOffset to be the absolute file offset of the view's
+    // first byte. ArrayBuffer-backed DataView always has byteOffset=0,
+    // so we use a Proxy that overrides byteOffset while delegating
+    // every other property (getInt32 etc.) to the underlying DataView.
+    const tailDV = new DataView(tailBuf);
+    const shiftedView = new Proxy(tailDV, {
+      get(target, prop) {
+        if (prop === 'byteOffset') return tailStart;
+        const v = target[prop];
+        return typeof v === 'function' ? v.bind(target) : v;
+      },
+    });
+
+    // Range-fetch the header bytes (first 64 B) so we can read
+    // FIFF_FILE_ID + FIFF_DIR_POINTER. For files smaller than the tail
+    // size this is already inside tailBuf; for huge files it's not.
+    let headBuf;
+    if (tailStart === 0) {
+      headBuf = tailBuf;
+    } else {
+      headBuf = await globalThis.HttpRange.rangeFetch(url, 0, 63, 64);
+    }
+    const headView = new DataView(headBuf, 0, headBuf.byteLength);
+
+    const dirInfo = globalThis.FiffDir.readDirPointer(headView);
+
+    if (!dirInfo.hasDirectory) {
+      // No directory → fall back to the legacy whole-file path.
+      // Cap at 200 MB so we don't OOM the page; raise/lower if needed.
+      const FALLBACK_CAP = 200 * 1024 * 1024;
+      if (totalBytes > FALLBACK_CAP) {
+        throw new Error(
+          `fiff: file is ${(totalBytes / 1024 / 1024).toFixed(0)} MB and has no ` +
+          `tag directory — cannot stream. Re-export with a modern FIFF writer.`,
+        );
+      }
+      const wholeBuf = await globalThis.HttpRange.fetchBuffer(url);
+      const meas    = api.read(wholeBuf);
+      // Plan E calibration-detection check: preserve the early-exit for
+      // metadata-only files (events/projections/calibration only).
+      if (meas.nchan === 0 && meas.raw === null) {
+        throw new Error(
+          'FIFF: this file is a calibration/empty-block file — no raw signal to display. ' +
+          '(MEAS_INFO has no channels and no FIFFB_RAW_DATA block was found.)'
+        );
+      }
+      return buildReaderFromMeas(meas);
+    }
+
+    // Parse directory entries → block ranges.
+    const dir    = globalThis.FiffDir.parseDirectory(shiftedView, dirInfo.dirOffset);
+    // To identify block IDs we need the 4-byte payload at each
+    // BLOCK_START tag's position+16. For huge files those positions
+    // are far from the tail; pre-fetch them in a small batch so
+    // indexBlocks can resolve each START's id.
+    const blockIdCache = new Map();
+    const startEntries = dir.entries.filter(e => e.kind === 104 /*BLOCK_START*/);
+    for (const e of startEntries) {
+      const payloadAbs = e.position + 16;
+      // Check if the payload is already inside our tail or head buf.
+      if (payloadAbs >= tailStart && payloadAbs + 4 <= totalBytes) {
+        blockIdCache.set(e.position, tailDV.getInt32(payloadAbs - tailStart, false));
+      } else if (payloadAbs + 4 <= 64 && headBuf) {
+        blockIdCache.set(e.position, headView.getInt32(payloadAbs, false));
+      } else {
+        // Fetch the 4-byte payload directly. These are rare (1-4 per
+        // file typically), so we don't worry about coalescing.
+        const idBuf = await globalThis.HttpRange.rangeFetch(url, payloadAbs, payloadAbs + 3, 4);
+        const idDV  = new DataView(idBuf);
+        blockIdCache.set(e.position, idDV.getInt32(0, false));
+      }
+    }
+    const readBlockId = (entryPosition) => {
+      const v = blockIdCache.get(entryPosition);
+      return v === undefined ? null : v;
+    };
+    const blocks = globalThis.FiffDir.indexBlocks(readBlockId, dir.entries);
+    if (!blocks.meas_info) {
+      throw new Error('fiff: directory has no FIFFB_MEAS_INFO block — cannot open');
+    }
+
+    // Range-fetch the MEAS_INFO bytes: [meas_info.startTagOffset,
+    // meas_info.endTagOffset + 19]. End offset is the BLOCK_END tag's
+    // header offset; we need 16B (header) + 4B (payload) = 20B more.
+    const measStart = blocks.meas_info.startTagOffset;
+    const measEnd   = blocks.meas_info.endTagOffset + 19;
+    const measLen   = measEnd - measStart + 1;
+    const measBuf   = await globalThis.HttpRange.rangeFetch(url, measStart, measEnd, measLen);
+    // Parse via the existing api.read but prepend a FIFF_FILE_ID so
+    // the validity check passes — easier than parameterising api.read.
+    const wrappedBuf = wrapMeasInfo(measBuf);
+    const meas       = api.read(wrappedBuf);
+
+    // Calibration / events-only FIFF: no channels in MEAS_INFO and
+    // no raw data block — surface the same clean error the legacy
+    // path produced (Plan E's calibration check).
+    if (meas.nchan === 0 && meas.raw === null && !blocks.raw_data) {
       throw new Error(
         'FIFF: this file is a calibration/empty-block file — no raw signal to display. ' +
         '(MEAS_INFO has no channels and no FIFFB_RAW_DATA block was found.)'
       );
     }
 
-    const rawChannels = assembleChannels(meas);
-    const nsamp = rawChannels && rawChannels[0] ? rawChannels[0].length : 0;
-    const duration_s = sfreq > 0 ? nsamp / sfreq : 0;
+    // If no raw_data block, return a meta-only reader (readWindow throws).
+    if (!blocks.raw_data || blocks.raw_data.buffers.length === 0) {
+      return buildReaderFromMeas(meas);
+    }
 
+    // Build per-buffer sample index: bytesPerSample × nchan determines
+    // samples-per-buffer. Cumulative samples give us a binary-search
+    // index for readWindow.
+    const nchan = meas.nchan;
+    const bufIndex = [];
+    let cumulative = 0;
+    for (const b of blocks.raw_data.buffers) {
+      const bytesPerSample = (b.miType === FIFF.TYPE_INT16 ? 2 : 4);
+      const elemCount = Math.floor(b.payloadSize / bytesPerSample);
+      const samplesInBuf = nchan > 0 ? Math.floor(elemCount / nchan) : 0;
+      bufIndex.push({
+        payloadOffset: b.payloadOffset,
+        payloadSize:   b.payloadSize,
+        miType:        b.miType,
+        bytesPerSample,
+        samplesInBuf,
+        cumStart:      cumulative,
+      });
+      cumulative += samplesInBuf;
+    }
+    const totalSamples = cumulative;
+
+    return buildRangeReader({ meta, url, meas, bufIndex, totalSamples });
+  };
+
+  // Wrap a meas_info byte range in a FIFF_FILE_ID prefix so it passes
+  // api.read's validity check.
+  function wrapMeasInfo(measBuf) {
+    const prefix = new ArrayBuffer(36);  // FILE_ID header (16) + payload (20)
+    const dv = new DataView(prefix);
+    dv.setInt32(0,  FIFF.TAG_FILE_ID, false);  // 100
+    dv.setInt32(4,  31,  false);
+    dv.setInt32(8,  20,  false);  // size=20
+    dv.setInt32(12, 0,   false);
+    const out = new Uint8Array(prefix.byteLength + measBuf.byteLength);
+    out.set(new Uint8Array(prefix), 0);
+    out.set(new Uint8Array(measBuf), prefix.byteLength);
+    return out.buffer;
+  }
+
+  // Used by both the directory and no-directory paths to assemble the
+  // reader object from a fully-walked meas. When meas.raw is null we
+  // still return a reader (readWindow throws); when it is present we
+  // serve windows from the in-memory channel arrays — same as the
+  // pre-refactor behaviour.
+  function buildReaderFromMeas(meas) {
+    const channelLabels = Array.isArray(meas.chs) && meas.chs.length > 0
+      ? meas.chs.map((c, i) => (c && c.name) || `Ch${i + 1}`)
+      : Array.from({ length: meas.nchan || 0 }, (_, i) => `Ch${i + 1}`);
+
+    let rawChannels = null;
+    if (meas.raw && Array.isArray(meas.raw.buffers) && meas.raw.buffers.length > 0) {
+      rawChannels = assembleFromMeas(meas);
+    }
+    const nsamp     = rawChannels && rawChannels[0] ? rawChannels[0].length : 0;
+    const sfreq     = meas.sfreq || 0;
+    const duration  = sfreq > 0 ? nsamp / sfreq : 0;
+    const nchan     = meas.nchan || 0;
     return {
       n_channels:         nchan,
       sampling_frequency: sfreq,
-      duration_s,
+      duration_s:         duration,
       channel_labels:     channelLabels,
-      bytes_per_sample:   4,  // float32
+      bytes_per_sample:   4,
       n_samples:          nsamp,
-      recording_start_iso: null,   // TODO: derive from meas.meas_date if present
-      annotation_events:  null,    // TODO: parse FIFFB_EVENTS block
-
+      recording_start_iso: null,
+      annotation_events:   null,
+      streaming:          false,
       async readWindow(start, n) {
         if (!rawChannels) {
           throw new Error('fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)');
         }
         const end = Math.min(start + n, nsamp);
         const slice = [];
-        for (let c = 0; c < nchan; c++) {
-          slice.push(rawChannels[c].subarray(start, end));
-        }
+        for (let c = 0; c < nchan; c++) slice.push(rawChannels[c].subarray(start, end));
         return slice;
       },
     };
-  };
+  }
+
+  // De-interleave + calibrate, identical math to the pre-refactor
+  // assembleChannels (kept available as a helper for the no-directory
+  // fallback path).
+  function assembleFromMeas(measObj) {
+    const nch  = measObj.nchan;
+    const total = measObj.raw.nsamp || 0;
+    if (nch <= 0 || total <= 0) return null;
+    const cals = [];
+    for (let c = 0; c < nch; c++) {
+      const ch = (measObj.chs && measObj.chs[c]) || null;
+      const cal = ch && Number.isFinite(ch.cal) ? ch.cal : 1;
+      const range = ch && Number.isFinite(ch.range) ? ch.range : 1;
+      cals.push(cal * range);
+    }
+    const out = new Array(nch);
+    for (let c = 0; c < nch; c++) out[c] = new Float32Array(total);
+    let writeIdx = 0;
+    for (const buf of measObj.raw.buffers) {
+      const samples = buf && typeof buf.length === 'number' ? buf : (buf && buf.data) || null;
+      if (!samples || typeof samples.length !== 'number') continue;
+      const samplesInBuf = Math.floor(samples.length / nch);
+      for (let t = 0; t < samplesInBuf; t++) {
+        const dst = writeIdx + t;
+        if (dst >= total) break;
+        const baseSrc = t * nch;
+        for (let c = 0; c < nch; c++) out[c][dst] = samples[baseSrc + c] * cals[c];
+      }
+      writeIdx += samplesInBuf;
+      if (writeIdx >= total) break;
+    }
+    return out;
+  }
+
+  // Range-based reader: opens with no raw data in memory; readWindow
+  // range-fetches the bytes for the requested window from the
+  // pre-built buffer index. See Task 3 for the readWindow body.
+  function buildRangeReader(ctx) {
+    const { meta, url, meas, bufIndex, totalSamples } = ctx;
+    const nchan = meas.nchan;
+    const sfreq = meas.sfreq;
+    const duration = sfreq > 0 ? totalSamples / sfreq : 0;
+    const channelLabels = (meas.chs || []).map((c, i) => (c && c.name) || `Ch${i + 1}`);
+    while (channelLabels.length < nchan) channelLabels.push(`Ch${channelLabels.length + 1}`);
+
+    // Per-channel calibration coefficient.
+    const cals = [];
+    for (let c = 0; c < nchan; c++) {
+      const ch = meas.chs && meas.chs[c];
+      const cal = ch && Number.isFinite(ch.cal) ? ch.cal : 1;
+      const range = ch && Number.isFinite(ch.range) ? ch.range : 1;
+      cals.push(cal * range);
+    }
+
+    return {
+      n_channels:         nchan,
+      sampling_frequency: sfreq,
+      duration_s:         duration,
+      channel_labels:     channelLabels,
+      bytes_per_sample:   4,
+      n_samples:          totalSamples,
+      recording_start_iso: null,
+      annotation_events:   null,
+      streaming:          true,
+      // Implemented in Task 3.
+      readWindow: async (start, n, opts) =>
+        readWindowRange(url, nchan, cals, bufIndex, totalSamples, start, n, opts),
+      // Implemented in Task 4.
+      readWindowStreaming: (start, n, opts) =>
+        readWindowRangeStreaming(url, nchan, cals, bufIndex, totalSamples, start, n, opts),
+    };
+  }
+
+  // Task 3 + 4 placeholders so api.open can reference them. These
+  // throw until Task 3 / Task 4 implement them.
+  async function readWindowRange(url, nchan, cals, bufIndex, totalSamples, startReq, nReq, opts) {
+    void url; void nchan; void cals; void bufIndex; void totalSamples;
+    void startReq; void nReq; void opts;
+    throw new Error('fiff: range readWindow not implemented yet');
+  }
+  async function* readWindowRangeStreaming(url, nchan, cals, bufIndex, totalSamples, startReq, nReq, opts) {
+    void url; void nchan; void cals; void bufIndex; void totalSamples;
+    void startReq; void nReq; void opts;
+    throw new Error('fiff: range readWindowStreaming not implemented yet');
+  }
 
   // Expose reader — matches the dual-target pattern used by every other
   // formats/*.js so the module loads cleanly under both browser globals

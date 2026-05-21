@@ -16,6 +16,9 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 
 const require = createRequire(import.meta.url);
+// Load the tag-directory walker first — fiff.js range-based open()
+// reaches through globalThis.FiffDir.
+require('../formats/_fiff-dir.js');
 const FIFFReader = require('../formats/fiff.js');
 
 function readArrayBuffer(path) {
@@ -101,11 +104,23 @@ test('fiff: open(meta) returns a reader-shaped object for raw-data file', async 
   // see tests/unit-fiff-calibration.test.mjs. open() returns a reader
   // only when meas.nchan > 0 || meas.raw !== null.)
   const fs = await import('node:fs');
-  globalThis.HttpRange = globalThis.HttpRange || {
+  // Provide all three HttpRange methods so the range-based open() can
+  // fall back to fetchBuffer when DIR_POINTER = -1 (the bundled MNE
+  // synth fixtures are stream-writer outputs without a directory).
+  globalThis.HttpRange = {
     async fetchBuffer(url) {
       const path = url.replace(/^file:\/\//, '');
       const buf = fs.readFileSync(path);
       return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    },
+    async probeLength(url) {
+      const path = url.replace(/^file:\/\//, '');
+      return fs.statSync(path).size;
+    },
+    async rangeFetch(url, start, endIncl) {
+      const path = url.replace(/^file:\/\//, '');
+      const buf = fs.readFileSync(path);
+      return buf.buffer.slice(buf.byteOffset + start, buf.byteOffset + endIncl + 1);
     },
   };
   const reader = await FIFFReader.open({
@@ -124,15 +139,23 @@ test('fiff: open() throws cleanly on metadata-only files (no FIFFB_RAW_DATA)', a
   // raw data block. Per Plan-E Task 8, open() now throws with a clear
   // "calibration/empty-block" message rather than returning a reader
   // that crashes on the first readWindow.
-  globalThis.HttpRange = globalThis.HttpRange || {};
-  if (!globalThis.HttpRange.fetchBuffer) {
-    const fs = await import('node:fs');
-    globalThis.HttpRange.fetchBuffer = async (url) => {
+  const fs2 = await import('node:fs');
+  globalThis.HttpRange = {
+    async fetchBuffer(url) {
       const path = url.replace(/^file:\/\//, '');
-      const buf = fs.readFileSync(path);
+      const buf = fs2.readFileSync(path);
       return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-    };
-  }
+    },
+    async probeLength(url) {
+      const path = url.replace(/^file:\/\//, '');
+      return fs2.statSync(path).size;
+    },
+    async rangeFetch(url, start, endIncl) {
+      const path = url.replace(/^file:\/\//, '');
+      const buf = fs2.readFileSync(path);
+      return buf.buffer.slice(buf.byteOffset + start, buf.byteOffset + endIncl + 1);
+    },
+  };
   await assert.rejects(
     () => FIFFReader.open({
       eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/test-eve.fif',
