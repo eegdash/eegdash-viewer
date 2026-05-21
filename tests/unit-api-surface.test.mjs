@@ -85,6 +85,20 @@ const EXPECTED = {
     'parseCoordsystem',
     'parseElectrodesTSV',
   ],
+  '../bids-recording.js': [
+    'buildOpenNeuroEegUrl',
+    'discoverSubject',
+    'discoverSuffix',
+    'isNemarDatasetId',
+    'loadNemarRecording',
+    'loadRecordingMetadata',
+    'parseChannelsTsv',
+    'parseEegJson',
+    'parseEegUrl',
+    'parseEventsTsv',
+    'parsePhysioUrl',
+    'resolveTargets',
+  ],
 };
 
 function publicKeys(mod) {
@@ -96,6 +110,13 @@ for (const [modPath, expected] of Object.entries(EXPECTED)) {
     // Some modules require bootstrap globals; load them defensively.
     if (modPath.includes('brainvision') || modPath.includes('eeglab') || modPath.includes('edf')) {
       require('../formats/_buffers.js');
+    }
+    if (modPath.includes('bids-recording')) {
+      // bids-recording.js consumes HttpRange off globalThis at module
+      // init (line 41); load the side-effect modules used in real tests.
+      require('../bids-loader.js');
+      require('../formats/_buffers.js');
+      require('../formats/_http_range.js');
     }
     const mod = require(modPath);
     const actual = publicKeys(mod);
