@@ -94,7 +94,13 @@ for (let c = 0; c < N_CHANNELS; c++) {
 fs.writeFileSync(path.join(outDir, `${prefix}.res4`), res4);
 
 // ---- .meg4 ----------------------------------------------------------
-const meg4Size = 8 + N_TRIALS * N_SAMPLES_PER_TRIAL * N_CHANNELS * 2;
+// CTF .meg4 samples are int32 BE per MNE-Python's mne/io/ctf/ctf.py
+// (read with `np.fromfile(fid, ">i4", ...)`). The synth previously wrote
+// int16, which matched the old (wrong) BYTES_PER_SAMPLE=2 in
+// formats/ctf.js — fixed together so the synth still exercises the
+// production read path.
+const MEG4_BYTES_PER_SAMPLE = 4;
+const meg4Size = 8 + N_TRIALS * N_SAMPLES_PER_TRIAL * N_CHANNELS * MEG4_BYTES_PER_SAMPLE;
 const meg4 = Buffer.alloc(meg4Size, 0);
 meg4.write('MEG41CP\x00', 0, 8, 'binary');
 let off = 8;
@@ -102,8 +108,8 @@ for (let t = 0; t < N_TRIALS; t++) {
   for (let s = 0; s < N_SAMPLES_PER_TRIAL; s++) {
     for (let c = 0; c < N_CHANNELS; c++) {
       const v = Math.round(1000 * Math.sin(2 * Math.PI * (s / SAMPLE_RATE) * (c + 1)));
-      meg4.writeInt16BE(v, off);
-      off += 2;
+      meg4.writeInt32BE(v, off);
+      off += MEG4_BYTES_PER_SAMPLE;
     }
   }
 }

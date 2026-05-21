@@ -30,8 +30,13 @@
 
   const api = {};
 
-  // CTF samples are int16 BE; 2 bytes per sample.
-  const BYTES_PER_SAMPLE = 2;
+  // CTF .meg4 samples are int32 BE; 4 bytes per sample. Verified against
+  // MNE-Python's mne/io/ctf/ctf.py (`np.fromfile(fid, ">i4", ...)`) on
+  // 2026-05-21. The previous BYTES_PER_SAMPLE=2 came from misreading the
+  // .res4 header (which carries a 16-bit channel count) as the .meg4
+  // sample width — ds002908's 1.1 GiB .meg4 only divides cleanly under
+  // int32.
+  const BYTES_PER_SAMPLE = 4;
   // 8-byte ASCII magic at the head of .meg4 — "MEG41CP\0" or "MEG42CP\0".
   const MEG4_HEADER_BYTES = 8;
   // Above this size we don't pre-fetch the full .meg4 — each readWindow
@@ -114,7 +119,7 @@
     if (bodyBytes % (header.no_channels * BYTES_PER_SAMPLE) !== 0) {
       throw new Error(
         `ctf.open: .meg4 body ${bodyBytes} bytes is not a multiple of ` +
-        `${header.no_channels} channels x 2 bytes — header/body mismatch`
+        `${header.no_channels} channels x ${BYTES_PER_SAMPLE} bytes — header/body mismatch`
       );
     }
     const n_samples = bodyBytes / (header.no_channels * BYTES_PER_SAMPLE);
@@ -171,9 +176,9 @@
       const nOut = end - start;
 
       // CTF samples are interleaved: sample[t] of channel[c] sits at
-      // body byte (t * nch + c) * 2. Read the required byte range
-      // (one shot via Range or one slice of the cached body), then
-      // de-interleave into channel-major Float32 with calibration.
+      // body byte (t * nch + c) * BYTES_PER_SAMPLE. Read the required
+      // byte range (one shot via Range or one slice of the cached body),
+      // then de-interleave into channel-major Float32 with calibration.
       const byteStart = MEG4_HEADER_BYTES + start * nch * BYTES_PER_SAMPLE;
       const byteEnd   = MEG4_HEADER_BYTES + end   * nch * BYTES_PER_SAMPLE - 1;
       let buf;
@@ -192,7 +197,7 @@
       for (let t = 0; t < nOut; t++) {
         const base = t * nch * BYTES_PER_SAMPLE;
         for (let c = 0; c < nch; c++) {
-          const raw = dv.getInt16(base + c * BYTES_PER_SAMPLE, false);
+          const raw = dv.getInt32(base + c * BYTES_PER_SAMPLE, false);
           out[c][t] = (raw - offsets[c]) * cals[c];
         }
       }

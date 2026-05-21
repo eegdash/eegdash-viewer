@@ -92,7 +92,8 @@ test('ctf: open() returns a reader-shaped object', async () => {
   assert.ok(Math.abs(reader.duration_s - 2.5) < 0.001);
   assert.equal(reader.channel_labels.length, 4);
   assert.equal(reader.channel_labels[0], 'MLT11-1609');
-  assert.equal(reader.bytes_per_sample, 2);
+  // CTF .meg4 samples are int32 BE per MNE — see formats/ctf.js.
+  assert.equal(reader.bytes_per_sample, 4);
   assert.equal(typeof reader.readWindow, 'function');
 });
 
