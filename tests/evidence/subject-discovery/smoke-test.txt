@@ -1,0 +1,32 @@
+Subject-discovery smoke test against live CDN (2026-05-21)
+============================================================
+Run via tests/_bootstrap.mjs → BIDSRecording.discoverSubject + discoverSuffix
++ live HTTP probe of the resulting URL.
+
+Test 1 — ds003774 (no participants.tsv, sub-001)
+  discovered: 001   expected: 001   PASS
+  S3 list fallback exercised (participants.tsv 404).
+
+Test 2 — ds002778 (participants.tsv present, sub-hc1)
+  discovered: hc1   expected: hc1   PASS
+  Non-numeric subject ID parsed correctly.
+  participants.tsv branch exercised (no S3 list fetch).
+
+Test 3 — ds002893 full pipeline (numeric sub, no ses)
+  sub:    001
+  suffix: eeg  (auto-detected via parallel modality probe)
+  URL:    https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.set
+  HTTP probe (Range bytes=0-0): 206 Partial Content   PASS
+
+Notes
+-----
+- The agentic worker (no interactive Firefox) ran the discovery library
+  directly against the live CDN; the wall-clock + behaviour is what the
+  Firefox boot dispatcher would produce.
+- ds003774 with explicit task/ext would still 404 from discoverSuffix
+  because it stores recordings under ses-01/ses-02/ses-03 with run-N
+  segments (sub-001/ses-01/eeg/sub-001_ses-01_task-MusicListening_run-1_eeg.set).
+  That is a pre-existing limitation of discoverSuffix and out of scope
+  for this plan — subject discovery itself returns the correct id.
+- index.html bundle confirmed serving bids-recording.js?v=6 + viewer.js?v=5
+  via the local dev server at http://localhost:8109/.
