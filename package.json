@@ -15,6 +15,7 @@
     "test:smoke": "playwright test tests/e2e/smoke.spec.mjs --project=chromium",
     "test:acceptance": "playwright test tests/e2e/acceptance/ --project=chromium",
     "test:perf": "node bench/check-regression.mjs",
+    "test:typecheck": "tsc --noEmit -p jsconfig.json",
     "test:bench": "node bench/run-all.tinybench.mjs",
     "test:bench:filter": "node bench/filter.tinybench.mjs",
     "test:bench:parse": "node bench/parse-matv5.tinybench.mjs",
@@ -36,6 +37,7 @@
     "c8": "^11.0.0",
     "fast-check": "^4.8.0",
     "jsdom": "^29.1.1",
-    "tinybench": "^6.0.2"
+    "tinybench": "^6.0.2",
+    "typescript": "^6.0.3"
   }
 }
