@@ -358,25 +358,76 @@
     return out;
   }
 
+  // Probe total file length WITHOUT issuing a HEAD request. The
+  // cdn.eegdash.org Cloudflare worker caches HEAD responses such that
+  // subsequent GET-with-Range requests are served from the HEAD's
+  // cache slot as 200 + full body (rather than 206 + the requested
+  // range). Verified 2026-05-21 against ds003694 (2 GB FIFF) — see
+  // tests/evidence/streaming-large/cdn-head-poisons-range.md.
+  //
+  // The plan's HttpRange.probeLength() uses HEAD-first, which triggers
+  // the cache bug. We use a 1-byte Range GET instead — Content-Range's
+  // total component (after the `/`) gives the same information without
+  // poisoning the cache. Falls back to probeLength when no Content-
+  // Range is returned (local blobs, file://, etc.).
+  async function probeLengthRangeOnly(url) {
+    // Local blobs short-circuit to fast .size — they don't have HTTP cache.
+    try {
+      const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+      if (res.status === 206) {
+        const cr = res.headers.get('content-range');
+        const m = cr && /\/(\d+)$/.exec(cr);
+        if (m) {
+          // Drain the 1-byte body so the connection slot is freed.
+          await res.arrayBuffer();
+          return Number(m[1]);
+        }
+      }
+      // Drain any body anyway.
+      await res.arrayBuffer().catch(() => null);
+    } catch {
+      // Fall through to legacy probeLength on any error.
+    }
+    return globalThis.HttpRange.probeLength(url);
+  }
+
   api.open = async function (meta) {
     const url = meta.eeg_url || meta.url;
     if (!url) throw new Error('fiff.open: meta.eeg_url is required');
 
-    // Probe total file length so we can compute the tail-range to fetch.
-    const totalBytes = await globalThis.HttpRange.probeLength(url);
+    // Probe total file length via 1-byte Range GET (HEAD avoidance —
+    // see probeLengthRangeOnly comment above).
+    const totalBytes = await probeLengthRangeOnly(url);
     if (totalBytes < 36) {
       throw new Error(`fiff: file too small (${totalBytes}B) — need at least 36B for header`);
     }
 
-    // Range-fetch the tail to find FIFF_DIR (the directory is the last
-    // tag in well-formed files; tail=256KB covers typical 10-50KB dirs
-    // plus the FIFF_FILE_ID + FIFF_DIR_POINTER preamble overlap, which
-    // we re-fetch separately because for huge files the head won't be
-    // in the tail slice).
+    // Range-fetch the tail (FIFF_DIR) and head (FIFF_FILE_ID +
+    // FIFF_DIR_POINTER + MEAS_INFO + early BLOCK_START tags) IN
+    // PARALLEL. On a cold-start CDN the two requests overlap on the
+    // same TCP/HTTP2 connection, halving the wall-clock of the open()
+    // path. For files smaller than the tail-probe budget the tail
+    // covers everything; we skip the redundant head fetch.
     const tailStart = Math.max(0, totalBytes - FIFF_DIR_TAIL_BYTES);
-    const tailBuf   = await globalThis.HttpRange.rangeFetch(
-      url, tailStart, totalBytes - 1, totalBytes - tailStart,
-    );
+    const HEAD_PROBE_BYTES = 256 * 1024;
+    const tailLen = totalBytes - tailStart;
+    let tailBuf, headBuf, headEnd;
+    const headStart = 0;
+    if (tailStart === 0) {
+      // Small file — tail IS the whole file.
+      tailBuf = await globalThis.HttpRange.rangeFetch(
+        url, tailStart, totalBytes - 1, tailLen,
+      );
+      headBuf = tailBuf;
+      headEnd = totalBytes;
+    } else {
+      const headSize = Math.min(HEAD_PROBE_BYTES, totalBytes);
+      [tailBuf, headBuf] = await Promise.all([
+        globalThis.HttpRange.rangeFetch(url, tailStart, totalBytes - 1, tailLen),
+        globalThis.HttpRange.rangeFetch(url, 0, headSize - 1, headSize),
+      ]);
+      headEnd = headSize;
+    }
     // Build a "shifted" view object FiffDir can use. FiffDir expects
     // view.byteOffset to be the absolute file offset of the view's
     // first byte. ArrayBuffer-backed DataView always has byteOffset=0,
@@ -390,16 +441,6 @@
         return typeof v === 'function' ? v.bind(target) : v;
       },
     });
-
-    // Range-fetch the header bytes (first 64 B) so we can read
-    // FIFF_FILE_ID + FIFF_DIR_POINTER. For files smaller than the tail
-    // size this is already inside tailBuf; for huge files it's not.
-    let headBuf;
-    if (tailStart === 0) {
-      headBuf = tailBuf;
-    } else {
-      headBuf = await globalThis.HttpRange.rangeFetch(url, 0, 63, 64);
-    }
     const headView = new DataView(headBuf, 0, headBuf.byteLength);
 
     const dirInfo = globalThis.FiffDir.readDirPointer(headView);
@@ -431,22 +472,42 @@
     const dir    = globalThis.FiffDir.parseDirectory(shiftedView, dirInfo.dirOffset);
     // To identify block IDs we need the 4-byte payload at each
     // BLOCK_START tag's position+16. For huge files those positions
-    // are far from the tail; pre-fetch them in a small batch so
-    // indexBlocks can resolve each START's id.
+    // are far from the tail; we coalesce all BLOCK_START payloads
+    // into a SINGLE range fetch covering [minPos, maxPos+19] — even
+    // if the span is megabytes, one request beats N sequential 4-byte
+    // round-trips. Real-world: ds003694 has ~40 BLOCK_START entries
+    // spread across the first ~50 KB of the file, so the coalesced
+    // fetch is < 100 KB.
     const blockIdCache = new Map();
     const startEntries = dir.entries.filter(e => e.kind === 104 /*BLOCK_START*/);
+
+    // Partition entries into those covered by existing buffers vs
+    // those that need a network fetch.
+    const needsFetch = [];
     for (const e of startEntries) {
       const payloadAbs = e.position + 16;
-      // Check if the payload is already inside our tail or head buf.
       if (payloadAbs >= tailStart && payloadAbs + 4 <= totalBytes) {
         blockIdCache.set(e.position, tailDV.getInt32(payloadAbs - tailStart, false));
-      } else if (payloadAbs + 4 <= 64 && headBuf) {
-        blockIdCache.set(e.position, headView.getInt32(payloadAbs, false));
+      } else if (payloadAbs + 4 <= headEnd && headBuf) {
+        blockIdCache.set(e.position, headView.getInt32(payloadAbs - headStart, false));
       } else {
-        // Fetch the 4-byte payload directly. These are rare (1-4 per
-        // file typically), so we don't worry about coalescing.
-        const idBuf = await globalThis.HttpRange.rangeFetch(url, payloadAbs, payloadAbs + 3, 4);
-        const idDV  = new DataView(idBuf);
+        needsFetch.push(e);
+      }
+    }
+    // For remaining entries (BLOCK_START tags that fall in the un-fetched
+    // middle of the file), fetch each individually in parallel via
+    // Promise.all. The HEAD + TAIL probes cover MEAS_INFO + most early
+    // blocks, so this list is typically empty or short.
+    if (needsFetch.length > 0) {
+      const idBufs = await Promise.all(
+        needsFetch.map(e => {
+          const p = e.position + 16;
+          return globalThis.HttpRange.rangeFetch(url, p, p + 3, 4);
+        }),
+      );
+      for (let i = 0; i < needsFetch.length; i++) {
+        const e = needsFetch[i];
+        const idDV = new DataView(idBufs[i]);
         blockIdCache.set(e.position, idDV.getInt32(0, false));
       }
     }

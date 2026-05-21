@@ -40,6 +40,9 @@ importScripts(
   'formats/eeglab.js',
   'formats/edf.js',
   'formats/brainvision.js',
+  // Tag-directory walker — must load BEFORE fiff.js because the range-
+  // based api.open reaches through globalThis.FiffDir.
+  'formats/_fiff-dir.js',
   'formats/fiff.js',
   'formats/_ctf-res4.js',
   'formats/_ctf-marker.js',
