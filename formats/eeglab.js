@@ -244,11 +244,23 @@
     }
 
     // v5 path: scan the probe buffer for top-level elements.
+    // If scan fails (e.g. struct-wrapped EEG whose payload exceeds
+    // the 16 MB probe), fall back to whole-file parse with the
+    // 200 MB cap as a safety net.
     let elements;
     try {
       elements = MatV5.scanElements(probeBuf);
     } catch (e) {
-      throw new Error(`EEGLAB inline .set scan failed at ${setUrl}: ${e.message}`);
+      if (totalBytes > INLINE_LEGACY_FALLBACK_CAP) {
+        throw new Error(
+          `EEGLAB inline .set scan failed and file is ` +
+          `${(totalBytes / 1024 / 1024).toFixed(0)} MB ` +
+          `(exceeds ${INLINE_LEGACY_FALLBACK_CAP / 1024 / 1024} MB ` +
+          `legacy cap). Original error: ${e.message}`,
+        );
+      }
+      const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
+      return await openInlineSetLegacy(setUrl, meta, buf, nChannelsFromSidecar, fsFromSidecar, 'v5');
     }
 
     // If any compressed element is present, fall back to whole-file parse.

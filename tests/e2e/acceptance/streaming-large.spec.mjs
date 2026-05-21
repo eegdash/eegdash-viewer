@@ -39,6 +39,18 @@ const TARGETS = [
     cdn_url: 'https://cdn.eegdash.org/ds003694/sub-01/meg/sub-01_task-MEM_run-01_meg.fif',
     n_bytes: 2000 * 1024 * 1024,
   },
+  {
+    id: 'ds002578',
+    format: 'set',
+    cdn_url: 'https://cdn.eegdash.org/ds002578/sub-001/eeg/sub-001_task-attention_eeg.set',
+    n_bytes: 695 * 1024 * 1024,
+  },
+  {
+    id: 'ds002718',
+    format: 'set',
+    cdn_url: 'https://cdn.eegdash.org/ds002718/sub-002/eeg/sub-002_task-FaceRecognition_eeg.set',
+    n_bytes: 224 * 1024 * 1024,
+  },
 ];
 
 test.beforeAll(() => {

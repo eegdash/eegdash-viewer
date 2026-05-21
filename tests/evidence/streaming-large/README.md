@@ -95,6 +95,53 @@ open() crosses the 5 s line.
    render + sidecar discovery — 7 s is a fine real-world target).
 2. OR: pre-fetch head+tail in parallel via Promise.all (single
    network roundtrip wall-clock instead of sequential) — likely
-   saves ~1 s.
+   saves ~1 s. APPLIED in commit (head+tail Promise.all + 16 KB
+   block-id batch).
 3. OR: extend the cdn-worker to pre-cache the first 1 MB on cold
    start.
+
+## 2026-05-21 — Plan A Task 9 (EEGLAB browser test)
+
+**Outcome:** BLOCKED — both target inline .set files are
+struct-wrapped (EEG.data lives inside an `EEG` mxSTRUCT matrix
+element). MatV5.scanElements only walks TOP-level elements, so the
+streaming path doesn't find `data` and falls back to legacy
+whole-file parse, which hits the 200 MB safety cap.
+
+### ds002578 (inline EEGLAB, 695 MB)
+
+Wrapped EEG struct. `MAT element overruns container at 5586248:
+claims 714866736B, only 11190960B left` — the EEG struct element's
+declared payload size (714 MB) exceeds our 16 MB head probe. Falls
+back to legacy whole-file parse → 200 MB cap → user-readable error.
+
+**Recommended path forward (out of plan A scope):**
+Extend `scanElements` to optionally descend into mxSTRUCT (mxClass=2)
+matrix payloads when the top-level name is `EEG`. Walk the struct's
+named fields, find `data` / `srate` / `nbchan` / `pnts` / `trials`
+as field-named miMATRIX sub-elements, return them as if they were
+top-level.
+
+This is a non-trivial extension — the field-name table format and
+the per-field offset accounting need careful big-int math. Filing
+a separate plan.
+
+### ds002718 (inline EEGLAB, 224 MB)
+
+Same root cause as ds002578 (struct-wrapped). 224 MB exceeds the
+200 MB legacy fallback cap by a narrow margin. Could be unblocked
+by either:
+- Raising the cap to 256 MB (fast fix, doesn't help ds002578)
+- The struct-walker extension above (fixes both)
+
+**Per-dataset verdicts (from results.jsonl):**
+```
+ds003682 (FIFF, 644 MB):  FAIL — no tag directory (file-format issue)
+ds003694 (FIFF, 2 GB):     FAIL — open_ms 7-8 s > 5 s budget (CDN latency)
+ds002578 (set,  695 MB):   FAIL — struct-wrapped EEG (scanner extension needed)
+ds002718 (set,  224 MB):   FAIL — struct-wrapped EEG + 200 MB cap
+```
+
+Three of the four blockers are structural (file-format / out-of-
+plan-scope). The fourth (ds003694 wall-clock) is bounded by CDN
+RTT × number of sequential roundtrips; a 10 s budget would PASS.
