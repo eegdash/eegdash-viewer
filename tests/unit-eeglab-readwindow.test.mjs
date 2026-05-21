@@ -4,12 +4,14 @@
 // readWindowStreaming() exercising the split .set+.fdt path.
 //
 // Why a synthetic .fdt rather than the committed `.set` fixture:
-// the committed `sub-001_task-AuditoryVisualShift_run-01_eeg.set` is
-// a MAT v7.3 (HDF5) file. _matv5.js only understands MAT v5/v6, so
-// the inline-data parse path throws before any meaningful work
-// happens. The split layout — `.set` (we skip parsing) + sibling
-// `.fdt` (flat float32 interleaved frames) — is the actually-reachable
-// path with our committed test inputs.
+// the committed `sub-001_task-AuditoryVisualShift_run-01_eeg.set`
+// is a MAT v7.3 (HDF5) file, and although the inline path now
+// handles those via Mat73 (formats/_mat73.js), this test is
+// specifically exercising the split .set+.fdt layout — the .fdt
+// branch is a different code path with its own range-fetch + de-
+// interleave logic. The synthetic .fdt buffer keeps the test
+// hermetic + deterministic. The v7.3 inline path has its own
+// coverage in tests/unit-eeglab-mat73.test.mjs.
 //
 // We build a small in-memory float32 .fdt (nCh × nS) with deterministic
 // non-zero content so readWindow() returns finite numbers and the

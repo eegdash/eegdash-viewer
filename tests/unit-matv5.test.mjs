@@ -175,16 +175,17 @@ test('parse: header rejects wrong endianness', async () => {
   await assert.rejects(() => MatV5.parse(buf), /not little-endian/);
 });
 
-test('parse: header rejects MAT v7.3 (HDF5)', async () => {
+test('parse: header rejects MAT v7.3 (HDF5) by pointing at Mat73', async () => {
   const buf = new ArrayBuffer(256);
   const view = new DataView(buf);
   writeHeader(view);
   view.setUint16(124, 0x0200, true);  // pretend v7.3
-  // Surface an actionable error: tell the user how to re-save the file
-  // in a supported format. Pre-fix the message was the generic
-  // "unsupported MAT version" which left the user stuck.
-  await assert.rejects(() => MatV5.parse(buf), /MAT v7\.3 \(HDF5\) format detected/);
-  await assert.rejects(() => MatV5.parse(buf), /-v6/);
+  // Post v7.3-support: MatV5.parse still refuses v7.3 buffers (it's
+  // not the right parser), but the error message now points the
+  // caller at Mat73 / EEGLABReader.open() instead of asking the user
+  // to re-export the file. The dispatch lives in formats/eeglab.js.
+  await assert.rejects(() => MatV5.parse(buf), /MAT v7\.3 \(HDF5\)/);
+  await assert.rejects(() => MatV5.parse(buf), /Mat73/);
 });
 
 test('detectMatVersion: classifies v5 vs v7.3 from header', () => {

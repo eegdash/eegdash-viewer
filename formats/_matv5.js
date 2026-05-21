@@ -316,18 +316,18 @@
     }
     const header = new DataView(u8.buffer, u8.byteOffset, 128);
     // MAT v7.3 detection FIRST: byte 124-125 is the version field.
-    // 0x0100 = v5 (this module), 0x0200 = v7.3 (HDF5-backed — out of
-    // scope). Surface a user-actionable error so callers know how to
-    // re-export the file in a supported format. Surfaced by mne-
-    // testing-data's test_raw_h5.set / test_raw_hdf5.set, where the
-    // pre-fix code raised a generic "unsupported MAT version" without
-    // telling the user what to do.
+    // 0x0100 = v5 (this module). 0x0200 = v7.3 (HDF5-backed) — that
+    // path is handled by formats/_mat73.js; the EEGLAB reader
+    // dispatches the right parser via MatV5.detectMatVersion(). If
+    // a caller bypasses that dispatch and feeds a v7.3 buffer in
+    // directly, surface a precise hint about which module owns the
+    // format rather than the legacy "only v5" message.
     const version = header.getUint16(124, true);
     if (version === 0x0200) {
       throw new Error(
-        'MAT v7.3 (HDF5) format detected. The viewer only supports MAT v5. ' +
-        "Re-save in MATLAB with: save(..., '-v6') or in EEGLAB with " +
-        "'Save dataset as' (option: 'v6.5 file format', not 'v7.3').",
+        'MAT v7.3 (HDF5) detected. This file is parsed by Mat73 (HDF5 reader), ' +
+        'not MatV5. Either call Mat73.parse(buffer) directly, or go through ' +
+        'EEGLABReader.open() which dispatches on MatV5.detectMatVersion().',
       );
     }
     // Endian indicator: 0x4D49 ('IM' bytes 'M','I' → little-endian on disk).
