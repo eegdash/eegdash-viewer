@@ -33,13 +33,19 @@ require(path.join(__dirname, '..', 'formats', '_buffers.js'));
 require(path.join(__dirname, '..', 'formats', '_http_range.js'));
 require(path.join(__dirname, '..', 'formats', '_sidecar.js'));
 const BIDSRecording = require(path.join(__dirname, '..', 'bids-recording.js'));
+require(path.join(__dirname, '..', 'formats', '_matv5.js'));
+require(path.join(__dirname, '..', 'formats', '_jsfive.js'));
+require(path.join(__dirname, '..', 'formats', '_mat73.js'));
 require(path.join(__dirname, '..', 'formats', 'eeglab.js'));
 require(path.join(__dirname, '..', 'formats', 'edf.js'));
 require(path.join(__dirname, '..', 'formats', 'brainvision.js'));
+require(path.join(__dirname, '..', 'formats', '_fiff-dir.js'));
+require(path.join(__dirname, '..', 'formats', 'fiff.js'));
 
 const EEGLABReader      = globalThis.EEGLABReader;
 const EDFReader         = globalThis.EDFReader;
 const BrainVisionReader = globalThis.BrainVisionReader;
+const FiffReader        = globalThis.FiffReader;
 
 // ---- percentile helper -------------------------------------------
 
@@ -101,6 +107,32 @@ const FIXTURES = [
       });
       const meta   = await BIDSRecording.loadRecordingMetadata(url);
       const reader = await BrainVisionReader.open(meta);
+      return { reader, fs: reader.sampling_frequency, n_samples: reader.n_samples };
+    },
+  },
+  {
+    label: 'FIFF (ds002885 — range-streaming, mid-size)',
+    key:   'readwindow_fiff_range',
+    note:  'Range-based FIFF reader (Plan A Task 1-4); ds002885/sub-01/task-DSMW (168 MB)',
+    async build() {
+      const url = BIDSRecording.buildOpenNeuroEegUrl({
+        dataset: 'ds002885', sub: '01', task: 'DSMW', ext: 'fif',
+      });
+      const meta   = await BIDSRecording.loadRecordingMetadata(url);
+      const reader = await FiffReader.open(meta);
+      return { reader, fs: reader.sampling_frequency, n_samples: reader.n_samples };
+    },
+  },
+  {
+    label: 'EEGLAB inline .set (ds003478 — range-streaming, mid-size)',
+    key:   'readwindow_eeglab_inline_range',
+    note:  'Range-based inline EEGLAB reader (Plan A Task 6-8); ds003478/sub-001/task-Rest/run-01',
+    async build() {
+      const url = BIDSRecording.buildOpenNeuroEegUrl({
+        dataset: 'ds003478', sub: '001', task: 'Rest', run: '01', ext: 'set',
+      });
+      const meta   = await BIDSRecording.loadRecordingMetadata(url);
+      const reader = await EEGLABReader.open(meta);
       return { reader, fs: reader.sampling_frequency, n_samples: reader.n_samples };
     },
   },
