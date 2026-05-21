@@ -92,7 +92,7 @@
    *   has_projections: boolean,
    *   meas_date: number | null,
    *   nchan: number,
-   *   raw: { data: Float32Array[] } | null,
+   *   raw: { buffers: Array<Int16Array|Int32Array|Float32Array>, nsamp: number } | null,
    *   sfreq: number
    * }}
    * @throws {Error} if the file is shorter than 16 bytes or the first tag
@@ -232,21 +232,30 @@
   }
 
   function parseChannelInfo(view, offset, size) {
-    // ch_info structure (96+ bytes in real FIFF). The layout used by MNE
-    // packs scanno/logno/kind/range/cal first as int32/float32; the
-    // 16-char channel name lives near the end. The reader here only
-    // needs a stable subset (name + kind + cal + range) for traces.js.
+    // ch_info structure (96 bytes in real FIFF, MNE/Neuromag layout).
+    // Verified against MNE-Python's _fiff/meas_info.py _read_ch_info_member.
     //
-    // Conservative offsets used historically by this reader:
-    //   bytes 0..15  : null-terminated name (16 chars)
-    //   bytes 16..19 : kind   (int32 BE)
-    //   bytes 20..23 : cal    (float32 BE)
-    //   bytes 24..27 : range  (float32 BE)
+    //   bytes 0..3   : scanno    (int32 BE)
+    //   bytes 4..7   : logno     (int32 BE)
+    //   bytes 8..11  : kind      (int32 BE)
+    //   bytes 12..15 : range     (float32 BE)
+    //   bytes 16..19 : cal       (float32 BE)
+    //   bytes 20..23 : coil_type (int32 BE)
+    //   bytes 24..71 : loc[12]   (float32[12] BE — 48 bytes)
+    //   bytes 72..75 : unit      (int32 BE)
+    //   bytes 76..79 : unit_mul  (int32 BE)
+    //   bytes 80..95 : ch_name   (null-padded 16-byte string)
     //
-    // If size < 28 we cannot trust the layout — skip the channel.
-    if (offset < 0 || size < 28 || offset + 28 > view.byteLength) return null;
+    // The reader here only needs a stable subset (name + kind + cal +
+    // range) for traces.js. If size < 96 we cannot trust the layout —
+    // skip the channel.
+    if (offset < 0 || size < 96 || offset + 96 > view.byteLength) return null;
 
-    const nameBytes = new Uint8Array(view.buffer, offset, 16);
+    const kind = view.getInt32(offset + 8, false);
+    const range = view.getFloat32(offset + 12, false);
+    const cal = view.getFloat32(offset + 16, false);
+
+    const nameBytes = new Uint8Array(view.buffer, offset + 80, 16);
     const nameEnd = nameBytes.indexOf(0);
     const nameLen = nameEnd === -1 ? 16 : nameEnd;
     let name = '';
@@ -256,10 +265,6 @@
     } catch {
       return null; // malformed channel name → drop
     }
-
-    const kind = view.getInt32(offset + 16, false);
-    const cal = view.getFloat32(offset + 20, false);
-    const range = view.getFloat32(offset + 24, false);
 
     return {
       name,
@@ -331,20 +336,56 @@
     const buf = await globalThis.HttpRange.fetchBuffer(url);
     const meas = api.read(buf);
 
-    const channelLabels = Array.isArray(meas.chs)
-      ? meas.chs.map((c, i) => c.ch_name || `Ch${i + 1}`)
+    const channelLabels = Array.isArray(meas.chs) && meas.chs.length > 0
+      ? meas.chs.map((c, i) => (c && c.name) || `Ch${i + 1}`)
       : Array.from({ length: meas.nchan || 0 }, (_, i) => `Ch${i + 1}`);
 
     const sfreq = meas.sfreq || 0;
     const nchan = meas.nchan || 0;
-    // Raw samples are in meas.raw.data as Float32Array[nchan][nsamp]
-    // when the file contains a FIFFB_RAW_DATA block. Files that are
-    // pure metadata (events, projections, annotations) have no raw —
-    // open() still returns a reader so the viewer can render the
-    // metadata pane, but readWindow throws.
-    const rawChannels = meas.raw && Array.isArray(meas.raw.data)
-      ? meas.raw.data
-      : null;
+    // The parser collected FIFFB_DATA_BUFFER tags into meas.raw.buffers
+    // (interleaved samples: samples[t*nchan + c] gives channel c at
+    // time t within that buffer). De-interleave + apply per-channel
+    // cal*range calibration to produce a channel-major Float32Array
+    // array — the shape readWindow() expects. Files that are pure
+    // metadata (events, projections, annotations) have no raw — open()
+    // still returns a reader so the viewer can render the metadata
+    // pane, but readWindow throws.
+    function assembleChannels(measObj) {
+      if (!measObj.raw || !Array.isArray(measObj.raw.buffers) || !measObj.raw.buffers.length) {
+        return null;
+      }
+      const nch = measObj.nchan;
+      const total = measObj.raw.nsamp || 0;
+      if (nch <= 0 || total <= 0) return null;
+      const cals = [];
+      for (let c = 0; c < nch; c++) {
+        const ch = (measObj.chs && measObj.chs[c]) || null;
+        const cal = ch && Number.isFinite(ch.cal) ? ch.cal : 1;
+        const range = ch && Number.isFinite(ch.range) ? ch.range : 1;
+        cals.push(cal * range);
+      }
+      const out = new Array(nch);
+      for (let c = 0; c < nch; c++) out[c] = new Float32Array(total);
+      let writeIdx = 0;
+      for (const buf of measObj.raw.buffers) {
+        const samples = buf && typeof buf.length === 'number' ? buf : (buf && buf.data) || null;
+        if (!samples || typeof samples.length !== 'number') continue;
+        const samplesInBuf = Math.floor(samples.length / nch);
+        for (let t = 0; t < samplesInBuf; t++) {
+          const dst = writeIdx + t;
+          if (dst >= total) break;
+          const baseSrc = t * nch;
+          for (let c = 0; c < nch; c++) {
+            out[c][dst] = samples[baseSrc + c] * cals[c];
+          }
+        }
+        writeIdx += samplesInBuf;
+        if (writeIdx >= total) break;
+      }
+      return out;
+    }
+
+    const rawChannels = assembleChannels(meas);
     const nsamp = rawChannels && rawChannels[0] ? rawChannels[0].length : 0;
     const duration_s = sfreq > 0 ? nsamp / sfreq : 0;
 
