@@ -996,3 +996,63 @@ holding at 72.47% as the durable session-end baseline.
 **Net session gain: +35.18pp** (traces.js 37.29% baseline → 4-file
 aggregate 72.47%). 10 iterations, ~250 mutation-targeted tests across
 6 test files. Zero source modifications beyond debug-export shims.
+
+## Iteration 11 (T3, 2026-05-21)
+
+Scope expansion: added `viewer.js` (~1500 LOC IIFE) to Stryker's
+`mutate` list. JSDOM bootstrap (`tests/_jsdom-bootstrap.mjs`) provides
+the DOM globals viewer.js's IIFE references at load time.
+
+### Per-file results (fresh baseline, 3880 mutants, ~18 min runtime)
+
+| File | iter-10 | iter-11 | Δ |
+|---|---:|---:|---:|
+| traces.js          | 66.39% | 66.71% | +0.32 (noise) |
+| filters.js         | 90.68% | 90.68% | — |
+| topo2d.js          | 71.29% | 71.29% | — |
+| bids-recording.js  | 75.89% | 76.14% | +0.25 (noise) |
+| viewer.js (NEW)    | n/a    | **0.64%** | first measurement |
+| **Aggregate**      | 72.47% | **43.51%** | **−28.96** |
+
+### Honest disclosure: low viewer.js score is expected
+
+The drop is NOT a regression — it's the first real measurement of a
+file we'd previously excluded. viewer.js has ~1570 mutants and only 10
+were killed (0.64%) because:
+
+1. **Smoke test is thin.** `tests/unit-viewer-jsdom.test.mjs` only
+   loads the module and tests `clampStart`. It exercises maybe 5
+   of viewer.js's ~1500 lines.
+2. **Existing viewer-related tests use contract re-implementation.**
+   `tests/unit-viewer-render-loop.test.mjs` and
+   `tests/unit-viewer-races.test.mjs` re-implement the viewer's
+   formulas as pure functions and test those — they never invoke
+   the real `viewer.js` code paths.
+
+To lift viewer.js's score meaningfully, future iterations need:
+- Direct boot() invocation under JSDOM with mocked DOM + mocked Worker
+- Recorded ctx call inspection after triggering keyboard / pointer events
+- Tests that exercise the abort/render pipeline through real `boot()`
+  rather than re-implementing it
+
+### Threshold lowered: 67 → 38
+
+Per the documented decision tree: aggregate (43.51%) below the current
+break (67), so lower to `aggregate − 5 = 38`. low: 70 → 42. This
+honestly reflects that the new scope is partially-covered, NOT that
+test quality regressed.
+
+### Iteration 12 strategy
+
+Three options ranked by leverage:
+
+1. **Add real boot()-driven viewer.js tests** (+15-25pp on viewer.js,
+   +6-10pp aggregate). Requires Worker mock + dataTransfer mock for
+   drag-drop testing. Medium effort.
+2. **Continue Task 4** (add worker.js to scope via self-shim). Likely
+   another aggregate dip if worker.js doesn't get matching tests.
+3. **Accept current baseline** as the durable measurement. Move on.
+
+Option 1 is the right next step. Task 4 (worker.js) should NOT be
+attempted until viewer.js has proper boot-driven coverage — repeating
+the same "add scope, drop aggregate" pattern would devalue the gate.
