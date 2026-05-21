@@ -222,11 +222,25 @@
 
     const buf = await HttpRange.rangeFetch(setUrl, 0, totalBytes - 1, totalBytes);
 
+    // MAT v5 (0x0100) vs v7.3 (0x0200, HDF5) dispatch. The HDF5 path
+    // is opt-in: Mat73 is only loaded when index.html / worker.js
+    // brings in formats/_jsfive.js + formats/_mat73.js, so we fail
+    // soft to the v5 reader (which has its own friendly v7.3
+    // diagnostic) when those modules aren't loaded.
+    const matVersion = MatV5.detectMatVersion(buf);
     let vars;
-    try {
-      vars = await MatV5.parse(buf);
-    } catch (e) {
-      throw new Error(`EEGLAB inline .set parse failed at ${setUrl}: ${e.message}`);
+    if (matVersion === 'v7.3' && typeof globalThis.Mat73 !== 'undefined') {
+      try {
+        vars = await Mat73.parse(buf);
+      } catch (e) {
+        throw new Error(`EEGLAB inline .set (v7.3) parse failed at ${setUrl}: ${e.message}`);
+      }
+    } else {
+      try {
+        vars = await MatV5.parse(buf);
+      } catch (e) {
+        throw new Error(`EEGLAB inline .set parse failed at ${setUrl}: ${e.message}`);
+      }
     }
     const eeg = MatV5.extractEegInline(vars);
 

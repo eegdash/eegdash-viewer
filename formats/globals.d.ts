@@ -12,6 +12,7 @@ declare const HttpRange: any;
 declare const ChannelBuffers: any;
 declare const BIDSRecording: any;
 declare const MatV5: any;
+declare const Mat73: any;
 declare const SidecarChecks: any;
 declare const StreamingUtils: any;
 declare const CTFRes4: any;
@@ -27,6 +28,8 @@ declare global {
   var BIDSRecording: any;
   // eslint-disable-next-line no-var
   var MatV5: any;
+  // eslint-disable-next-line no-var
+  var Mat73: any;
   // eslint-disable-next-line no-var
   var SidecarChecks: any;
   // eslint-disable-next-line no-var

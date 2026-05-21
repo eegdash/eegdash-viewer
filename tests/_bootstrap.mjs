@@ -18,6 +18,7 @@ export const HttpRange         = require('../formats/_http_range.js');
 export const StreamingUtils    = require('../formats/_streaming.js');
 export const SidecarChecks     = require('../formats/_sidecar.js');
 export const MatV5             = require('../formats/_matv5.js');
+export const Mat73             = require('../formats/_mat73.js');
 export const BIDSRecording     = require('../bids-recording.js');
 export const EEGLABReader      = require('../formats/eeglab.js');
 export const EDFReader         = require('../formats/edf.js');

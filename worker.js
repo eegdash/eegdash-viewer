@@ -28,6 +28,14 @@ importScripts(
   'formats/_streaming.js',
   'formats/_sidecar.js',
   'formats/_matv5.js',
+  // MAT v7.3 (HDF5) support for modern EEGLAB .set files. _jsfive
+  // is the vendored 207 KB IIFE bundle of jsfive that attaches
+  // `globalThis.hdf5`; _mat73 patches its DataObjects prototype for
+  // compact storage and exposes `Mat73.parse` mirroring _matv5's
+  // surface. Both load before bids-recording.js so the eeglab
+  // reader's v5/v7.3 dispatch sees them.
+  'formats/_jsfive.js',
+  'formats/_mat73.js',
   'bids-recording.js',
   'formats/eeglab.js',
   'formats/edf.js',
