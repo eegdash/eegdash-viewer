@@ -489,13 +489,19 @@
         miType:         elem.miType,
         elementOffset:  baseOff + elementLocalOffset,
         payloadOffset:  baseOff + elem.payloadOffset,
-        payloadBytes:   elem.payload.length,
+        // When the top-level element was truncated by the probe buffer,
+        // `payload.length` is the available slice — but the on-disk
+        // element actually declares `declaredBytes`. Surface both so
+        // callers can pick the right value.
+        payloadBytes:   elem.truncated ? elem.declaredBytes : elem.payload.length,
+        payloadTruncated: !!elem.truncated,
         mxClass:        null,
         dims:           null,
         name:           null,
         dataSubOffset:  null,
         dataSubBytes:   null,
         dataSubMiType:  null,
+        dataSubTruncated: false,
       };
 
       if (elem.miType === 14) {
@@ -534,8 +540,16 @@
           // The absolute file offset is therefore:
           //   baseOff + elem.payloadOffset + subs[3].payloadOffset
           meta.dataSubOffset  = baseOff + elem.payloadOffset + subs[3].payloadOffset;
-          meta.dataSubBytes   = subs[3].payload.length;
+          // When the real-data sub-element is truncated (the probe buffer
+          // cut off mid-payload), iterElements yields with `truncated:true`
+          // and exposes the on-disk-declared length via `declaredBytes`.
+          // Callers that want to range-fetch the full data MUST see the
+          // declared size, not the truncated slice length.
+          meta.dataSubBytes   = subs[3].truncated
+            ? subs[3].declaredBytes
+            : subs[3].payload.length;
           meta.dataSubMiType  = subs[3].miType;
+          meta.dataSubTruncated = !!subs[3].truncated;
         }
       }
       results.push(meta);

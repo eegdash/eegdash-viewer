@@ -295,17 +295,30 @@
       return await openInlineSetLegacy(setUrl, meta, buf, nChannelsFromSidecar, fsFromSidecar, 'v5');
     }
 
-    // Pull the small metadata fields from the scanned elements.
+    // Pull the small metadata fields from the scanned elements. EEGLAB
+    // writes scalars compactly: when a value (srate=250, nbchan=74)
+    // fits in a smaller integer type, the MAT writer encodes the
+    // realdata sub-element in that type — independent of the matrix's
+    // mxClass. We've seen ds002718 store srate=250 as a single uint8
+    // byte, dims-array-style. Handle every integer width that EEGLAB
+    // emits in the wild, plus the two float types.
     function readScalar(name) {
       const el = elements.find(x => x.name === name && x.dataSubOffset != null);
       if (!el) return null;
       const localOff = el.dataSubOffset;
       if (localOff < 0 || localOff + el.dataSubBytes > probeBuf.byteLength) return null;
       const dv = new DataView(probeBuf, localOff, el.dataSubBytes);
-      if (el.dataSubMiType === 9) return dv.getFloat64(0, true);  // miDOUBLE
-      if (el.dataSubMiType === 7) return dv.getFloat32(0, true);  // miSINGLE
-      if (el.dataSubMiType === 5) return dv.getInt32(0, true);    // miINT32
-      return null;
+      switch (el.dataSubMiType) {
+        case 1: return dv.getInt8(0);            // miINT8
+        case 2: return dv.getUint8(0);           // miUINT8
+        case 3: return dv.getInt16(0, true);     // miINT16
+        case 4: return dv.getUint16(0, true);    // miUINT16
+        case 5: return dv.getInt32(0, true);     // miINT32
+        case 6: return dv.getUint32(0, true);    // miUINT32
+        case 7: return dv.getFloat32(0, true);   // miSINGLE
+        case 9: return dv.getFloat64(0, true);   // miDOUBLE
+        default: return null;
+      }
     }
 
     const srate  = readScalar('srate');

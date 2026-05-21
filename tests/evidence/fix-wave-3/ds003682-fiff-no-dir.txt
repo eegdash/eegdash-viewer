@@ -1,0 +1,13 @@
+open() in 2848ms
+  n_channels: 414
+  sampling_frequency: 1200
+  n_samples: 389232
+  duration_s: 324.36
+readWindow(0, 6000) in 939ms
+  channels: 414 samples each: 6000
+  sample[0][0..3]: [
+  2.241041660308838,
+  2.241875171661377,
+  2.242708444595337,
+  2.243541717529297
+]

@@ -213,7 +213,7 @@
    * @param {(start: number, end: number) => Promise<ArrayBuffer>} fetchRange
    * @param {object} [opts]
    * @param {number} [opts.chunk] - chunk size for range fetches (default 2 MB)
-   * @returns {Promise<{entries: Array<{kind:number,type:number,size:number,position:number}>}>}
+   * @returns {Promise<{entries: Array<{kind:number,type:number,size:number,position:number}>, blockIds: Map<number, number>}>}
    */
   api.buildDirectoryByHeaderWalk = async function (url, totalBytes, fetchRange, opts) {
     const CHUNK = (opts && opts.chunk) || 2 * 1024 * 1024;
