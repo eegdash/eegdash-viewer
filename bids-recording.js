@@ -179,6 +179,67 @@
     return winner ? winner.suf : null;
   };
 
+  // Subject auto-detection: when ?sub= is omitted from the URL, walk
+  // two sources in priority order to find a real subject ID. This
+  // unblocks 4+ datasets identified in docs/audit-100-datasets-2026-05-21.md
+  // that use non-standard subject IDs (sub-001, sub-hc1, sub-xp101,
+  // sub-283, sub-0001) and would 404 against the `sub-01` default.
+  //
+  // Priority:
+  //   1. participants.tsv  (fast: 1 fetch, ~10KB body, present in
+  //      ~95% of OpenNeuro datasets per the audit). The first data
+  //      row's column 0 is `participant_id`, formatted as `sub-XXX`.
+  //   2. S3 ListObjectsV2 with prefix=<dataset>/sub-  (1 fetch, XML
+  //      response, ~20 keys returned). Extract the first sub-<X>/
+  //      segment we see.
+  //
+  // Returns the bare subject ID (no `sub-` prefix) so it can be passed
+  // straight to buildBidsRelpath, which re-adds the prefix. Returns
+  // null when both sources fail — caller surfaces a clear error.
+  //
+  // Mirrors the discoverSuffix pattern: fetch + Range-byte probe is
+  // intentionally NOT used here because (a) participants.tsv is small
+  // enough to fetch in full, and (b) S3 ListObjectsV2 doesn't honor
+  // Range. We use full GETs.
+  const _S3_LIST_BASE = 'https://s3.amazonaws.com/openneuro.org';
+  // bucket selection lockstep with buildOpenNeuroEegUrl
+  const _PARTICIPANTS_BUCKET = _DIRECT_S3
+    ? 'https://s3.amazonaws.com/openneuro.org'
+    : 'https://cdn.eegdash.org';
+  api.discoverSubject = async function (params) {
+    const ds = required(params, 'dataset');
+
+    // 1. participants.tsv — primary source.
+    try {
+      const res = await fetch(`${_PARTICIPANTS_BUCKET}/${ds}/participants.tsv`);
+      if (res.ok) {
+        const text = await res.text();
+        const lines = text.split('\n').filter(l => l.trim());
+        if (lines.length >= 2) {
+          const firstCol = lines[1].split('\t')[0].trim();
+          const sub = firstCol.replace(/^sub-/, '');
+          if (sub) return sub;
+        }
+      }
+    } catch { /* fall through to S3 list */ }
+
+    // 2. S3 ListObjectsV2 — fallback. Always hits raw S3 (the CDN
+    // worker doesn't proxy ?list-type=2 requests, only object GETs).
+    try {
+      const url = `${_S3_LIST_BASE}?list-type=2&prefix=${encodeURIComponent(ds + '/sub-')}&max-keys=20`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const xml = await res.text();
+        for (const m of xml.matchAll(/<Key>([^<]+)<\/Key>/g)) {
+          const sm = /^[^/]+\/sub-([^/]+)\//.exec(m[1]);
+          if (sm) return sm[1];
+        }
+      }
+    } catch { /* return null */ }
+
+    return null;
+  };
+
   function required(params, key) {
     const v = params[key];
     if (v == null || v === '') throw new Error(`missing required URL param: ${key}`);
