@@ -152,6 +152,83 @@ test('viewer.pickDefaultWindowSec: invalid byte rate falls back to 10s', () => {
   assert.equal(V.pickDefaultWindowSec(reader), 10);
 });
 
+// ─── [#D2] budget boundary + invalid-bytesPerSec branches ───────
+// Pins the predicate `WINDOW_PRESETS_SEC[i] * bytesPerSec <= WINDOW_BYTE_BUDGET`
+// (viewer.js:251) at the just-passes / just-fails boundary, AND the
+// `!Number.isFinite(bytesPerSec) || bytesPerSec <= 0` guard at viewer.js:246.
+//
+// WINDOW_BYTE_BUDGET = 1.5 * 1024 * 1024 = 1572864 bytes.
+// WINDOW_PRESETS_SEC = [2, 5, 10, 20, 30].
+
+test('viewer.pickDefaultWindowSec: budget just-passes preset 5 (kills `<=` → `<` only when integer-exact) [#D2]', () => {
+  // bytesPerSec = 314572 (just below budget/5 = 314572.8). Preset 5
+  // passes: 5 * 314572 = 1572860 ≤ 1572864. Preset 10 fails:
+  // 10 * 314572 = 3145720 > 1572864. So pickDefaultWindowSec must
+  // return 5. A mutant flipping the predicate (e.g. `<=` → `>`, or
+  // the loop direction) would land on a different preset.
+  const reader = { n_channels: 1, sampling_frequency: 78643, bytes_per_sample: 4 };
+  // n_ch × fs × bps = 1 × 78643 × 4 = 314572.
+  assert.equal(V.pickDefaultWindowSec(reader), 5);
+});
+
+test('viewer.pickDefaultWindowSec: budget just-fails preset 5 → falls to 2 [#D2]', () => {
+  // bytesPerSec = 314573 (just above budget/5). Preset 5: 5 * 314573 =
+  // 1572865 > 1572864 → fails. Preset 2: 2 * 314573 = 629146 ≤ budget
+  // → passes. The loop must select 2. This is the symmetric kill of
+  // the just-passes case above.
+  const reader = { n_channels: 1, sampling_frequency: 78643.25, bytes_per_sample: 4 };
+  // 1 × 78643.25 × 4 = 314573. 5 * 314573 = 1572865 > 1572864.
+  assert.equal(V.pickDefaultWindowSec(reader), 2);
+});
+
+test('viewer.pickDefaultWindowSec: negative n_channels → bytesPerSec ≤ 0 → 10s default [#D2]', () => {
+  // Kills the `bytesPerSec <= 0` half of the guard at viewer.js:246.
+  // n_ch = -1 → bytesPerSec = -1000 → must short-circuit to 10s.
+  const reader = { n_channels: -1, sampling_frequency: 250, bytes_per_sample: 4 };
+  assert.equal(V.pickDefaultWindowSec(reader), 10);
+});
+
+test('viewer.pickDefaultWindowSec: NaN n_channels → !isFinite branch → 10s default [#D2]', () => {
+  // Kills the `!Number.isFinite(bytesPerSec)` half of the guard. NaN
+  // propagates through arithmetic; isFinite(NaN) is false.
+  const reader = { n_channels: NaN, sampling_frequency: 250, bytes_per_sample: 4 };
+  assert.equal(V.pickDefaultWindowSec(reader), 10);
+});
+
+// ─── [#D2] clampStart null-duration branch + end-of-recording boundary
+// Pins both halves of `if (durationSec == null) return 0;` at viewer.js:212
+// AND the off-by-one boundary at `max = durationSec - windowSec` (line 213).
+// The existing tests in unit-viewer-jsdom.test.mjs cover the happy-path
+// clamp but NOT the null/undefined branch or the exact end-of-recording
+// equality.
+
+test('viewer.clampStart: null durationSec → always 0 regardless of seconds [#D2]', () => {
+  // The guard `if (durationSec == null) return 0;` short-circuits on
+  // BOTH null and undefined (`==` loose equality). A mutant flipping
+  // `==` to `===` would slip undefined through and try to compute
+  // `undefined - windowSec = NaN`.
+  assert.equal(V.clampStart(42, null, 10), 0);
+  assert.equal(V.clampStart(-99, null, 10), 0);
+  assert.equal(V.clampStart(0, undefined, 10), 0);
+  assert.equal(V.clampStart(1e9, null, 10), 0);
+});
+
+test('viewer.clampStart: end-of-recording boundary at max = durationSec - windowSec [#D2]', () => {
+  // For durationSec=100, windowSec=10 → max = 90.
+  // Mutants on the subtraction (`-` → `+`, sign flip) or the Math.min
+  // direction all change the boundary.
+  assert.equal(V.clampStart(90, 100, 10), 90,
+    'at the exact max, must return max (90)');
+  assert.equal(V.clampStart(90.0001, 100, 10), 90,
+    'just past max → clamp to max');
+  assert.equal(V.clampStart(89.9999, 100, 10), 89.9999,
+    'just below max → return input');
+  // Past-end with very large seconds still clamps to max.
+  assert.equal(V.clampStart(1e6, 100, 10), 90);
+  // Negative input clamps to 0 (lower bound via Math.max(0, ...)).
+  assert.equal(V.clampStart(-5, 100, 10), 0);
+});
+
 // ─── renderProvenance ────────────────────────────────────────────
 // Real contract: iterates meta.sidecar_sources entries. Each truthy
 // value gets one row with key + stripped URL. Empty → 'no sidecars
