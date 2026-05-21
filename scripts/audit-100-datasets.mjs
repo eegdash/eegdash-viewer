@@ -23,13 +23,42 @@ const CATALOG_API = 'https://data.eegdash.org/api/eegdash/datasets';
 const CDN = 'https://cdn.eegdash.org';
 const S3 = 'https://s3.amazonaws.com/openneuro.org';
 const PER_PAGE = 100;
-const SAMPLE_SIZE = 100;
+const DEFAULT_SAMPLE_SIZE = 100;
 const BATCH = 8;
 const PROBE_TIMEOUT_MS = 15_000;
 
 // Supported by the viewer.
 const SUPPORTED_DATATYPES = new Set(['eeg', 'ieeg', 'meg', 'emg', 'nirs']);
 const SUPPORTED_EXTS = new Set(['edf', 'bdf', 'set', 'vhdr', 'fif', 'snirf']);
+
+// --- CLI ------------------------------------------------------------
+
+function parseArgs(argv) {
+  const args = { seed: null, full: false, out: 'scripts/audit-100-datasets.json', sampleSize: DEFAULT_SAMPLE_SIZE };
+  for (const a of argv.slice(2)) {
+    if (a === '--full') args.full = true;
+    else if (a.startsWith('--seed=')) args.seed = Number(a.slice('--seed='.length));
+    else if (a.startsWith('--out=')) args.out = a.slice('--out='.length);
+    else if (a.startsWith('--sample-size=')) args.sampleSize = Number(a.slice('--sample-size='.length));
+    else throw new Error(`Unknown arg: ${a}`);
+  }
+  if (args.seed !== null && (!Number.isInteger(args.seed) || args.seed < 0)) {
+    throw new Error(`--seed must be a non-negative integer, got: ${args.seed}`);
+  }
+  return args;
+}
+
+// --- seeded RNG (Mulberry32) ----------------------------------------
+
+function mulberry32(seed) {
+  return function () {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 // --- catalog --------------------------------------------------------
 
@@ -171,11 +200,11 @@ async function classifyDataset(record) {
 
 // --- sampling -------------------------------------------------------
 
-function sample(arr, n) {
-  // Reservoir sample (Algorithm R) for deterministic-ish randomness.
+function sample(arr, n, rng = Math.random) {
+  // Reservoir sample (Algorithm R) with injectable RNG for reproducibility.
   const out = arr.slice(0, n);
   for (let i = n; i < arr.length; i++) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     if (j < n) out[j] = arr[i];
   }
   return out;
@@ -184,11 +213,17 @@ function sample(arr, n) {
 // --- main -----------------------------------------------------------
 
 async function main() {
+  const args = parseArgs(process.argv);
   const allDatasets = await fetchCatalog();
   process.stderr.write(`\nCatalog: ${allDatasets.length} datasets.\n`);
-  process.stderr.write(`Sampling ${SAMPLE_SIZE} at random…\n\n`);
 
-  const sampled = sample(allDatasets, SAMPLE_SIZE);
+  const sampleSize = args.full ? allDatasets.length : Math.min(args.sampleSize, allDatasets.length);
+  const rng = args.seed !== null ? mulberry32(args.seed) : Math.random;
+  const seedLabel = args.seed !== null ? `seed=${args.seed}` : 'seed=unseeded';
+  const modeLabel = args.full ? 'FULL' : `sample=${sampleSize}`;
+  process.stderr.write(`Mode: ${modeLabel} (${seedLabel})\n\n`);
+
+  const sampled = args.full ? allDatasets.slice() : sample(allDatasets, sampleSize, rng);
 
   const results = [];
   for (let i = 0; i < sampled.length; i += BATCH) {
@@ -210,7 +245,7 @@ async function main() {
 
   console.log('\n=== AUDIT SUMMARY ===\n');
   console.log(`Catalog total:  ${allDatasets.length}`);
-  console.log(`Sampled:        ${results.length}\n`);
+  console.log(`Sampled:        ${results.length}  (${modeLabel}, ${seedLabel})\n`);
   console.log(`Verdict counts:`);
   for (const [v, n] of Object.entries(verdictCounts).sort((a, b) => b[1] - a[1])) {
     const pct = ((n / results.length) * 100).toFixed(1);
@@ -231,9 +266,12 @@ async function main() {
   }
 
   // Write full results
-  const outPath = path.resolve('scripts/audit-100-datasets.json');
+  const outPath = path.resolve(args.out);
+  fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify({
     timestamp: new Date().toISOString(),
+    seed: args.seed,
+    full: args.full,
     catalogTotal: allDatasets.length,
     sampled: results.length,
     verdictCounts,
