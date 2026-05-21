@@ -54,6 +54,7 @@ globalThis.HttpRange = {
 // worker.js script tags so cross-references resolve.
 require('../formats/_buffers.js');
 require('../formats/_labels.js');
+require('../formats/_decode.js');
 require('../formats/_http_range.js'); // sets globalThis.HttpRange — we want the test stub to win
 // Re-apply our test stub since _http_range.js overwrites globalThis.HttpRange.
 globalThis.HttpRange = {

@@ -449,10 +449,7 @@
         const flat = new Float32Array(buf);
         // Column-major slice: data[chan, sample] @ sample*nchan + chan.
         const out = ChannelBuffers.alloc(nbchan, nWin);
-        for (let s = 0; s < nWin; s++) {
-          const base = s * nbchan;
-          for (let c = 0; c < nbchan; c++) out[c][s] = flat[base + c];
-        }
+        ChannelDecode.deinterleaveInto(out, flat, nbchan, nWin, null);
         return out;
       },
     };
@@ -651,12 +648,7 @@
     const buf = await HttpRange.rangeFetch(url, byteStart, byteStart + expectedBytes - 1, expectedBytes, opts);
     const interleaved = new Float32Array(buf);
     const out = ChannelBuffers.alloc(nChannels, nWin);
-    let i = 0;
-    for (let s = 0; s < nWin; s++) {
-      for (let c = 0; c < nChannels; c++) {
-        out[c][s] = interleaved[i++];
-      }
-    }
+    ChannelDecode.deinterleaveInto(out, interleaved, nChannels, nWin, null);
     return out;
   }
 
@@ -699,12 +691,7 @@
         const batchU8 = completeBytes.subarray(fOff * frameSize, (fOff + batchFrames) * frameSize);
         const interleaved = new Float32Array(batchU8.buffer, batchU8.byteOffset, batchFrames * nChannels);
         const out = ChannelBuffers.alloc(nChannels, batchFrames);
-        let i = 0;
-        for (let s = 0; s < batchFrames; s++) {
-          for (let c = 0; c < nChannels; c++) {
-            out[c][s] = interleaved[i++];
-          }
-        }
+        ChannelDecode.deinterleaveInto(out, interleaved, nChannels, batchFrames, null);
         const firstSampleIdx = start + outSamples;
         const lastSampleIdx = firstSampleIdx + batchFrames - 1;
         outSamples += batchFrames;

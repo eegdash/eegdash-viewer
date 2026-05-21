@@ -247,13 +247,7 @@
     const interleaved = new layout.view_ctor(buf);
 
     const out = ChannelBuffers.alloc(nCh, nWin);
-    const scales = layout.scales;
-    let i = 0;
-    for (let s = 0; s < nWin; s++) {
-      for (let c = 0; c < nCh; c++) {
-        out[c][s] = interleaved[i++] * scales[c];
-      }
-    }
+    ChannelDecode.deinterleaveInto(out, interleaved, nCh, nWin, layout.scales);
     return out;
   }
 
@@ -300,12 +294,7 @@
           interleaved = new layout.view_ctor(batchU8.buffer, batchU8.byteOffset, batchFrames * nCh);
         }
         const out = ChannelBuffers.alloc(nCh, batchFrames);
-        let i = 0;
-        for (let s = 0; s < batchFrames; s++) {
-          for (let c = 0; c < nCh; c++) {
-            out[c][s] = interleaved[i++] * scales[c];
-          }
-        }
+        ChannelDecode.deinterleaveInto(out, interleaved, nCh, batchFrames, scales);
         const firstSampleIdx = start + outSamples;
         const lastSampleIdx = firstSampleIdx + batchFrames - 1;
         outSamples += batchFrames;

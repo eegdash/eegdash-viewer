@@ -14,6 +14,7 @@ const require = createRequire(import.meta.url);
 require('../bids-loader.js');
 require('../formats/_buffers.js');
 require('../formats/_labels.js');
+require('../formats/_decode.js');
 require('../formats/_fiff-dir.js');
 
 export const HttpRange         = require('../formats/_http_range.js');

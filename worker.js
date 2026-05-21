@@ -25,6 +25,7 @@
 importScripts(
   'formats/_buffers.js',
   'formats/_labels.js',
+  'formats/_decode.js',
   'formats/_http_range.js',
   'formats/_streaming.js',
   'formats/_sidecar.js',
