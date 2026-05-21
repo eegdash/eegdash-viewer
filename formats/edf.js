@@ -92,6 +92,26 @@
     return best;
   }
 
+  /**
+   * Parse the 256-byte fixed header + per-signal 256-byte metadata blocks
+   * of an EDF / EDF+ / BDF file.
+   *
+   * Returned object (loosely typed as `object` to keep tsc happy while
+   * the per-signal metadata is built up across several passes) includes
+   * at least:
+   *   - version, reserved: string
+   *   - isBDF, isEdfPlus, isContinuous: boolean
+   *   - header_bytes, n_records, n_signals: number
+   *   - record_duration: number  (seconds)
+   *   - signals: Array of per-signal records with label, transducer,
+   *     physical_dimension, physical_min/max, digital_min/max,
+   *     prefiltering, samples_per_record, plus derived scale, offset,
+   *     and is_annotation flags.
+   *
+   * @param {ArrayBuffer} arrayBuf - The first 256 + 256*n_signals bytes.
+   *   Must be at least 256 bytes (just the fixed header is OK for n_signals=0).
+   * @returns {object}
+   */
   api.parseHeader = function (arrayBuf) {
     const v = new Uint8Array(arrayBuf);
     if (v.length < HEADER_FIXED) {
@@ -118,9 +138,10 @@
       throw new Error(`EDF header buffer ${v.length}B < declared ${headerBytes}B`);
     }
 
+    /** @type {Array<any>} */
     const signals = Array.from({ length: nSignals }, () => ({}));
     let off = HEADER_FIXED;
-    for (const [field, size] of SIGNAL_HEADER_FIELDS) {
+    for (const [field, size] of /** @type {Array<[string, number]>} */ (SIGNAL_HEADER_FIELDS)) {
       for (let i = 0; i < nSignals; i++) {
         signals[i][field] = ascii(v, off, size);
         off += size;

@@ -82,6 +82,22 @@
 
   // ---- public API ----------------------------------------------------------
 
+  /**
+   * Parse a FIFF (Neuromag/Elekta MEG) file's tag stream into a meas object.
+   * @param {ArrayBuffer} buf - The full file as an ArrayBuffer (FIFF doesn't
+   *   support random access without the directory; pass the whole file).
+   * @returns {{
+   *   blocks: number[],
+   *   chs: Array<{ ch_name: string, kind: number, scanno: number, range: number, cal: number }>,
+   *   has_projections: boolean,
+   *   meas_date: number | null,
+   *   nchan: number,
+   *   raw: { data: Float32Array[] } | null,
+   *   sfreq: number
+   * }}
+   * @throws {Error} if the file is shorter than 16 bytes or the first tag
+   *   is not FIFF_FILE_ID (kind=100, big-endian).
+   */
   api.read = function (buf) {
     if (!buf || buf.byteLength < 16) {
       throw new Error('FIFF file too small');

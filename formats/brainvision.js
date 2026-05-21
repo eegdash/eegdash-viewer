@@ -47,7 +47,15 @@
   // square-bracket section headers, and `key=value` pairs. Section
   // names are lower-cased so callers can index without remembering
   // the original capitalisation.
+  /**
+   * Parse a BrainVision .vhdr file's INI-flavoured text into a flat key-
+   * value map keyed by section.
+   * @param {string} text - The full UTF-8 content of the .vhdr file.
+   * @returns {Object<string, Object<string, string>>} - Maps section name
+   *   (e.g. "Common Infos") to its key/value pairs.
+   */
   api.parseIni = function (text) {
+    /** @type {Object<string, Object<string, string>>} */
     const sections = {};
     let cur = null;
     for (const raw of text.split(/\r?\n/)) {
@@ -79,6 +87,21 @@
     return Number.isFinite(n) ? n : null;
   }
 
+  /**
+   * Parse a BrainVision .vhdr file and return the recording metadata.
+   *
+   * The returned object (loosely typed as `object` because additional
+   * derived fields are tacked on after parsing) includes at least:
+   *   - n_channels, sampling_frequency, bytes_per_sample,
+   *     data_points_declared: number
+   *   - sampling_interval: number  (microseconds, raw value from header)
+   *   - binary_format, data_orientation, data_format: string
+   *   - data_file, marker_file: string  (relative filenames)
+   *   - channels: Array of { name, ref, resolution, units, scale }
+   *
+   * @param {string} text - The full .vhdr text.
+   * @returns {object}
+   */
   api.parseHeader = function (text) {
     const sec = api.parseIni(text);
     const common = sec['common infos'];

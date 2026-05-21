@@ -53,6 +53,21 @@
     return { kind: 'mismatch' };
   }
 
+  /**
+   * Open an EEGLAB .set file (with optional external .fdt) for windowed reading.
+   *
+   * The returned descriptor (loosely typed as `object` because the .set
+   * format has several optional fields and extra metadata is attached
+   * conditionally) exposes at least:
+   *   - n_channels, sampling_frequency, n_samples, bytes_per_sample,
+   *     duration_s: number
+   *   - url, channel_labels, bids_channels: pass-through metadata
+   *   - readWindow(start, n, opts?): Promise<Float32Array[]>
+   *   - readWindowStreaming(start, n, opts?) when supported by the layout
+   *
+   * @param {object} meta - The recording descriptor from bids-recording.js.
+   * @returns {Promise<object>}
+   */
   api.open = async function (meta) {
     if (!HOST_LITTLE_ENDIAN) {
       throw new Error('EEGLAB .fdt reader requires a little-endian host.');
