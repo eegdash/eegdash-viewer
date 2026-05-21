@@ -29,7 +29,7 @@ const PROBE_TIMEOUT_MS = 15_000;
 
 // Supported by the viewer.
 const SUPPORTED_DATATYPES = new Set(['eeg', 'ieeg', 'meg', 'emg', 'nirs']);
-const SUPPORTED_EXTS = new Set(['edf', 'bdf', 'set', 'vhdr', 'fif', 'snirf']);
+const SUPPORTED_EXTS = new Set(['edf', 'bdf', 'set', 'vhdr', 'fif', 'snirf', 'ds']);
 
 // --- CLI ------------------------------------------------------------
 
@@ -126,12 +126,23 @@ async function listS3(prefix) {
 function pickRecording(keys, datatype) {
   // From a list of S3 keys, pick the first one whose path matches:
   //   sub-X/[ses-Y/]<datatype>/<entities>_<suffix>.<ext>
-  // where ext is a viewer-supported extension.
-  const re = new RegExp(`/${datatype}/[^/]+_${datatype}\\.([a-z0-9]+)$`, 'i');
+  // where ext is a viewer-supported extension. For CTF (.ds/ bundles),
+  // S3 lists each inner file separately — we match the .meg4 child and
+  // canonicalise back to ext='ds' so the viewer URL points at the
+  // bundle (or the inner .meg4 which the reader uses directly).
+  const re = new RegExp(`/${datatype}/[^/]+_${datatype}\\.([a-z0-9]+)(?:/[^/]+_${datatype}\\.meg4)?$`, 'i');
   for (const key of keys) {
     const m = re.exec(key);
-    if (m && SUPPORTED_EXTS.has(m[1].toLowerCase())) {
-      return { key, ext: m[1].toLowerCase() };
+    if (!m) continue;
+    let ext = m[1].toLowerCase();
+    // CTF bundle: when key path contains `.ds/`, canonicalise as 'ds'
+    // and keep the matched key (which ends with `.ds/<entities>_meg.meg4`).
+    // That URL is exactly what bids-recording.js's ext=ds branch builds.
+    if (key.includes('.ds/')) {
+      ext = 'ds';
+    }
+    if (SUPPORTED_EXTS.has(ext)) {
+      return { key, ext };
     }
   }
   return null;
