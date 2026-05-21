@@ -94,8 +94,12 @@ test('fiff: accepts a synthetic FIFF_FILE_ID-only buffer', () => {
 // contract. Tests use file:// URLs that HttpRange should fetch via
 // fetch() — node:test 22+ supports the global fetch.
 
-test('fiff: open(meta) returns a reader-shaped object for events file', async () => {
-  // Mock HttpRange via globalThis since the production module uses it.
+test('fiff: open(meta) returns a reader-shaped object for raw-data file', async () => {
+  // Use synth-raw.fif: a 2-channel @ 300 Hz raw recording.
+  // (Previously this test used test-eve.fif, but per the Plan-E Task 8
+  // fix, open() now throws cleanly on calibration/empty-block files —
+  // see tests/unit-fiff-calibration.test.mjs. open() returns a reader
+  // only when meas.nchan > 0 || meas.raw !== null.)
   const fs = await import('node:fs');
   globalThis.HttpRange = globalThis.HttpRange || {
     async fetchBuffer(url) {
@@ -105,19 +109,21 @@ test('fiff: open(meta) returns a reader-shaped object for events file', async ()
     },
   };
   const reader = await FIFFReader.open({
-    eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/test-eve.fif',
+    eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/synth-raw.fif',
   });
   assert.ok(reader, 'open() must return a non-null reader');
   assert.equal(typeof reader.n_channels, 'number');
   assert.equal(typeof reader.sampling_frequency, 'number');
   assert.equal(typeof reader.duration_s, 'number');
   assert.equal(typeof reader.readWindow, 'function');
+  assert.ok(reader.n_channels > 0, 'raw file should have channels');
 });
 
-test('fiff: readWindow throws on metadata-only files (no FIFFB_RAW_DATA)', async () => {
+test('fiff: open() throws cleanly on metadata-only files (no FIFFB_RAW_DATA)', async () => {
   // test-eve.fif is an events-only file — it has FIFFB_EVENTS but no
-  // raw data block. readWindow must throw with a clear message rather
-  // than silently returning empty arrays.
+  // raw data block. Per Plan-E Task 8, open() now throws with a clear
+  // "calibration/empty-block" message rather than returning a reader
+  // that crashes on the first readWindow.
   globalThis.HttpRange = globalThis.HttpRange || {};
   if (!globalThis.HttpRange.fetchBuffer) {
     const fs = await import('node:fs');
@@ -127,12 +133,11 @@ test('fiff: readWindow throws on metadata-only files (no FIFFB_RAW_DATA)', async
       return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
     };
   }
-  const reader = await FIFFReader.open({
-    eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/test-eve.fif',
-  });
   await assert.rejects(
-    () => reader.readWindow(0, 100),
-    /no FIFFB_RAW_DATA|events\/projections\/annotations only/,
+    () => FIFFReader.open({
+      eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/test-eve.fif',
+    }),
+    /calibration|empty-block|no raw signal/i,
   );
 });
 

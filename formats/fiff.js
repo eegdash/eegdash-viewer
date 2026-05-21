@@ -385,6 +385,18 @@
       return out;
     }
 
+    // Calibration / events-only FIFF: no FIFFB_RAW_DATA block AND
+    // nchan === 0 in MEAS_INFO means there is no signal to display.
+    // ds003392 is the canonical example. Surface a clean error at
+    // open() time so the viewer can show a user-readable message
+    // instead of letting the worker crash on the first readWindow.
+    if (meas.nchan === 0 && meas.raw === null) {
+      throw new Error(
+        'FIFF: this file is a calibration/empty-block file — no raw signal to display. ' +
+        '(MEAS_INFO has no channels and no FIFFB_RAW_DATA block was found.)'
+      );
+    }
+
     const rawChannels = assembleChannels(meas);
     const nsamp = rawChannels && rawChannels[0] ? rawChannels[0].length : 0;
     const duration_s = sfreq > 0 ? nsamp / sfreq : 0;

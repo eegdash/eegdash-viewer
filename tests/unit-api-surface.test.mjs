@@ -192,10 +192,14 @@ test('api-surface: format readers share the open() return shape', async () => {
     },
   };
 
-  // FIFF — known shape, smallest fixture
+  // FIFF — known shape, smallest fixture with raw data. synth-raw.fif
+  // is 2 channels @ 300 Hz. test-eve.fif (events only) was the previous
+  // pick but per Plan-E Task 8, FIFFReader.open() now throws cleanly on
+  // calibration/empty-block files — we'd be asserting against an error,
+  // not a reader shape.
   const FIFFReader = require('../formats/fiff.js');
   const fiffReader = await FIFFReader.open({
-    eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/test-eve.fif',
+    eeg_url: 'file://' + process.cwd() + '/tests/fixtures/meg/synth-raw.fif',
   });
 
   const REQUIRED_KEYS = [

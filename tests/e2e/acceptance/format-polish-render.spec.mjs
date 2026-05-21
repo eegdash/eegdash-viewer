@@ -90,6 +90,45 @@ const CASES = [
   },
 ];
 
+// Task 8 evidence: a calibration-only FIFF (ds003392 sub-01_acq-crosstalk_meg.fif)
+// should surface a clean, user-visible error rather than crashing the
+// worker on the first readWindow. We render the page, wait for the
+// recording-status panel's error to appear, and capture a screenshot
+// of the page state.
+test('ds003392 acq-crosstalk: calibration FIFF shows clean error', async ({ page }) => {
+  const consoleErrors = [];
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    const t = m.text();
+    if (/Failed to load resource/.test(t)) return;
+    consoleErrors.push(t);
+  });
+  const cdnUrl =
+    'https://cdn.eegdash.org/ds003392/sub-01/meg/sub-01_acq-crosstalk_meg.fif';
+  await page.goto('/index.html?eeg=' + encodeURIComponent(cdnUrl));
+
+  // Wait for the recording-status panel to display the FIFF
+  // calibration error string. The viewer renders the error text into
+  // the left-rail "Recording" section.
+  await expect(
+    page.locator('text=/calibration|empty-block|no raw signal/i'),
+    'ds003392: expected calibration error message',
+  ).toBeVisible({ timeout: 60_000 });
+
+  const outDir = path.join(EVIDENCE_ROOT, 'fiff-calibration');
+  fs.mkdirSync(outDir, { recursive: true });
+  await page.screenshot({
+    path: path.join(outDir, 'ds003392-acq-crosstalk-error.png'),
+    fullPage: true,
+  });
+
+  // Crucially: no console error containing "TypeError" or
+  // "Cannot read properties of null". Either of those means the worker
+  // crashed on the first readWindow — exactly what Task 8 prevents.
+  const crashErrors = consoleErrors.filter((t) => /TypeError|Cannot read properties/.test(t));
+  expect(crashErrors, 'ds003392: worker must not crash on null raw').toHaveLength(0);
+});
+
 for (const c of CASES) {
   test(`renders ${c.id}: ${c.notes}`, async ({ page }) => {
     const consoleErrors = [];
