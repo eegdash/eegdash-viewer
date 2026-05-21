@@ -21,3 +21,6 @@ reports/stryker-incremental.json
 
 # CDN-worker lockfile — managed by separate workspace
 cdn-worker/package-lock.json
+
+# Per-run audit JSON — transient, only the aggregate doc is committed
+reports/audit/run-*.json
