@@ -204,7 +204,11 @@ function expectedPillFor(ext) {
 test.describe('audit-loadable: browser reality check', () => {
   test('subsample bootstrap sanity', () => {
     expect(CASES.length, 'subsampled case count').toBeGreaterThan(0);
-    expect(CASES.length, 'subsample bounded by sample size').toBeLessThanOrEqual(SAMPLE_SIZE);
+    // AUDIT_FULL=1 iterates ALL_LOADABLE without subsampling, so the
+    // SAMPLE_SIZE bound does not apply. Cap only in the legacy path.
+    if (process.env.AUDIT_FULL !== '1') {
+      expect(CASES.length, 'subsample bounded by sample size').toBeLessThanOrEqual(SAMPLE_SIZE);
+    }
     for (const c of CASES) {
       expect(c.cdn_url, `case ${c.dataset_id} missing cdn_url`).toMatch(
         /^https:\/\/cdn\.eegdash\.org\//,

@@ -1,0 +1,877 @@
+START 2026-05-21T14:59:11Z
+
+> test:audit-reality:full
+> AUDIT_FULL=1 playwright test --config=playwright.audit-full.config.mjs tests/e2e/acceptance/audit-loadable.spec.mjs
+
+
+Running 90 tests using 4 workers
+
+  ✓   4 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:205:3 › audit-loadable: browser reality check › subsample bootstrap sanity (21ms)
+  ✓   5 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds001787 (bdf) from https://cdn.eegdash.org/ds001787/sub-001/ses-01/eeg/sub-001_ses-01_task-meditation_eeg.bdf (1.6s)
+  ✓   1 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds000248 (fif) from https://cdn.eegdash.org/ds000248/sub-01/meg/sub-01_acq-crosstalk_meg.fif (1.6s)
+  ✓   2 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds000246 (ds) from https://cdn.eegdash.org/ds000246/sub-emptyroom/meg/sub-emptyroom_task-noise_run-01_meg.ds/sub-emptyroom_task-noise_run-01_meg.meg4 (1.7s)
+  ✓   8 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds001971 (set) from https://cdn.eegdash.org/ds001971/sub-001/eeg/sub-001_task-AudioCueWalkingStudy_run-01_eeg.set (832ms)
+  ✓   6 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds001810 (vhdr) from https://cdn.eegdash.org/ds001810/sub-01/ses-anodalpost/eeg/sub-01_ses-anodalpost_task-attentionalblink_eeg.vhdr (1.6s)
+  ✓  10 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002034 (edf) from https://cdn.eegdash.org/ds002034/sub-01/ses-01/eeg/sub-01_ses-01_task-offline_run-01_eeg.edf (1.2s)
+  ✓  11 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002094 (vhdr) from https://cdn.eegdash.org/ds002094/sub-283/eeg/sub-283_task-rest_eeg.vhdr (1.2s)
+  ✓   7 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds001849 (set) from https://cdn.eegdash.org/ds001849/sub-01/eeg/sub-01_task-tmseegrest_acq-dlpfcactive_eeg.set (16.6s)
+  ✓   3 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds001785 (set) from https://cdn.eegdash.org/ds001785/sub-01/ses-01/eeg/sub-01_ses-01_task-adapt_run-01_eeg.set (36.7s)
+  ✓  14 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002218 (set) from https://cdn.eegdash.org/ds002218/sub-001/eeg/sub-001_task-Experiment_eeg.set (437ms)
+  ✘   9 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002001 (ds) from https://cdn.eegdash.org/ds002001/sub-0001/ses-20140502/meg/sub-0001_ses-20140502_task-rivalry_run-02_meg.ds/sub-0001_ses-20140502_task-rivalry_run-02_meg.meg4 (1.0m)
+  ✓  16 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002336 (vhdr) from https://cdn.eegdash.org/ds002336/sub-xp101/eeg/sub-xp101_task-eegNF_eeg.vhdr (1.2s)
+  ✓  17 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002338 (vhdr) from https://cdn.eegdash.org/ds002338/sub-xp201/eeg/sub-xp201_task-1dNF_run-01_eeg.vhdr (1.2s)
+  ✘  12 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002158 (vhdr) from https://cdn.eegdash.org/ds002158/sub-02/ses-001/eeg/sub-02_ses-001_task-main_run-001_eeg.vhdr (1.0m)
+  ✓  19 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002680 (set) from https://cdn.eegdash.org/ds002680/sub-002/ses-01/eeg/sub-002_ses-01_task-gonogo_run-10_eeg.set (694ms)
+  ✓  20 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002691 (set) from https://cdn.eegdash.org/ds002691/sub-001/eeg/sub-001_task-internalattention_eeg.set (675ms)
+  ✘  13 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002181 (set) from https://cdn.eegdash.org/ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set (1.0m)
+  ✘  15 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002312 (fif) from https://cdn.eegdash.org/ds002312/sub-A0023/meg/sub-A0023_task-OcularLDT_meg.fif (1.0m)
+  ✓  23 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002720 (edf) from https://cdn.eegdash.org/ds002720/sub-01/eeg/sub-01_task-run1_eeg.edf (1.2s)
+  ✓  24 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002721 (edf) from https://cdn.eegdash.org/ds002721/sub-01/eeg/sub-01_task-run1_eeg.edf (1.1s)
+  ✓  25 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002722 (edf) from https://cdn.eegdash.org/ds002722/sub-01/eeg/sub-01_task-run1_eeg.edf (1.1s)
+  ✓  26 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002723 (edf) from https://cdn.eegdash.org/ds002723/sub-01/eeg/sub-01_task-run1_eeg.edf (1.2s)
+  ✓  27 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002724 (edf) from https://cdn.eegdash.org/ds002724/sub-08/ses-3/eeg/sub-08_ses-3_task-run1_eeg.edf (1.1s)
+  ✓  28 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002725 (edf) from https://cdn.eegdash.org/ds002725/sub-01/eeg/sub-01_task-classicalMusic_eeg.edf (1.1s)
+  ✘  18 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002578 (set) from https://cdn.eegdash.org/ds002578/sub-001/eeg/sub-001_task-attention_eeg.set (1.0m)
+  ✓  30 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002778 (bdf) from https://cdn.eegdash.org/ds002778/sub-hc1/ses-hc/eeg/sub-hc1_ses-hc_task-rest_eeg.bdf (1.2s)
+  ✘  21 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002712 (fif) from https://cdn.eegdash.org/ds002712/sub-01/meg/sub-01_task-numbersletters_run-11_meg.fif (1.0m)
+  ✓  31 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002791 (vhdr) from https://cdn.eegdash.org/ds002791/sub-01/ses-naming/eeg/sub-01_ses-naming_run-1_eeg.vhdr (1.2s)
+  ✓  32 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002814 (set) from https://cdn.eegdash.org/ds002814/sub-01/ses-eeg/eeg/sub-01_ses-eeg_task-categorySelectivity_run-1_eeg.set (1.2s)
+  ✓  33 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002833 (vhdr) from https://cdn.eegdash.org/ds002833/sub-01/ses-Audio/eeg/sub-01_ses-Audio_task-PicturesNaming_eeg.vhdr (1.2s)
+  ✓  35 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002893 (set) from https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.set (477ms)
+  ✘  34 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002885 (fif) from https://cdn.eegdash.org/ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif (3.3s)
+  ✓  29 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002761 (ds) from https://cdn.eegdash.org/ds002761/sub-311/meg/sub-311_task-loc_run-01_meg.ds/sub-311_task-loc_run-01_meg.meg4 (33.2s)
+  ✓  38 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003029 (vhdr) from https://cdn.eegdash.org/ds003029/sub-jh101/ses-presurgery/ieeg/sub-jh101_ses-presurgery_task-ictal_acq-ecog_run-01_ieeg.vhdr (1.2s)
+  ✘  22 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002718 (set) from https://cdn.eegdash.org/ds002718/sub-002/eeg/sub-002_task-FaceRecognition_eeg.set (1.0m)
+  ✓  39 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003039 (set) from https://cdn.eegdash.org/ds003039/sub-001/eeg/sub-001_task-neurCorrYoung_eeg.set (684ms)
+  ✓  41 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003061 (set) from https://cdn.eegdash.org/ds003061/sub-001/eeg/sub-001_task-P300_run-1_eeg.set (2.3s)
+  ✓  37 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003004 (set) from https://cdn.eegdash.org/ds003004/sub-01/eeg/sub-01_task-ImaginedEmotion_eeg.set (40.2s)
+  ✓  43 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003190 (vhdr) from https://cdn.eegdash.org/ds003190/sub-01/ses-01/eeg/sub-01_ses-01_task-cnos_run-4_eeg.vhdr (1.2s)
+  ✓  44 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003194 (edf) from https://cdn.eegdash.org/ds003194/sub-NEPO26/ses-Nepopre/eeg/sub-NEPO26_ses-Nepopre_task-taskprenepo_eeg.edf (1.2s)
+  ✓  36 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002908 (ds) from https://cdn.eegdash.org/ds002908/sub-01/ses-1/meg/sub-01_ses-1_task-mouse_meg.ds/sub-01_ses-1_task-mouse_meg.meg4 (46.2s)
+  ✓  45 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003195 (edf) from https://cdn.eegdash.org/ds003195/sub-PLAC10/ses-placebo6m/eeg/sub-PLAC10_ses-placebo6m_task-taskplacebo6m_eeg.edf (1.1s)
+  ✘  47 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003352 (fif) from https://cdn.eegdash.org/ds003352/sub-1/ses-01/meg/sub-1_ses-01_task-ColorSpirals_run-00_meg.fif (3.3s)
+  ✓  48 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003374 (edf) from https://cdn.eegdash.org/ds003374/sub-01/ses-01/ieeg/sub-01_ses-01_task-jokeit_run-01_ieeg.edf (1.2s)
+  ✓  49 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003392 (fif) from https://cdn.eegdash.org/ds003392/sub-01/meg/sub-01_acq-crosstalk_meg.fif (1.1s)
+  ✓  50 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003420 (vhdr) from https://cdn.eegdash.org/ds003420/sub-01/ses-naming/eeg/sub-01_ses-naming_run-1_eeg.vhdr (1.2s)
+  ✓  51 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003421 (vhdr) from https://cdn.eegdash.org/ds003421/sub-01/ses-Audio/eeg/sub-01_ses-Audio_task-PicturesNaming_eeg.vhdr (1.2s)
+  ✓  52 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003458 (set) from https://cdn.eegdash.org/ds003458/sub-001/eeg/sub-001_task-ThreeArmedBandit_eeg.set (491ms)
+  ✓  53 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003474 (set) from https://cdn.eegdash.org/ds003474/sub-001/eeg/sub-001_task-ProbabilisticSelection_eeg.set (439ms)
+  ✓  54 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003478 (set) from https://cdn.eegdash.org/ds003478/sub-001/eeg/sub-001_task-Rest_run-01_eeg.set (688ms)
+  ✓  42 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003082 (ds) from https://cdn.eegdash.org/ds003082/sub-emptyroom/ses-20150112/meg/sub-emptyroom_ses-20150112_task-noise_run-01_meg.ds/sub-emptyroom_ses-20150112_task-noise_run-01_meg.meg4 (49.2s)
+  ✓  56 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003490 (set) from https://cdn.eegdash.org/ds003490/sub-001/ses-01/eeg/sub-001_ses-01_task-Rest_eeg.set (1.3s)
+  ✓  57 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003498 (vhdr) from https://cdn.eegdash.org/ds003498/sub-01/ses-interictalsleep/ieeg/sub-01_ses-interictalsleep_run-01_ieeg.vhdr (1.2s)
+  ✓  58 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003506 (set) from https://cdn.eegdash.org/ds003506/sub-001/ses-01/eeg/sub-001_ses-01_task-ReinforcementLearning_eeg.set (703ms)
+  ✓  59 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003509 (set) from https://cdn.eegdash.org/ds003509/sub-001/ses-01/eeg/sub-001_ses-01_task-SimonConflict_eeg.set (732ms)
+  ✓  60 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003516 (set) from https://cdn.eegdash.org/ds003516/sub-001/eeg/sub-001_task-AttendedSpeakerParadigmOwnName_eeg.set (436ms)
+  ✓  61 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003517 (set) from https://cdn.eegdash.org/ds003517/sub-001/eeg/sub-001_task-ContinuousVideoGamePlay_run-01_eeg.set (494ms)
+  ✓  62 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003518 (set) from https://cdn.eegdash.org/ds003518/sub-001/ses-01/eeg/sub-001_ses-01_task-SimonConflict_eeg.set (474ms)
+  ✓  63 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003519 (set) from https://cdn.eegdash.org/ds003519/sub-001/ses-01/eeg/sub-001_ses-01_task-VisualWorkingMemory_eeg.set (693ms)
+  ✓  64 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003522 (set) from https://cdn.eegdash.org/ds003522/sub-001/ses-01/eeg/sub-001_ses-01_task-ThreeStimAuditoryOddball_eeg.set (431ms)
+  ✓  65 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003523 (set) from https://cdn.eegdash.org/ds003523/sub-001/ses-01/eeg/sub-001_ses-01_task-VisualWorkingMemory_eeg.set (435ms)
+  ✓  66 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003555 (edf) from https://cdn.eegdash.org/ds003555/sub-01/ses-01/eeg/sub-01_ses-01_task-hfo_eeg.edf (1.2s)
+  ✘  40 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003078 (set) from https://cdn.eegdash.org/ds003078/sub-01/ieeg/sub-01_task-PROBE_run-11_ieeg.set (1.0m)
+  ✓  68 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003602 (set) from https://cdn.eegdash.org/ds003602/sub-001/eeg/sub-001_task-APA1_run-1_eeg.set (1.2s)
+  ✓  69 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003626 (bdf) from https://cdn.eegdash.org/ds003626/sub-01/ses-01/eeg/sub-01_ses-01_task-innerspeech_eeg.bdf (4.2s)
+  ✓  70 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003638 (bdf) from https://cdn.eegdash.org/ds003638/sub-001/eeg/sub-001_task-5CCPTPSTPRBP_eeg.bdf (479ms)
+  ✘  46 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003343 (bdf) from https://cdn.eegdash.org/ds003343/sub-13/ses-01/eeg/sub-13_ses-01_task-fps_run-01_eeg.bdf (1.0m)
+  ✓  72 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003655 (set) from https://cdn.eegdash.org/ds003655/sub-001/eeg/sub-001_task-VerbalWorkingMemory_eeg.set (467ms)
+  ✘  55 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003483 (fif) from https://cdn.eegdash.org/ds003483/sub-009/ses-1/meg/sub-009_ses-1_task-deduction_run-1_meg.fif (1.0m)
+  ✘  67 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003570 (set) from https://cdn.eegdash.org/ds003570/sub-001/eeg/sub-001_task-AuditoryOddballChords_eeg.set (1.0m)
+  ✓  75 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003688 (vhdr) from https://cdn.eegdash.org/ds003688/sub-01/ses-iemu/ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vhdr (1.2s)
+  ✓  76 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003690 (set) from https://cdn.eegdash.org/ds003690/sub-AB4/eeg/sub-AB4_task-gonogo_run-1_eeg.set (2.2s)
+  ✘  71 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003645 (set) from https://cdn.eegdash.org/ds003645/sub-002/eeg/sub-002_task-FacePerception_run-1_eeg.set (1.0m)
+  ✓  73 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003670 (set) from https://cdn.eegdash.org/ds003670/sub-001/ses-01/eeg/sub-001_ses-01_task-GXtESCTT_eeg.set (48.2s)
+  ✘  74 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003682 (fif) from https://cdn.eegdash.org/ds003682/sub-001/ses-01/meg/sub-001_ses-01_task-AversiveLearningReplay_run-01_meg.fif (1.0m)
+  ✓  80 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003710 (vhdr) from https://cdn.eegdash.org/ds003710/sub-01/ses-1/eeg/sub-01_ses-1_task-appleseedexample_eeg.vhdr (1.2s)
+  ✓  81 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003739 (set) from https://cdn.eegdash.org/ds003739/sub-001/ses-01/eeg/sub-001_ses-01_task-pullstand_eeg.set (423ms)
+  ✘  77 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003694 (fif) from https://cdn.eegdash.org/ds003694/sub-01/meg/sub-01_task-MEM_run-01_meg.fif (1.0m)
+  ✓  83 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003753 (set) from https://cdn.eegdash.org/ds003753/sub-001/eeg/sub-001_task-ProbabilisticSelection_eeg.set (474ms)
+  ✘  78 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003702 (vhdr) from https://cdn.eegdash.org/ds003702/sub-01/eeg/sub-01_task-SocialMemoryCuing_eeg.vhdr (1.0m)
+  ✓  85 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003768 (vhdr) from https://cdn.eegdash.org/ds003768/sub-01/eeg/sub-01_task-rest_run-1_eeg.vhdr (1.2s)
+  ✓  86 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003774 (set) from https://cdn.eegdash.org/ds003774/sub-001/ses-01/eeg/sub-001_ses-01_task-MusicListening_run-1_eeg.set (726ms)
+  ✓  87 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003775 (edf) from https://cdn.eegdash.org/ds003775/sub-001/ses-t1/eeg/sub-001_ses-t1_task-resteyesc_eeg.edf (1.2s)
+  ✓  88 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003801 (set) from https://cdn.eegdash.org/ds003801/sub-001/eeg/sub-001_task-NeuralTrackingToGo_eeg.set (421ms)
+  ✓  89 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003805 (set) from https://cdn.eegdash.org/ds003805/sub-1/eeg/sub-1_task-MultisensoryGammaEntrainment_eeg.set (1.2s)
+  ✓  90 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003810 (edf) from https://cdn.eegdash.org/ds003810/sub-02/eeg/sub-02_task-MIvsRest_run-0_eeg.edf (1.2s)
+  ✓  84 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003766 (set) from https://cdn.eegdash.org/ds003766/sub-01/eeg/sub-01_task-foodchoice_eeg.set (16.2s)
+  ✘  79 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003703 (fif) from https://cdn.eegdash.org/ds003703/sub-a68d5xp5/meg/sub-a68d5xp5_task-listeningToSpeech_run-01_meg.fif (1.0m)
+  ✘  82 [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003751 (set) from https://cdn.eegdash.org/ds003751/sub-mit113/eeg/sub-mit113_task-Emotion_eeg.set (1.0m)
+
+
+  1) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002001 (ds) from https://cdn.eegdash.org/ds002001/sub-0001/ses-20140502/meg/sub-0001_ses-20140502_task-rivalry_run-02_meg.ds/sub-0001_ses-20140502_task-rivalry_run-02_meg.meg4 
+
+    Error: ds002001: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds002001: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--9f549-ask-rivalry-run-02-meg-meg4-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--9f549-ask-rivalry-run-02-meg-meg4-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--9f549-ask-rivalry-run-02-meg-meg4-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--9f549-ask-rivalry-run-02-meg-meg4-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002158 (vhdr) from https://cdn.eegdash.org/ds002158/sub-02/ses-001/eeg/sub-02_ses-001_task-main_run-001_eeg.vhdr 
+
+    Error: ds002158: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds002158: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--85817--task-main-run-001-eeg-vhdr-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--85817--task-main-run-001-eeg-vhdr-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--85817--task-main-run-001-eeg-vhdr-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--85817--task-main-run-001-eeg-vhdr-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002181 (set) from https://cdn.eegdash.org/ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set 
+
+    Error: ds002181: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds002181: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--c7112--1473-task-Baseline-eeg-set-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--c7112--1473-task-Baseline-eeg-set-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--c7112--1473-task-Baseline-eeg-set-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--c7112--1473-task-Baseline-eeg-set-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002312 (fif) from https://cdn.eegdash.org/ds002312/sub-A0023/meg/sub-A0023_task-OcularLDT_meg.fif 
+
+    Error: ds002312: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds002312: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--b65be-0023-task-OcularLDT-meg-fif-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--b65be-0023-task-OcularLDT-meg-fif-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--b65be-0023-task-OcularLDT-meg-fif-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--b65be-0023-task-OcularLDT-meg-fif-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002578 (set) from https://cdn.eegdash.org/ds002578/sub-001/eeg/sub-001_task-attention_eeg.set 
+
+    Error: ds002578: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds002578: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--76c82--001-task-attention-eeg-set-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--76c82--001-task-attention-eeg-set-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--76c82--001-task-attention-eeg-set-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--76c82--001-task-attention-eeg-set-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002712 (fif) from https://cdn.eegdash.org/ds002712/sub-01/meg/sub-01_task-numbersletters_run-11_meg.fif 
+
+    Error: ds002712: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds002712: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--2accd-mbersletters-run-11-meg-fif-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--2accd-mbersletters-run-11-meg-fif-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--2accd-mbersletters-run-11-meg-fif-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--2accd-mbersletters-run-11-meg-fif-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  7) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002718 (set) from https://cdn.eegdash.org/ds002718/sub-002/eeg/sub-002_task-FaceRecognition_eeg.set 
+
+    Error: ds002718: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds002718: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--161bc-ask-FaceRecognition-eeg-set-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--161bc-ask-FaceRecognition-eeg-set-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--161bc-ask-FaceRecognition-eeg-set-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--161bc-ask-FaceRecognition-eeg-set-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  8) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002885 (fif) from https://cdn.eegdash.org/ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif 
+
+    Error: ds002885: console/page errors
+    console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)
+        at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoHaveLength[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected length: [32m0[39m
+    Received length: [31m1[39m
+    Received array:  [31m["console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)[39m
+    [31m    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)"][39m
+        at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:324:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--29120-eg-sub-01-task-DSMW-meg-fif-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--29120-eg-sub-01-task-DSMW-meg-fif-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--29120-eg-sub-01-task-DSMW-meg-fif-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--29120-eg-sub-01-task-DSMW-meg-fif-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  9) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003078 (set) from https://cdn.eegdash.org/ds003078/sub-01/ieeg/sub-01_task-PROBE_run-11_ieeg.set 
+
+    Error: ds003078: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003078: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--cdf57--task-PROBE-run-11-ieeg-set-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--cdf57--task-PROBE-run-11-ieeg-set-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--cdf57--task-PROBE-run-11-ieeg-set-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--cdf57--task-PROBE-run-11-ieeg-set-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  10) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003343 (bdf) from https://cdn.eegdash.org/ds003343/sub-13/ses-01/eeg/sub-13_ses-01_task-fps_run-01_eeg.bdf 
+
+    Error: ds003343: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003343: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--6c6a7--01-task-fps-run-01-eeg-bdf-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--6c6a7--01-task-fps-run-01-eeg-bdf-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--6c6a7--01-task-fps-run-01-eeg-bdf-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--6c6a7--01-task-fps-run-01-eeg-bdf-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  11) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003352 (fif) from https://cdn.eegdash.org/ds003352/sub-1/ses-01/meg/sub-1_ses-01_task-ColorSpirals_run-00_meg.fif 
+
+    Error: ds003352: console/page errors
+    console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)
+        at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)
+
+    [2mexpect([22m[31mreceived[39m[2m).[22mtoHaveLength[2m([22m[32mexpected[39m[2m)[22m
+
+    Expected length: [32m0[39m
+    Received length: [31m1[39m
+    Received array:  [31m["console.error: Error: fiff: this file has no FIFFB_RAW_DATA block (events/projections/annotations only)[39m
+    [31m    at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)"][39m
+        at worker.onmessage (http://localhost:8011/viewer.js?v=5:478:33)
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:324:11
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--839b1-ColorSpirals-run-00-meg-fif-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--839b1-ColorSpirals-run-00-meg-fif-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--839b1-ColorSpirals-run-00-meg-fif-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--839b1-ColorSpirals-run-00-meg-fif-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  12) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003483 (fif) from https://cdn.eegdash.org/ds003483/sub-009/ses-1/meg/sub-009_ses-1_task-deduction_run-1_meg.fif 
+
+    Error: ds003483: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003483: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--9da78-ask-deduction-run-1-meg-fif-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--9da78-ask-deduction-run-1-meg-fif-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--9da78-ask-deduction-run-1-meg-fif-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--9da78-ask-deduction-run-1-meg-fif-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  13) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003570 (set) from https://cdn.eegdash.org/ds003570/sub-001/eeg/sub-001_task-AuditoryOddballChords_eeg.set 
+
+    Error: ds003570: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003570: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--742c4-ditoryOddballChords-eeg-set-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--742c4-ditoryOddballChords-eeg-set-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--742c4-ditoryOddballChords-eeg-set-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--742c4-ditoryOddballChords-eeg-set-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  14) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003645 (set) from https://cdn.eegdash.org/ds003645/sub-002/eeg/sub-002_task-FacePerception_run-1_eeg.set 
+
+    Error: ds003645: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003645: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--d18de-acePerception-run-1-eeg-set-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--d18de-acePerception-run-1-eeg-set-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--d18de-acePerception-run-1-eeg-set-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--d18de-acePerception-run-1-eeg-set-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  15) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003682 (fif) from https://cdn.eegdash.org/ds003682/sub-001/ses-01/meg/sub-001_ses-01_task-AversiveLearningReplay_run-01_meg.fif 
+
+    Error: ds003682: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003682: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--5c14c-arningReplay-run-01-meg-fif-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--5c14c-arningReplay-run-01-meg-fif-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--5c14c-arningReplay-run-01-meg-fif-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--5c14c-arningReplay-run-01-meg-fif-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  16) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003694 (fif) from https://cdn.eegdash.org/ds003694/sub-01/meg/sub-01_task-MEM_run-01_meg.fif 
+
+    Error: ds003694: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003694: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--c38df--01-task-MEM-run-01-meg-fif-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--c38df--01-task-MEM-run-01-meg-fif-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--c38df--01-task-MEM-run-01-meg-fif-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--c38df--01-task-MEM-run-01-meg-fif-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  17) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003702 (vhdr) from https://cdn.eegdash.org/ds003702/sub-01/eeg/sub-01_task-SocialMemoryCuing_eeg.vhdr 
+
+    Error: ds003702: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003702: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--13ef5--SocialMemoryCuing-eeg-vhdr-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--13ef5--SocialMemoryCuing-eeg-vhdr-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--13ef5--SocialMemoryCuing-eeg-vhdr-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--13ef5--SocialMemoryCuing-eeg-vhdr-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  18) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003703 (fif) from https://cdn.eegdash.org/ds003703/sub-a68d5xp5/meg/sub-a68d5xp5_task-listeningToSpeech_run-01_meg.fif 
+
+    Error: ds003703: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003703: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--e4266-ningToSpeech-run-01-meg-fif-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--e4266-ningToSpeech-run-01-meg-fif-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--e4266-ningToSpeech-run-01-meg-fif-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--e4266-ningToSpeech-run-01-meg-fif-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19) [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003751 (set) from https://cdn.eegdash.org/ds003751/sub-mit113/eeg/sub-mit113_task-Emotion_eeg.set 
+
+    Error: ds003751: stage-caption never visible
+
+    [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator:  locator('#stage-caption')
+    Expected: visible
+    Received: hidden
+    Timeout:  60000ms
+
+    Call log:
+    [2m  - ds003751: stage-caption never visible with timeout 60000ms[22m
+    [2m  - waiting for locator('#stage-caption')[22m
+    [2m    64 × locator resolved to <div hidden="" id="stage-caption" class="stage-caption"></div>[22m
+    [2m       - unexpected value "hidden"[22m
+
+
+      279 |         page.locator('#stage-caption'),
+      280 |         `${c.dataset_id}: stage-caption never visible`,
+    > 281 |       ).toBeVisible({ timeout: 60_000 });
+          |         ^
+      282 |
+      283 |       row.render_ms = Date.now() - t0;
+      284 |
+        at /Users/bruaristimunha/Projects/eegdash-viewer/tests/e2e/acceptance/audit-loadable.spec.mjs:281:9
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--4fbda-mit113-task-Emotion-eeg-set-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/acceptance-audit-loadable--4fbda-mit113-task-Emotion-eeg-set-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/acceptance-audit-loadable--4fbda-mit113-task-Emotion-eeg-set-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/acceptance-audit-loadable--4fbda-mit113-task-Emotion-eeg-set-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  19 failed
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002001 (ds) from https://cdn.eegdash.org/ds002001/sub-0001/ses-20140502/meg/sub-0001_ses-20140502_task-rivalry_run-02_meg.ds/sub-0001_ses-20140502_task-rivalry_run-02_meg.meg4 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002158 (vhdr) from https://cdn.eegdash.org/ds002158/sub-02/ses-001/eeg/sub-02_ses-001_task-main_run-001_eeg.vhdr 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002181 (set) from https://cdn.eegdash.org/ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002312 (fif) from https://cdn.eegdash.org/ds002312/sub-A0023/meg/sub-A0023_task-OcularLDT_meg.fif 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002578 (set) from https://cdn.eegdash.org/ds002578/sub-001/eeg/sub-001_task-attention_eeg.set 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002712 (fif) from https://cdn.eegdash.org/ds002712/sub-01/meg/sub-01_task-numbersletters_run-11_meg.fif 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002718 (set) from https://cdn.eegdash.org/ds002718/sub-002/eeg/sub-002_task-FaceRecognition_eeg.set 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds002885 (fif) from https://cdn.eegdash.org/ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003078 (set) from https://cdn.eegdash.org/ds003078/sub-01/ieeg/sub-01_task-PROBE_run-11_ieeg.set 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003343 (bdf) from https://cdn.eegdash.org/ds003343/sub-13/ses-01/eeg/sub-13_ses-01_task-fps_run-01_eeg.bdf 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003352 (fif) from https://cdn.eegdash.org/ds003352/sub-1/ses-01/meg/sub-1_ses-01_task-ColorSpirals_run-00_meg.fif 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003483 (fif) from https://cdn.eegdash.org/ds003483/sub-009/ses-1/meg/sub-009_ses-1_task-deduction_run-1_meg.fif 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003570 (set) from https://cdn.eegdash.org/ds003570/sub-001/eeg/sub-001_task-AuditoryOddballChords_eeg.set 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003645 (set) from https://cdn.eegdash.org/ds003645/sub-002/eeg/sub-002_task-FacePerception_run-1_eeg.set 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003682 (fif) from https://cdn.eegdash.org/ds003682/sub-001/ses-01/meg/sub-001_ses-01_task-AversiveLearningReplay_run-01_meg.fif 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003694 (fif) from https://cdn.eegdash.org/ds003694/sub-01/meg/sub-01_task-MEM_run-01_meg.fif 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003702 (vhdr) from https://cdn.eegdash.org/ds003702/sub-01/eeg/sub-01_task-SocialMemoryCuing_eeg.vhdr 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003703 (fif) from https://cdn.eegdash.org/ds003703/sub-a68d5xp5/meg/sub-a68d5xp5_task-listeningToSpeech_run-01_meg.fif 
+    [chromium] › tests/e2e/acceptance/audit-loadable.spec.mjs:246:3 › loads ds003751 (set) from https://cdn.eegdash.org/ds003751/sub-mit113/eeg/sub-mit113_task-Emotion_eeg.set 
+  71 passed (6.2m)
+END 2026-05-21T15:05:24Z

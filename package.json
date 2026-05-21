@@ -16,6 +16,7 @@
     "test:acceptance": "playwright test tests/e2e/acceptance/ --project=chromium",
     "test:audit-reality": "playwright test tests/e2e/acceptance/audit-loadable.spec.mjs --project=chromium",
     "test:audit-reality:soft": "AUDIT_SOFT_FAIL=1 playwright test tests/e2e/acceptance/audit-loadable.spec.mjs --project=chromium",
+    "test:audit-reality:full": "AUDIT_FULL=1 playwright test --config=playwright.audit-full.config.mjs tests/e2e/acceptance/audit-loadable.spec.mjs",
     "report:audit-reality": "node scripts/audit-browser-reality-report.mjs",
     "test:perf": "node bench/check-regression.mjs",
     "test:typecheck": "tsc --noEmit -p jsconfig.json",
