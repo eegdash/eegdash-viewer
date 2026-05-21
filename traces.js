@@ -123,21 +123,24 @@
     return dims;
   }
 
-  // meanStd cache keyed by channel-array reference identity. Trace data
-  // is immutable per pan (readWindow returns fresh subarrays); a draw
-  // that's only changing gain reuses the previous stats free.
-  const _statsCache = new WeakMap();   // Float32Array → { mean, std, n }
+  // meanStd: single-pass mean + std. The previous WeakMap cache keyed by
+  // Float32Array identity had ~zero hit rate in practice — readWindow
+  // returns fresh subarrays per pan, so references never repeat across
+  // pans (only same-frame redraws would hit, and they're already fast).
+  // The cache overhead (WeakMap get/set + object alloc) cost more than
+  // it saved, so we dropped it. Hoisting `v = data[i]` halves the index
+  // reads in the hot loop.
   function meanStd(data, n) {
     if (n <= 0) return { mean: 0, std: 0 };
-    const cached = _statsCache.get(data);
-    if (cached && cached.n === n) return cached;
     let s = 0, ss = 0;
-    for (let i = 0; i < n; i++) { s += data[i]; ss += data[i] * data[i]; }
+    for (let i = 0; i < n; i++) {
+      const v = data[i];
+      s += v;
+      ss += v * v;
+    }
     const mean = s / n;
     const variance = Math.max(0, ss / n - mean * mean);
-    const out = { mean, std: Math.sqrt(variance), n };
-    _statsCache.set(data, out);
-    return out;
+    return { mean, std: Math.sqrt(variance), n };
   }
 
   // When `transparent` is true, leave the canvas pixel buffer fully
