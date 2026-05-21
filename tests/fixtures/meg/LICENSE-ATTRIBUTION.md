@@ -78,6 +78,37 @@ the time of authorship.
     and the reader probes for all known variants when the caller
     passes the bundle directory.
 
+## itab-tiny.raw / itab-tiny.mhd (synthesised, CC0)
+
+`itab-tiny.raw` + `itab-tiny.mhd` are synthesised by
+`scripts/make-itab-fixture.mjs` (this repo) — no upstream data. Released
+under CC0. Binary layout follows the ITAB (Chieti ARGOS) MEG format
+documented in FieldTrip's `fileio/private/read_itab_mhd.m`
+(BSD-3-clause), with field offsets cross-checked against the vendored
+source at `/tmp/read_itab_mhd.m` at the time of authorship.
+
+- 4 channels (3 MEG + 1 aux), 500 samples @ 1000 Hz = 0.5 s recording.
+- `data_type` = 5 (LE_FLOAT — Intel float32 little-endian), 4 bytes/sample.
+- Per-channel deterministic sine waves at increasing frequency.
+- `isns` = 153 (ARGOS-153 helmet sensor code) for parity with real
+  Chieti-lab recordings. The reader doesn't gate on it.
+- The `.raw` carries the full binary header (87,040 bytes — compressed
+  vs. the 297,664-byte real-world header by keeping only `nchan`
+  channel records instead of the full 640-slot array) followed by 8 KB
+  of float32 LE sample data.
+- The `.mhd` sidecar is a byte-for-byte copy of the header prefix.
+  Real ITAB sidecars may carry post-acquisition edits (sensor refits,
+  marker additions); the reader cross-checks scalars and warns on
+  disagreement rather than failing.
+
+The reader rejects:
+- Files without the ASCII signature `FORMAT: ATB-BIOMAGDATA` at byte 0
+  (so a misrouted EDF / EEGLAB doesn't decode as ITAB garbage).
+- The legacy `[HeaderType]` text-format variant (out of scope for the
+  initial port; rejected with a clean "format not supported" error).
+- Big-endian `data_type` variants (0..2 = HP-PA legacy, 6..7 = HP-A900,
+  8 = ASCII) — vanishingly rare in BIDS-MEG datasets.
+
 ## kriss-tiny.kdf (synthesised, CC0)
 
 `kriss-tiny.kdf` is synthesised by `scripts/make-kriss-fixture.mjs`
