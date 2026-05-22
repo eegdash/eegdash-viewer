@@ -76,6 +76,9 @@
 cc6e799 feat(http-range): retry on transient CDN 502/503/504
 8f08a0e test(audit): raise timeouts to accommodate the cap-raise wins
 a7db05f data(audit): remove macOS AppleDouble entry from one-per-dataset manifest
+6a76217 docs(session): full session arc — 'be more generous' pass
+aa3ef21 fix(kit): return bids_channels:null instead of undefined
+262b891 feat(http-range): treat any non-2xx on optional sidecars as missing
 ```
 
 ## What can't be improved client-side
