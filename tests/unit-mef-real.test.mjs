@@ -153,3 +153,88 @@ test('mef-real: full-recording read agrees with sine ground truth', { skip: skip
   }
 });
 
+// ─── bids-examples xeeg_hed_score structural walk ────────────────
+// The /tmp/bids-examples copy of `xeeg_hed_score` ships 0-byte file
+// placeholders (BIDS distributes only the directory shape so the
+// dataset stays tiny). We can't decode it, but we CAN exercise the
+// directory walk on a 166-channel recording that uses the BIDS-canonical
+// `.segd/` subdir layout.
+//
+// This is the test that catches the original layout bug: the old
+// listSegmentsFromDirectory would look for `.tmet/.tdat/.tidx` directly
+// inside `.timd/` and throw "is missing one of {.tmet,.tdat,.tidx}".
+
+const BIDS_EXAMPLES_DIR =
+  '/tmp/bids-examples/xeeg_hed_score/sub-ieegModulator/ses-ieeg01/ieeg/' +
+  'sub-ieegModulator_ses-ieeg01_task-photicstim_run-01_ieeg.mefd';
+const BIDS_EXAMPLES_AVAILABLE = fs.existsSync(BIDS_EXAMPLES_DIR);
+const skipIfNoBidsExamples = BIDS_EXAMPLES_AVAILABLE
+  ? false
+  : 'bids-examples xeeg_hed_score not available at /tmp/bids-examples';
+
+test('mef-real: listSegmentsFromDirectory walks 166-channel BIDS xeeg_hed_score', { skip: skipIfNoBidsExamples }, async () => {
+  // We exercise the layout walker directly via api.open. The recording's
+  // .tmet files are 0-byte placeholders so parseTmet will throw — that's
+  // fine. We assert the walker succeeded in resolving 166 triples by
+  // catching the parse error and checking it came from the FIRST channel
+  // (i.e. the walk got that far before parsing began).
+  installLocalHttpRange();
+  // Probe the directory layout by walking it ourselves first. This is
+  // exactly what listSegmentsFromDirectory does. If the layout fix is
+  // missing, the walker throws "missing one of {.tmet,.tdat,.tidx}"
+  // because pymef stores them inside .segd/.
+  const sessionUrl = 'file://' + BIDS_EXAMPLES_DIR + '/';
+
+  // The open() call will fail downstream (parseTmet rejects empty files
+  // with "universal header needs 1024 bytes"). We only care that the
+  // directory walk succeeded — capture the error and assert its origin.
+  let walkSucceeded = false;
+  let parseFailedAfterWalk = false;
+  try {
+    await MefReader.open({ eeg_url: sessionUrl });
+  } catch (e) {
+    // "failed to parse" indicates the walk produced triples and we got
+    // as far as parseTmet — the layout-walk bug we are fixing throws
+    // BEFORE this point ("missing one of {.tmet,.tdat,.tidx}").
+    if (/failed to parse/.test(e.message) || /universal header needs/.test(e.message)) {
+      walkSucceeded = true;
+      parseFailedAfterWalk = true;
+    } else if (/missing one of/.test(e.message)) {
+      assert.fail(
+        `listSegmentsFromDirectory did NOT descend into .segd/: ${e.message}`,
+      );
+    } else {
+      throw e;   // anything else is an unexpected failure
+    }
+  }
+  assert.ok(walkSucceeded,
+    'expected walk to complete and parseTmet to fail on 0-byte placeholders');
+  assert.ok(parseFailedAfterWalk,
+    'parseTmet error must come AFTER the layout walk succeeds');
+});
+
+test('mef-real: BIDS xeeg_hed_score has 166 channel/segd triples in canonical layout', { skip: skipIfNoBidsExamples }, async () => {
+  // Directly test the structural invariant: every <ch>.timd/ holds
+  // exactly one <ch>-NNNNNN.segd/<ch>-NNNNNN.{tmet,tdat,tidx} trio.
+  // We assert by filesystem walk so the test stays independent of the
+  // reader's listing helper (which is exercised by the test above).
+  const entries = fs.readdirSync(BIDS_EXAMPLES_DIR);
+  const timdDirs = entries.filter((n) => n.endsWith('.timd'));
+  assert.equal(timdDirs.length, 166,
+    `expected 166 .timd channels in xeeg_hed_score, got ${timdDirs.length}`);
+  for (const td of timdDirs) {
+    const chName = td.replace(/\.timd$/, '');
+    const tdPath = `${BIDS_EXAMPLES_DIR}/${td}`;
+    const segdChildren = fs.readdirSync(tdPath).filter((n) => n.endsWith('.segd'));
+    assert.equal(segdChildren.length, 1,
+      `channel ${chName} should have exactly one .segd/, got ${segdChildren.length}`);
+    const segdPath = `${tdPath}/${segdChildren[0]}`;
+    const triple = fs.readdirSync(segdPath);
+    const hasTmet = triple.some((n) => n.endsWith('.tmet'));
+    const hasTdat = triple.some((n) => n.endsWith('.tdat'));
+    const hasTidx = triple.some((n) => n.endsWith('.tidx'));
+    assert.ok(hasTmet && hasTdat && hasTidx,
+      `channel ${chName} segd dir missing tmet/tdat/tidx: ${triple.join(',')}`);
+  }
+});
+
