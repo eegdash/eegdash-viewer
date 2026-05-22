@@ -1,0 +1,914 @@
+{
+  "timestamp": "2026-05-22T09:02:38.084Z",
+  "seed": 43,
+  "full": false,
+  "catalogTotal": 800,
+  "sampled": 100,
+  "verdictCounts": {
+    "loadable": 87,
+    "no-recording-found": 13
+  },
+  "byDatatype": {
+    "eeg": {
+      "loadable": 69,
+      "total": 75
+    },
+    "meg": {
+      "loadable": 15,
+      "total": 22
+    },
+    "ieeg": {
+      "loadable": 3,
+      "total": 3
+    }
+  },
+  "results": [
+    {
+      "dataset_id": "ds003801",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003801/sub-001/eeg/sub-001_task-NeuralTrackingToGo_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003801/sub-001/eeg/sub-001_task-NeuralTrackingToGo_eeg.set"
+    },
+    {
+      "dataset_id": "ds002712",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "01",
+      "key": "ds002712/sub-01/meg/sub-01_task-numbersletters_run-11_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds002712/sub-01/meg/sub-01_task-numbersletters_run-11_meg.fif"
+    },
+    {
+      "dataset_id": "ds003690",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "AB4",
+      "key": "ds003690/sub-AB4/eeg/sub-AB4_task-gonogo_run-1_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003690/sub-AB4/eeg/sub-AB4_task-gonogo_run-1_eeg.set"
+    },
+    {
+      "dataset_id": "ds003568",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "meg"
+      ],
+      "triedSub": "24185"
+    },
+    {
+      "dataset_id": "ds001971",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds001971/sub-001/eeg/sub-001_task-AudioCueWalkingStudy_run-01_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds001971/sub-001/eeg/sub-001_task-AudioCueWalkingStudy_run-01_eeg.set"
+    },
+    {
+      "dataset_id": "ds000246",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "emptyroom",
+      "key": "ds000246/sub-emptyroom/meg/sub-emptyroom_task-noise_run-01_meg.ds/sub-emptyroom_task-noise_run-01_meg.meg4",
+      "ext": "ds",
+      "cdn_url": "https://cdn.eegdash.org/ds000246/sub-emptyroom/meg/sub-emptyroom_task-noise_run-01_meg.ds/sub-emptyroom_task-noise_run-01_meg.meg4"
+    },
+    {
+      "dataset_id": "ds003458",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003458/sub-001/eeg/sub-001_task-ThreeArmedBandit_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003458/sub-001/eeg/sub-001_task-ThreeArmedBandit_eeg.set"
+    },
+    {
+      "dataset_id": "ds002181",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "1473",
+      "key": "ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set"
+    },
+    {
+      "dataset_id": "ds003688",
+      "verdict": "loadable",
+      "datatype": "ieeg",
+      "sub": "01",
+      "key": "ds003688/sub-01/ses-iemu/ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds003688/sub-01/ses-iemu/ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vhdr"
+    },
+    {
+      "dataset_id": "ds003104",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "meg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds002578",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds002578/sub-001/eeg/sub-001_task-attention_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds002578/sub-001/eeg/sub-001_task-attention_eeg.set"
+    },
+    {
+      "dataset_id": "ds003690",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "AB4",
+      "key": "ds003690/sub-AB4/eeg/sub-AB4_task-gonogo_run-1_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003690/sub-AB4/eeg/sub-AB4_task-gonogo_run-1_eeg.set"
+    },
+    {
+      "dataset_id": "ds003801",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003801/sub-001/eeg/sub-001_task-NeuralTrackingToGo_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003801/sub-001/eeg/sub-001_task-NeuralTrackingToGo_eeg.set"
+    },
+    {
+      "dataset_id": "ds002158",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "02",
+      "key": "ds002158/sub-02/ses-001/eeg/sub-02_ses-001_task-main_run-001_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds002158/sub-02/ses-001/eeg/sub-02_ses-001_task-main_run-001_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds003505",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "eeg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds003516",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003516/sub-001/eeg/sub-001_task-AttendedSpeakerParadigmOwnName_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003516/sub-001/eeg/sub-001_task-AttendedSpeakerParadigmOwnName_eeg.set"
+    },
+    {
+      "dataset_id": "ds003421",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds003421/sub-01/ses-Audio/eeg/sub-01_ses-Audio_task-PicturesNaming_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds003421/sub-01/ses-Audio/eeg/sub-01_ses-Audio_task-PicturesNaming_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds003768",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds003768/sub-01/eeg/sub-01_task-rest_run-1_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds003768/sub-01/eeg/sub-01_task-rest_run-1_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds002550",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "meg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds002578",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds002578/sub-001/eeg/sub-001_task-attention_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds002578/sub-001/eeg/sub-001_task-attention_eeg.set"
+    },
+    {
+      "dataset_id": "ds002001",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "0001",
+      "key": "ds002001/sub-0001/ses-20140502/meg/sub-0001_ses-20140502_task-rivalry_run-02_meg.ds/sub-0001_ses-20140502_task-rivalry_run-02_meg.meg4",
+      "ext": "ds",
+      "cdn_url": "https://cdn.eegdash.org/ds002001/sub-0001/ses-20140502/meg/sub-0001_ses-20140502_task-rivalry_run-02_meg.ds/sub-0001_ses-20140502_task-rivalry_run-02_meg.meg4"
+    },
+    {
+      "dataset_id": "ds003509",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003509/sub-001/ses-01/eeg/sub-001_ses-01_task-SimonConflict_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003509/sub-001/ses-01/eeg/sub-001_ses-01_task-SimonConflict_eeg.set"
+    },
+    {
+      "dataset_id": "ds002712",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "01",
+      "key": "ds002712/sub-01/meg/sub-01_task-numbersletters_run-11_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds002712/sub-01/meg/sub-01_task-numbersletters_run-11_meg.fif"
+    },
+    {
+      "dataset_id": "ds003458",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003458/sub-001/eeg/sub-001_task-ThreeArmedBandit_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003458/sub-001/eeg/sub-001_task-ThreeArmedBandit_eeg.set"
+    },
+    {
+      "dataset_id": "ds003474",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003474/sub-001/eeg/sub-001_task-ProbabilisticSelection_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003474/sub-001/eeg/sub-001_task-ProbabilisticSelection_eeg.set"
+    },
+    {
+      "dataset_id": "ds003703",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "a68d5xp5",
+      "key": "ds003703/sub-a68d5xp5/meg/sub-a68d5xp5_task-listeningToSpeech_run-01_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds003703/sub-a68d5xp5/meg/sub-a68d5xp5_task-listeningToSpeech_run-01_meg.fif"
+    },
+    {
+      "dataset_id": "ds002181",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "1473",
+      "key": "ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set"
+    },
+    {
+      "dataset_id": "ds003768",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds003768/sub-01/eeg/sub-01_task-rest_run-1_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds003768/sub-01/eeg/sub-01_task-rest_run-1_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds003766",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds003766/sub-01/eeg/sub-01_task-foodchoice_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003766/sub-01/eeg/sub-01_task-foodchoice_eeg.set"
+    },
+    {
+      "dataset_id": "ds003655",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003655/sub-001/eeg/sub-001_task-VerbalWorkingMemory_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003655/sub-001/eeg/sub-001_task-VerbalWorkingMemory_eeg.set"
+    },
+    {
+      "dataset_id": "ds003703",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "a68d5xp5",
+      "key": "ds003703/sub-a68d5xp5/meg/sub-a68d5xp5_task-listeningToSpeech_run-01_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds003703/sub-a68d5xp5/meg/sub-a68d5xp5_task-listeningToSpeech_run-01_meg.fif"
+    },
+    {
+      "dataset_id": "ds003739",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003739/sub-001/ses-01/eeg/sub-001_ses-01_task-pullstand_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003739/sub-001/ses-01/eeg/sub-001_ses-01_task-pullstand_eeg.set"
+    },
+    {
+      "dataset_id": "ds003478",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003478/sub-001/eeg/sub-001_task-Rest_run-01_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003478/sub-001/eeg/sub-001_task-Rest_run-01_eeg.set"
+    },
+    {
+      "dataset_id": "ds003690",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "AB4",
+      "key": "ds003690/sub-AB4/eeg/sub-AB4_task-gonogo_run-1_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003690/sub-AB4/eeg/sub-AB4_task-gonogo_run-1_eeg.set"
+    },
+    {
+      "dataset_id": "ds002761",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "311",
+      "key": "ds002761/sub-311/meg/sub-311_task-loc_run-01_meg.ds/sub-311_task-loc_run-01_meg.meg4",
+      "ext": "ds",
+      "cdn_url": "https://cdn.eegdash.org/ds002761/sub-311/meg/sub-311_task-loc_run-01_meg.ds/sub-311_task-loc_run-01_meg.meg4"
+    },
+    {
+      "dataset_id": "ds002885",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "01",
+      "key": "ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif"
+    },
+    {
+      "dataset_id": "ds003766",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds003766/sub-01/eeg/sub-01_task-foodchoice_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003766/sub-01/eeg/sub-01_task-foodchoice_eeg.set"
+    },
+    {
+      "dataset_id": "ds002908",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "01",
+      "key": "ds002908/sub-01/ses-1/meg/sub-01_ses-1_task-mouse_meg.ds/sub-01_ses-1_task-mouse_meg.meg4",
+      "ext": "ds",
+      "cdn_url": "https://cdn.eegdash.org/ds002908/sub-01/ses-1/meg/sub-01_ses-1_task-mouse_meg.ds/sub-01_ses-1_task-mouse_meg.meg4"
+    },
+    {
+      "dataset_id": "ds002218",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds002218/sub-001/eeg/sub-001_task-Experiment_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds002218/sub-001/eeg/sub-001_task-Experiment_eeg.set"
+    },
+    {
+      "dataset_id": "ds003670",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003670/sub-001/ses-01/eeg/sub-001_ses-01_task-GXtESCTT_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003670/sub-001/ses-01/eeg/sub-001_ses-01_task-GXtESCTT_eeg.set"
+    },
+    {
+      "dataset_id": "ds003645",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "002",
+      "key": "ds003645/sub-002/eeg/sub-002_task-FacePerception_run-1_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003645/sub-002/eeg/sub-002_task-FacePerception_run-1_eeg.set"
+    },
+    {
+      "dataset_id": "ds003570",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003570/sub-001/eeg/sub-001_task-AuditoryOddballChords_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003570/sub-001/eeg/sub-001_task-AuditoryOddballChords_eeg.set"
+    },
+    {
+      "dataset_id": "ds003688",
+      "verdict": "loadable",
+      "datatype": "ieeg",
+      "sub": "01",
+      "key": "ds003688/sub-01/ses-iemu/ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds003688/sub-01/ses-iemu/ieeg/sub-01_ses-iemu_task-film_acq-clinical_run-1_ieeg.vhdr"
+    },
+    {
+      "dataset_id": "ds002725",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds002725/sub-01/eeg/sub-01_task-classicalMusic_eeg.edf",
+      "ext": "edf",
+      "cdn_url": "https://cdn.eegdash.org/ds002725/sub-01/eeg/sub-01_task-classicalMusic_eeg.edf"
+    },
+    {
+      "dataset_id": "ds003104",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "meg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds003190",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds003190/sub-01/ses-01/eeg/sub-01_ses-01_task-cnos_run-4_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds003190/sub-01/ses-01/eeg/sub-01_ses-01_task-cnos_run-4_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds003194",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "NEPO26",
+      "key": "ds003194/sub-NEPO26/ses-Nepopre/eeg/sub-NEPO26_ses-Nepopre_task-taskprenepo_eeg.edf",
+      "ext": "edf",
+      "cdn_url": "https://cdn.eegdash.org/ds003194/sub-NEPO26/ses-Nepopre/eeg/sub-NEPO26_ses-Nepopre_task-taskprenepo_eeg.edf"
+    },
+    {
+      "dataset_id": "ds003633",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "meg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds002885",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "01",
+      "key": "ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif"
+    },
+    {
+      "dataset_id": "ds003768",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds003768/sub-01/eeg/sub-01_task-rest_run-1_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds003768/sub-01/eeg/sub-01_task-rest_run-1_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds003655",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003655/sub-001/eeg/sub-001_task-VerbalWorkingMemory_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003655/sub-001/eeg/sub-001_task-VerbalWorkingMemory_eeg.set"
+    },
+    {
+      "dataset_id": "ds002791",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds002791/sub-01/ses-naming/eeg/sub-01_ses-naming_run-1_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds002791/sub-01/ses-naming/eeg/sub-01_ses-naming_run-1_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds003570",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003570/sub-001/eeg/sub-001_task-AuditoryOddballChords_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003570/sub-001/eeg/sub-001_task-AuditoryOddballChords_eeg.set"
+    },
+    {
+      "dataset_id": "ds003682",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "001",
+      "key": "ds003682/sub-001/ses-01/meg/sub-001_ses-01_task-AversiveLearningReplay_run-01_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds003682/sub-001/ses-01/meg/sub-001_ses-01_task-AversiveLearningReplay_run-01_meg.fif"
+    },
+    {
+      "dataset_id": "ds002550",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "meg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds001810",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds001810/sub-01/ses-anodalpost/eeg/sub-01_ses-anodalpost_task-attentionalblink_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds001810/sub-01/ses-anodalpost/eeg/sub-01_ses-anodalpost_task-attentionalblink_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds001849",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds001849/sub-01/eeg/sub-01_task-tmseegrest_acq-dlpfcactive_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds001849/sub-01/eeg/sub-01_task-tmseegrest_acq-dlpfcactive_eeg.set"
+    },
+    {
+      "dataset_id": "ds002791",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds002791/sub-01/ses-naming/eeg/sub-01_ses-naming_run-1_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds002791/sub-01/ses-naming/eeg/sub-01_ses-naming_run-1_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds002001",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "0001",
+      "key": "ds002001/sub-0001/ses-20140502/meg/sub-0001_ses-20140502_task-rivalry_run-02_meg.ds/sub-0001_ses-20140502_task-rivalry_run-02_meg.meg4",
+      "ext": "ds",
+      "cdn_url": "https://cdn.eegdash.org/ds002001/sub-0001/ses-20140502/meg/sub-0001_ses-20140502_task-rivalry_run-02_meg.ds/sub-0001_ses-20140502_task-rivalry_run-02_meg.meg4"
+    },
+    {
+      "dataset_id": "ds001849",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds001849/sub-01/eeg/sub-01_task-tmseegrest_acq-dlpfcactive_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds001849/sub-01/eeg/sub-01_task-tmseegrest_acq-dlpfcactive_eeg.set"
+    },
+    {
+      "dataset_id": "ds003682",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "001",
+      "key": "ds003682/sub-001/ses-01/meg/sub-001_ses-01_task-AversiveLearningReplay_run-01_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds003682/sub-001/ses-01/meg/sub-001_ses-01_task-AversiveLearningReplay_run-01_meg.fif"
+    },
+    {
+      "dataset_id": "ds003195",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "PLAC10",
+      "key": "ds003195/sub-PLAC10/ses-placebo6m/eeg/sub-PLAC10_ses-placebo6m_task-taskplacebo6m_eeg.edf",
+      "ext": "edf",
+      "cdn_url": "https://cdn.eegdash.org/ds003195/sub-PLAC10/ses-placebo6m/eeg/sub-PLAC10_ses-placebo6m_task-taskplacebo6m_eeg.edf"
+    },
+    {
+      "dataset_id": "ds003509",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003509/sub-001/ses-01/eeg/sub-001_ses-01_task-SimonConflict_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003509/sub-001/ses-01/eeg/sub-001_ses-01_task-SimonConflict_eeg.set"
+    },
+    {
+      "dataset_id": "ds003478",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003478/sub-001/eeg/sub-001_task-Rest_run-01_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003478/sub-001/eeg/sub-001_task-Rest_run-01_eeg.set"
+    },
+    {
+      "dataset_id": "ds003352",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "1",
+      "key": "ds003352/sub-1/ses-01/meg/sub-1_ses-01_task-ColorSpirals_run-00_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds003352/sub-1/ses-01/meg/sub-1_ses-01_task-ColorSpirals_run-00_meg.fif"
+    },
+    {
+      "dataset_id": "ds003739",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003739/sub-001/ses-01/eeg/sub-001_ses-01_task-pullstand_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003739/sub-001/ses-01/eeg/sub-001_ses-01_task-pullstand_eeg.set"
+    },
+    {
+      "dataset_id": "ds003039",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003039/sub-001/eeg/sub-001_task-neurCorrYoung_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003039/sub-001/eeg/sub-001_task-neurCorrYoung_eeg.set"
+    },
+    {
+      "dataset_id": "ds003517",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003517/sub-001/eeg/sub-001_task-ContinuousVideoGamePlay_run-01_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003517/sub-001/eeg/sub-001_task-ContinuousVideoGamePlay_run-01_eeg.set"
+    },
+    {
+      "dataset_id": "ds003523",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003523/sub-001/ses-01/eeg/sub-001_ses-01_task-VisualWorkingMemory_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003523/sub-001/ses-01/eeg/sub-001_ses-01_task-VisualWorkingMemory_eeg.set"
+    },
+    {
+      "dataset_id": "ds001787",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds001787/sub-001/ses-01/eeg/sub-001_ses-01_task-meditation_eeg.bdf",
+      "ext": "bdf",
+      "cdn_url": "https://cdn.eegdash.org/ds001787/sub-001/ses-01/eeg/sub-001_ses-01_task-meditation_eeg.bdf"
+    },
+    {
+      "dataset_id": "ds002893",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds002893/sub-001/eeg/sub-001_task-AuditoryVisualShift_run-01_eeg.set"
+    },
+    {
+      "dataset_id": "ds002680",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "002",
+      "key": "ds002680/sub-002/ses-01/eeg/sub-002_ses-01_task-gonogo_run-10_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds002680/sub-002/ses-01/eeg/sub-002_ses-01_task-gonogo_run-10_eeg.set"
+    },
+    {
+      "dataset_id": "ds002722",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds002722/sub-01/eeg/sub-01_task-run1_eeg.edf",
+      "ext": "edf",
+      "cdn_url": "https://cdn.eegdash.org/ds002722/sub-01/eeg/sub-01_task-run1_eeg.edf"
+    },
+    {
+      "dataset_id": "ds003602",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003602/sub-001/eeg/sub-001_task-APA1_run-1_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003602/sub-001/eeg/sub-001_task-APA1_run-1_eeg.set"
+    },
+    {
+      "dataset_id": "ds002218",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds002218/sub-001/eeg/sub-001_task-Experiment_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds002218/sub-001/eeg/sub-001_task-Experiment_eeg.set"
+    },
+    {
+      "dataset_id": "ds003505",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "eeg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds003505",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "eeg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds003061",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003061/sub-001/eeg/sub-001_task-P300_run-1_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003061/sub-001/eeg/sub-001_task-P300_run-1_eeg.set"
+    },
+    {
+      "dataset_id": "ds000117",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "meg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds003655",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003655/sub-001/eeg/sub-001_task-VerbalWorkingMemory_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003655/sub-001/eeg/sub-001_task-VerbalWorkingMemory_eeg.set"
+    },
+    {
+      "dataset_id": "ds003555",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds003555/sub-01/ses-01/eeg/sub-01_ses-01_task-hfo_eeg.edf",
+      "ext": "edf",
+      "cdn_url": "https://cdn.eegdash.org/ds003555/sub-01/ses-01/eeg/sub-01_ses-01_task-hfo_eeg.edf"
+    },
+    {
+      "dataset_id": "ds003702",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds003702/sub-01/eeg/sub-01_task-SocialMemoryCuing_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds003702/sub-01/eeg/sub-01_task-SocialMemoryCuing_eeg.vhdr"
+    },
+    {
+      "dataset_id": "ds003805",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "1",
+      "key": "ds003805/sub-1/eeg/sub-1_task-MultisensoryGammaEntrainment_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003805/sub-1/eeg/sub-1_task-MultisensoryGammaEntrainment_eeg.set"
+    },
+    {
+      "dataset_id": "ds003774",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003774/sub-001/ses-01/eeg/sub-001_ses-01_task-MusicListening_run-1_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003774/sub-001/ses-01/eeg/sub-001_ses-01_task-MusicListening_run-1_eeg.set"
+    },
+    {
+      "dataset_id": "ds001971",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds001971/sub-001/eeg/sub-001_task-AudioCueWalkingStudy_run-01_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds001971/sub-001/eeg/sub-001_task-AudioCueWalkingStudy_run-01_eeg.set"
+    },
+    {
+      "dataset_id": "ds003505",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "eeg"
+      ],
+      "triedSub": "01"
+    },
+    {
+      "dataset_id": "ds003620",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "eeg"
+      ],
+      "triedSub": "1"
+    },
+    {
+      "dataset_id": "ds002720",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds002720/sub-01/eeg/sub-01_task-run1_eeg.edf",
+      "ext": "edf",
+      "cdn_url": "https://cdn.eegdash.org/ds002720/sub-01/eeg/sub-01_task-run1_eeg.edf"
+    },
+    {
+      "dataset_id": "ds002181",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "1473",
+      "key": "ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds002181/sub-1473/eeg/sub-1473_task-Baseline_eeg.set"
+    },
+    {
+      "dataset_id": "ds003739",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003739/sub-001/ses-01/eeg/sub-001_ses-01_task-pullstand_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003739/sub-001/ses-01/eeg/sub-001_ses-01_task-pullstand_eeg.set"
+    },
+    {
+      "dataset_id": "ds003751",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "mit113",
+      "key": "ds003751/sub-mit113/eeg/sub-mit113_task-Emotion_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003751/sub-mit113/eeg/sub-mit113_task-Emotion_eeg.set"
+    },
+    {
+      "dataset_id": "ds002885",
+      "verdict": "loadable",
+      "datatype": "meg",
+      "sub": "01",
+      "key": "ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif",
+      "ext": "fif",
+      "cdn_url": "https://cdn.eegdash.org/ds002885/sub-01/meg/sub-01_task-DSMW_meg.fif"
+    },
+    {
+      "dataset_id": "ds003775",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003775/sub-001/ses-t1/eeg/sub-001_ses-t1_task-resteyesc_eeg.edf",
+      "ext": "edf",
+      "cdn_url": "https://cdn.eegdash.org/ds003775/sub-001/ses-t1/eeg/sub-001_ses-t1_task-resteyesc_eeg.edf"
+    },
+    {
+      "dataset_id": "ds003343",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "13",
+      "key": "ds003343/sub-13/ses-01/eeg/sub-13_ses-01_task-fps_run-01_eeg.bdf",
+      "ext": "bdf",
+      "cdn_url": "https://cdn.eegdash.org/ds003343/sub-13/ses-01/eeg/sub-13_ses-01_task-fps_run-01_eeg.bdf"
+    },
+    {
+      "dataset_id": "ds003498",
+      "verdict": "loadable",
+      "datatype": "ieeg",
+      "sub": "01",
+      "key": "ds003498/sub-01/ses-interictalsleep/ieeg/sub-01_ses-interictalsleep_run-01_ieeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds003498/sub-01/ses-interictalsleep/ieeg/sub-01_ses-interictalsleep_run-01_ieeg.vhdr"
+    },
+    {
+      "dataset_id": "ds003506",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "001",
+      "key": "ds003506/sub-001/ses-01/eeg/sub-001_ses-01_task-ReinforcementLearning_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003506/sub-001/ses-01/eeg/sub-001_ses-01_task-ReinforcementLearning_eeg.set"
+    },
+    {
+      "dataset_id": "ds002723",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds002723/sub-01/eeg/sub-01_task-run1_eeg.edf",
+      "ext": "edf",
+      "cdn_url": "https://cdn.eegdash.org/ds002723/sub-01/eeg/sub-01_task-run1_eeg.edf"
+    },
+    {
+      "dataset_id": "ds003574",
+      "verdict": "no-recording-found",
+      "datatypes": [
+        "eeg"
+      ],
+      "triedSub": "sub_01"
+    },
+    {
+      "dataset_id": "ds003805",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "1",
+      "key": "ds003805/sub-1/eeg/sub-1_task-MultisensoryGammaEntrainment_eeg.set",
+      "ext": "set",
+      "cdn_url": "https://cdn.eegdash.org/ds003805/sub-1/eeg/sub-1_task-MultisensoryGammaEntrainment_eeg.set"
+    },
+    {
+      "dataset_id": "ds002833",
+      "verdict": "loadable",
+      "datatype": "eeg",
+      "sub": "01",
+      "key": "ds002833/sub-01/ses-Audio/eeg/sub-01_ses-Audio_task-PicturesNaming_eeg.vhdr",
+      "ext": "vhdr",
+      "cdn_url": "https://cdn.eegdash.org/ds002833/sub-01/ses-Audio/eeg/sub-01_ses-Audio_task-PicturesNaming_eeg.vhdr"
+    }
+  ]
+}
