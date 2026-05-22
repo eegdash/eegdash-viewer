@@ -218,11 +218,44 @@
   api.buildDirectoryByHeaderWalk = async function (url, totalBytes, fetchRange, opts) {
     const CHUNK = (opts && opts.chunk) || 2 * 1024 * 1024;
     const HEADER_PEEK = 20;  // 16-byte tag header + 4-byte block id payload
+    // Bisect-inference threshold: minimum number of consecutive uniform
+    // DATA_BUFFER tags inside a RAW_DATA block before we trust that the
+    // remainder of the block is also uniform. MNE-Python writes ~3200
+    // uniform 400-KB buffers in ds003703; 5 is enough to disambiguate
+    // from the no-buffer / tiny-buffer cases without false positives.
+    const INFER_THRESHOLD = (opts && opts.inferThreshold) || 5;
     const entries = [];
     // For BLOCK_START / BLOCK_END entries we capture the 4-byte
     // payload (block id) inline since we already paid the fetch cost
     // for the surrounding 20 bytes. Map: tag-position → block id.
     const blockIds = new Map();
+
+    // Per-RAW_DATA-block inference state. `currentRawStart` is set on
+    // BLOCK_START with payload=FIFFB_RAW_DATA and cleared on BLOCK_END
+    // matching it; `currentRawBuffers` accumulates DATA_BUFFER headers
+    // until uniformity can be confirmed. A null value (after a
+    // successful inference jump) means "inference already ran for this
+    // block, don't try again".
+    let currentRawStart = null;
+    let currentRawBuffers = null;
+
+    // Helper: probe a single position to verify a DATA_BUFFER header of
+    // the expected (type, size) lives there. Returns true if the bytes
+    // at `probePos..probePos+19` form a DATA_BUFFER tag whose type and
+    // size match the reference. Used by the galloping + bisect search.
+    async function probeIsUniformBuffer(probePos, refType, refSize) {
+      if (probePos + 16 > totalBytes) return false;
+      const probeBuf = await fetchRange(probePos, probePos + 19);
+      if (probeBuf.byteLength < 16) return false;
+      const probeDV = new DataView(probeBuf);
+      const probeKind = probeDV.getInt32(0, false);
+      const probeType = probeDV.getInt32(4, false);
+      const probeSize = probeDV.getInt32(8, false);
+      return probeKind === FIFF_DATA_BUFFER
+        && probeType === refType
+        && probeSize === refSize;
+    }
+
     let pos = 0;
     let bufStart = 0;
     let bufEnd = 0;
@@ -251,6 +284,108 @@
           && offsetInBuf + 20 <= buf.byteLength) {
         blockIds.set(pos, dv.getInt32(16, false));
       }
+
+      // Track RAW_DATA block boundaries so the inference path only
+      // triggers inside genuine FIFFB_RAW_DATA. The block-id payload
+      // for BLOCK_START tags lives at offset+16 — captured above.
+      if (kind === FIFF_BLOCK_START && size >= 4
+          && offsetInBuf + 20 <= buf.byteLength) {
+        const blockId = dv.getInt32(16, false);
+        if (blockId === FIFFB_RAW_DATA) {
+          currentRawStart = pos;
+          currentRawBuffers = [];
+        }
+      } else if (kind === FIFF_BLOCK_END && currentRawStart !== null) {
+        // Any BLOCK_END inside the RAW_DATA region terminates it for
+        // inference purposes. We could match block-ids but the stack
+        // model in indexBlocks already handles imbalance; cheaper to
+        // just clear here.
+        currentRawStart = null;
+        currentRawBuffers = null;
+      } else if (kind === FIFF_DATA_BUFFER
+                 && currentRawStart !== null
+                 && currentRawBuffers !== null) {
+        currentRawBuffers.push({ position: pos, size, type });
+
+        // Once we've collected enough uniform buffers, attempt
+        // inference. Uniformity = all collected buffers share the same
+        // (size, type) — the MNE convention for raw writes.
+        if (currentRawBuffers.length >= INFER_THRESHOLD) {
+          const first = currentRawBuffers[0];
+          let uniform = true;
+          for (let i = 1; i < currentRawBuffers.length; i++) {
+            if (currentRawBuffers[i].size !== first.size
+                || currentRawBuffers[i].type !== first.type) {
+              uniform = false;
+              break;
+            }
+          }
+          if (uniform) {
+            const stride = 16 + first.size;
+            // Galloping phase: probe positions first + N*stride with
+            // doubling N until either past EOF or a non-matching tag.
+            // `lo` is the index of the last confirmed uniform buffer
+            // (0-indexed from `first`); `probe` is the next candidate.
+            let lo = currentRawBuffers.length - 1;  // last confirmed = entry N-1
+            let probe = lo + 1;
+            const maxPossible = Math.floor((totalBytes - first.position) / stride);
+            // Cap gallop so probe doesn't overflow well past EOF.
+            while (probe < maxPossible) {
+              const probePos = first.position + probe * stride;
+              const ok = await probeIsUniformBuffer(probePos, first.type, first.size);
+              if (ok) {
+                lo = probe;
+                const doubled = probe * 2;
+                // If doubling overshoots maxPossible, clamp to it so
+                // the next probe is exactly the boundary.
+                probe = doubled > 0 ? doubled : probe + 1;
+                if (probe > maxPossible) {
+                  probe = maxPossible;
+                }
+              } else {
+                break;
+              }
+            }
+            // If we exited the loop because `probe >= maxPossible`,
+            // the last uniform buffer is somewhere in (lo, maxPossible].
+            // Otherwise it's in (lo, probe). Bisect (lo, hi) for the
+            // largest index `m` where probe is still uniform.
+            let hi = Math.min(probe, maxPossible);
+            while (lo + 1 < hi) {
+              const mid = Math.floor((lo + hi) / 2);
+              const probePos = first.position + mid * stride;
+              const ok = await probeIsUniformBuffer(probePos, first.type, first.size);
+              if (ok) lo = mid;
+              else hi = mid;
+            }
+            // `lo` is now the 0-indexed position of the LAST uniform
+            // DATA_BUFFER. We've already recorded entries up to
+            // `currentRawBuffers.length - 1`; synthesise from there.
+            const totalUniformBuffers = lo + 1;
+            for (let i = currentRawBuffers.length; i < totalUniformBuffers; i++) {
+              entries.push({
+                kind: FIFF_DATA_BUFFER,
+                type: first.type,
+                size: first.size,
+                position: first.position + i * stride,
+              });
+            }
+            // Jump past the last uniform buffer. The next loop
+            // iteration will refetch around the new pos and parse the
+            // tag that interrupted the uniform run (typically
+            // BLOCK_END for RAW_DATA).
+            pos = first.position + totalUniformBuffers * stride;
+            // Disable further inference for this block — even if more
+            // DATA_BUFFER tags appear, we've handled the bulk via
+            // arithmetic. Clearing the array via null is the sentinel
+            // (see `currentRawBuffers !== null` guard above).
+            currentRawBuffers = null;
+            if (pos < 0 || pos > totalBytes) break;
+            continue;
+          }
+        }
+      }
+
       if (next === -1) break;  // explicit end-of-stream sentinel
       pos = next > 0 ? next : pos + 16 + size;
       if (pos < 0 || pos > totalBytes) break;
