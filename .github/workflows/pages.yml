@@ -33,11 +33,17 @@ jobs:
       - name: Stage user-facing assets
         run: |
           mkdir -p _site
-          cp -r index.html viewer.js traces.js topo2d.js \
+          # NOTE: topo2d.js was archived to archive/topo2d/ — drop from cp.
+          # Lane E + F decomposition added sub-module directories that must
+          # be staged alongside their parent files:
+          #   viewer/ — worker-rpc, render-pipeline, render-helpers, url-resolver
+          #   bids-recording/ — nemar
+          #   traces/ — event-markers, scale-bar
+          cp -r index.html viewer.js traces.js \
                 bids-loader.js bids-recording.js \
                 worker.js filters.js perf.js \
                 styles.css eegdash-logo.svg \
-                formats \
+                formats viewer bids-recording traces \
                 _site/
           # Sanity gate: every <script src="..."> referenced from
           # index.html must exist under _site/. Catches the regression
