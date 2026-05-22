@@ -159,8 +159,12 @@
 
   // Largest stream-and-slice we'll do when the CDN ignores Range. Above
   // this, we throw rather than burn bandwidth — caller can retry or
-  // fall back. Matches the "whole-file inline" cap used elsewhere.
-  const RANGE_IGNORED_STREAM_CAP_BYTES = 200 * 1024 * 1024;
+  // fall back. Raised 2026-05-22 from 200 MB → 1 GB symmetric with the
+  // inline-data fallback cap (eeglab.js). The cost is bytes downloaded
+  // to reach the offset; modern browsers handle 1 GB streams fine and
+  // huge files where this cap fires are typically multi-GB MEG bundles
+  // that the user explicitly opened (not a default landing recording).
+  const RANGE_IGNORED_STREAM_CAP_BYTES = 1024 * 1024 * 1024;
 
   async function rangeFetchSingle(url, byteStart, byteEndInclusive, expectedBytes, opts) {
     const signal = opts && opts.signal;
