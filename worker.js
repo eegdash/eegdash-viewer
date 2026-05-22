@@ -58,7 +58,11 @@ importScripts(
   // SNIRF (HDF5) fNIRS reader. Depends on _jsfive loaded above (same
   // engine used for the MAT v7.3 EEGLAB path).
   'formats/snirf.js',
-  // NWB (HDF5) iEEG reader — reuses _jsfive loaded above for SNIRF + MAT v7.3.
+  // NWB (HDF5) iEEG reader — reuses _jsfive loaded above for SNIRF +
+  // MAT v7.3. _h5-stream is the range-fetch HDF5 reader nwb.js routes
+  // to for files > 200 MB whose metadata fits in the head buffer;
+  // must load BEFORE nwb.js so the global resolver finds H5Stream.
+  'formats/_h5-stream.js',
   'formats/nwb.js',
   // MEF3 iEEG (Mayo) — Tier 3 full decode via RED (Range Encoded
   // Differential) codec. Both helpers must load BEFORE mef.js

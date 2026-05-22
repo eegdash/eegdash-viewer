@@ -42,8 +42,11 @@
      formats/_jsfive.js loaded above for the MAT v7.3 EEGLAB reader. -->
 <script src="formats/snirf.js?v=1"></script>
 <!-- Lane H: BIDS-allowed formats. See formats/<name>.js for support tier. -->
-<!-- NWB (HDF5) iEEG — reuses _jsfive loaded above. -->
-<script src="formats/nwb.js?v=1"></script>
+<!-- NWB (HDF5) iEEG — reuses _jsfive loaded above. _h5-stream is the
+     streaming (HTTP-range) HDF5 reader nwb.js delegates to for
+     files > 200 MB; must load BEFORE nwb.js. -->
+<script src="formats/_h5-stream.js?v=1"></script>
+<script src="formats/nwb.js?v=2"></script>
 <!-- MEF3 iEEG (Mayo) — Tier 3 full decode via RED. Segment + RED codec must load BEFORE mef.js. -->
 <script src="formats/_mef-segment.js?v=1"></script>
 <script src="formats/_mef-red.js?v=1"></script>
