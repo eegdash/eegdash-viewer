@@ -157,23 +157,92 @@
     return buf;
   }
 
+  // Largest stream-and-slice we'll do when the CDN ignores Range. Above
+  // this, we throw rather than burn bandwidth — caller can retry or
+  // fall back. Matches the "whole-file inline" cap used elsewhere.
+  const RANGE_IGNORED_STREAM_CAP_BYTES = 200 * 1024 * 1024;
+
   async function rangeFetchSingle(url, byteStart, byteEndInclusive, expectedBytes, opts) {
     const signal = opts && opts.signal;
     const r = await fetch(url, {
       headers: { Range: `bytes=${byteStart}-${byteEndInclusive}` },
       signal,
     });
-    if (r.status !== 206 && r.status !== 200) {
-      throw new Error(`Range fetch failed: HTTP ${r.status} for ${url}`);
+    if (r.status === 206) {
+      // Honored — normal path.
+      const buf = await r.arrayBuffer();
+      if (expectedBytes != null && buf.byteLength !== expectedBytes) {
+        throw new Error(
+          `Range fetch returned ${buf.byteLength}B, expected ${expectedBytes}B ` +
+          `(server may have ignored Range header).`
+        );
+      }
+      return buf;
     }
-    const buf = await r.arrayBuffer();
-    if (expectedBytes != null && buf.byteLength !== expectedBytes) {
-      throw new Error(
-        `Range fetch returned ${buf.byteLength}B, expected ${expectedBytes}B ` +
-        `(server may have ignored Range header).`
-      );
+    if (r.status === 200) {
+      // Server ignored Range and is returning the full body. Observed
+      // intermittently on cdn.eegdash.org for some .meg4 files (CTF MEG
+      // bundles) — the same URL serves 206 most of the time but 200
+      // some of the time, presumably depending on edge-cache state.
+      //
+      // Strategy: stream-read enough bytes to cover the requested range,
+      // then cancel the rest. This wastes the prefix bytes [0, byteStart)
+      // but avoids downloading the full file (which on a 1.1 GB .meg4
+      // takes 100+ s wall and burns 1 GB egress). Gives correctness
+      // even when the CDN cache misbehaves.
+      const needed = byteEndInclusive + 1;
+      if (needed > RANGE_IGNORED_STREAM_CAP_BYTES) {
+        // Refuse to stream-and-slice for huge offsets — caller can
+        // retry, fall back to a different URL, or surface the error.
+        // Drain + close so the connection is released cleanly.
+        try { await r.body.cancel(); } catch { /* ignore */ }
+        throw new Error(
+          `Range fetch ignored by server (HTTP 200 for Range request); ` +
+          `would need to stream ${needed}B (cap ${RANGE_IGNORED_STREAM_CAP_BYTES}B) to slice ` +
+          `requested range ${byteStart}-${byteEndInclusive}.`
+        );
+      }
+      const reader = r.body.getReader();
+      const chunks = [];
+      let received = 0;
+      try {
+        while (received < needed) {
+          if (signal && signal.aborted) {
+            try { await reader.cancel(); } catch { /* ignore */ }
+            throw new DOMException('aborted', 'AbortError');
+          }
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.byteLength;
+        }
+      } finally {
+        // Cancel the rest of the response so we don't waste bandwidth.
+        try { await reader.cancel(); } catch { /* ignore */ }
+      }
+      if (received < byteStart) {
+        throw new Error(
+          `Range-ignored fallback: response body had only ${received}B, ` +
+          `requested range starts at byteStart=${byteStart}.`
+        );
+      }
+      // Concatenate the chunks and slice the requested window.
+      const all = new Uint8Array(received);
+      let off = 0;
+      for (const c of chunks) { all.set(c, off); off += c.byteLength; }
+      const sliceEnd = Math.min(received, byteEndInclusive + 1);
+      const out = all.buffer.slice(byteStart, sliceEnd);
+      if (expectedBytes != null && out.byteLength !== expectedBytes) {
+        // The CDN's full-body response was shorter than expected —
+        // surface this clearly rather than silently truncate.
+        throw new Error(
+          `Range-ignored fallback: sliced ${out.byteLength}B from ${received}B body, ` +
+          `expected ${expectedBytes}B.`
+        );
+      }
+      return out;
     }
-    return buf;
+    throw new Error(`Range fetch failed: HTTP ${r.status} for ${url}`);
   }
 
   // Split a big range into ≤ TILE_MAX_PARALLEL pieces and pull them all

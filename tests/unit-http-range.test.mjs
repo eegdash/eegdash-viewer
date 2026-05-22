@@ -81,13 +81,38 @@ test('probeLength: Range fallback returns 206 with no Content-Range header', asy
 
 // ----- rangeFetch behaviour --------------------------------
 
-test('rangeFetch: server returns 200 (full body) when we asked for a range → throws', async () => {
-  // CDN that ignored Range — better to fail loud than silently drift.
+test('rangeFetch: server returns 200 (Range ignored) → stream-reads enough + slices the requested window', async () => {
+  // cdn.eegdash.org sometimes serves HTTP 200 + full body when asked for
+  // a Range (intermittent edge-cache behaviour, observed on .meg4 CTF
+  // files). Rather than throw and lose the request, stream-read enough
+  // bytes to cover the requested range and slice. Burns the prefix
+  // [0, byteStart) of bandwidth but saves the (much larger) suffix.
   const FULL = new Uint8Array(1000);
+  for (let i = 0; i < FULL.length; i++) FULL[i] = i & 0xff;  // recognisable pattern
+  globalThis.fetch = async () => new Response(FULL, { status: 200 });
+  const result = await HttpRange.rangeFetch(URL, 100, 199, 100);
+  assert.equal(result.byteLength, 100);
+  // Bytes [100..199] of FULL should match (100, 101, 102, ...).
+  const view = new Uint8Array(result);
+  assert.equal(view[0], 100);
+  assert.equal(view[50], 150);
+  assert.equal(view[99], 199);
+});
+
+test('rangeFetch: server returns 200 but body too short to cover range → throws clearly', async () => {
+  const FULL = new Uint8Array(50);  // body shorter than requested range
   globalThis.fetch = async () => new Response(FULL, { status: 200 });
   await assert.rejects(
-    () => HttpRange.rangeFetch(URL, 0, 99, 100),
-    /returned 1000B, expected 100B/);
+    () => HttpRange.rangeFetch(URL, 100, 199, 100),
+    /Range-ignored fallback: response body had only 50B, requested range starts at byteStart=100/);
+});
+
+test('rangeFetch: server returns 200 with response shorter than expectedBytes → throws clearly', async () => {
+  const FULL = new Uint8Array(150);  // covers byteStart but slice is shorter than expected
+  globalThis.fetch = async () => new Response(FULL, { status: 200 });
+  await assert.rejects(
+    () => HttpRange.rangeFetch(URL, 100, 199, 100),
+    /Range-ignored fallback: sliced 50B from 150B body, expected 100B/);
 });
 
 test('rangeFetch: server 4xx → throws with status', async () => {
