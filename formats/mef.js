@@ -316,16 +316,28 @@
         const target = out[chIdx];
         let writeP = 0;
         // The .tdat file layout: 1024-byte UH + concatenated blocks.
-        // file_offset in TSI is relative to the start of the blocks
-        // (i.e. excludes the 1024-byte UH).
-        const TDAT_BODY_BASE = UH_BYTES;
+        // Per meflib.c (write_mef_ts_data_and_indices, L921
+        // `file_offset = UNIVERSAL_HEADER_BYTES;`) the TSI file_offset
+        // is ABSOLUTE — measured from byte 0 of the .tdat file, so block
+        // 0 sits at offset 1024 (just past the universal header).
+        //
+        // Older synthetic fixtures (pre-fix make-mef-fixture.mjs) wrote
+        // RELATIVE offsets where block 0 sits at file_offset=0. We
+        // decide per channel based on the first block: if block-0's
+        // file_offset is 0 the whole channel is relative — every entry
+        // gets rebased by UH_BYTES. Subsequent blocks in a relative
+        // channel cannot be re-detected individually (their offsets fall
+        // back into the valid absolute range).
+        const isRelativeOffsets = blocks.length > 0 && blocks[0].file_offset === 0;
         for (let bi = startBlockIdx; bi < blocks.length && writeP < actualWin; bi++) {
           const b = blocks[bi];
           // If we're past the requested window, stop. Theoretically
           // findStartBlock guarantees b.start_sample <= start, but for
           // subsequent iterations b.start_sample >= end means we're done.
           if (b.start_sample >= end) break;
-          const byteStart = TDAT_BODY_BASE + b.file_offset;
+          const byteStart = isRelativeOffsets
+            ? (UH_BYTES + b.file_offset)
+            : b.file_offset;
           const byteEnd   = byteStart + b.block_bytes - 1;
           const blockBuf  = await HttpRange.rangeFetch(
             tdatUrl, byteStart, byteEnd, b.block_bytes, opts,
@@ -374,10 +386,18 @@
         tier:              3,
         channels:          channelMeta.map((m, idx) => ({
           name:                m.universal_header.channel_name || ('Ch' + (idx + 1)),
+          channel_name:        m.universal_header.channel_name || ('Ch' + (idx + 1)),
           segment_number:      m.universal_header.segment_number,
           n_blocks:            m.n_blocks,
           maximum_block_bytes: m.maximum_block_bytes,
           mef_version:         `${m.universal_header.mef_version_major}.${m.universal_header.mef_version_minor}`,
+          // Resolved URLs — handy for the BIDS layout assertion + debug
+          // overlays. tmet_url ends in `.segd/<ch>-NNNNNN.tmet` when the
+          // recording uses the canonical layout, or `<ch>-NNNNNN.tmet`
+          // directly under .timd/ when produced by legacy flat fixtures.
+          tmet_url:            segmentTriples[idx].tmet,
+          tdat_url:            segmentTriples[idx].tdat,
+          tidx_url:            segmentTriples[idx].tidx,
         })),
       },
       readWindow,
@@ -394,6 +414,18 @@
    *
    * Production wires this through a controller-supplied manifest. Tests
    * install their own listDir on the local HttpRange shim.
+   *
+   * Two on-disk layouts are accepted (single-segment scope only):
+   *
+   *   Flat (synthesised fixtures, pre-1.4 pymef):
+   *     <ch>.timd/<ch>-NNNNNN.{tmet,tdat,tidx}
+   *
+   *   Real BIDS / pymef 1.4+ (spec-canonical):
+   *     <ch>.timd/<ch>-NNNNNN.segd/<ch>-NNNNNN.{tmet,tdat,tidx}
+   *
+   * Detection rule: list <ch>.timd/. If any entry ends in `.segd`, we
+   * descend exactly one level into the first `.segd/` we find. Otherwise
+   * we look for the triple inline (flat layout).
    *
    * @param {string} sessionUrl
    * @param {object} HttpRange
@@ -429,22 +461,42 @@
       if (!Array.isArray(chEntries)) {
         throw new Error(`mef.open: listDir(${chDir}) did not return an array`);
       }
+
+      // Detect layout: BIDS-spec recordings nest the segment files inside
+      // a `<ch>-NNNNNN.segd/` subdirectory. Sort alphabetically so segment
+      // 000000 is preferred over later segments (we only read the first).
+      const segdEntries = chEntries
+        .filter((n) => /\.segd\/?$/.test(n))
+        .map((n) => n.replace(/\/$/, ''))
+        .sort();
+
+      let lookupDir = chDir;
+      let lookupEntries = chEntries;
+      if (segdEntries.length > 0) {
+        const segdName = segdEntries[0];
+        lookupDir = chDir + segdName + '/';
+        lookupEntries = await HttpRange.listDir(lookupDir);
+        if (!Array.isArray(lookupEntries)) {
+          throw new Error(`mef.open: listDir(${lookupDir}) did not return an array`);
+        }
+      }
+
       // Find one matching trio. We accept only the first segment found
       // (initial scope: single-segment recordings).
-      const tmet = chEntries.find((n) => /\.tmet$/.test(n));
-      const tdat = chEntries.find((n) => /\.tdat$/.test(n));
-      const tidx = chEntries.find((n) => /\.tidx$/.test(n));
+      const tmet = lookupEntries.find((n) => /\.tmet$/.test(n));
+      const tdat = lookupEntries.find((n) => /\.tdat$/.test(n));
+      const tidx = lookupEntries.find((n) => /\.tidx$/.test(n));
       if (!tmet || !tdat || !tidx) {
         throw new Error(
-          `mef.open: channel ${chName} is missing one of {.tmet, .tdat, .tidx} in ${chDir} ` +
+          `mef.open: channel ${chName} is missing one of {.tmet, .tdat, .tidx} in ${lookupDir} ` +
           `(found tmet=${tmet || '-'}, tdat=${tdat || '-'}, tidx=${tidx || '-'})`,
         );
       }
       triples.push({
-        channel_dir: chDir,
-        tmet: chDir + tmet,
-        tdat: chDir + tdat,
-        tidx: chDir + tidx,
+        channel_dir: lookupDir,
+        tmet: lookupDir + tmet,
+        tdat: lookupDir + tdat,
+        tidx: lookupDir + tidx,
       });
     }
     return triples;
