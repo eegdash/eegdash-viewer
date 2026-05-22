@@ -35,7 +35,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '../../..');
 
-const AUDIT_JSON = path.join(REPO_ROOT, 'scripts/audit-100-datasets.json');
+// Default to the canonical 1-URL-per-dataset manifest. Override with
+// AUDIT_MANIFEST=scripts/audit-100-datasets-expanded.json for broad
+// multi-recording-per-dataset coverage (997 URLs vs 89).
+const AUDIT_JSON = process.env.AUDIT_MANIFEST
+  ? path.resolve(REPO_ROOT, process.env.AUDIT_MANIFEST)
+  : path.join(REPO_ROOT, 'scripts/audit-100-datasets.json');
 const EVIDENCE_DIR = path.join(REPO_ROOT, 'tests/evidence/audit-browser-reality');
 const RESULTS_JSONL = path.join(EVIDENCE_DIR, 'results.jsonl');
 
@@ -303,11 +308,18 @@ for (const c of CASES) {
       const stageCaption = page.locator('#stage-caption');
       const errStatus = page.locator('#status .err');
       // Promise.any resolves with the first non-rejecting promise; we
-      // collapse both visibility checks into one race so a 60s rejection
-      // delay also doesn't double-count.
+      // collapse both visibility checks into one race so the timeout
+      // doesn't double-count. Raised 2026-05-22 from 60s → 120s after
+      // the OpenNeuro full-catalog audit showed 14 of 648 hitting the
+      // 60s gate on legitimately-large files (.set v7.3 inline 631 MB,
+      // .edf 600+ MB, .set inline 500+ MB) where jsfive parse alone
+      // takes 20–40 s. Slow-but-not-broken files now have time to
+      // surface their initial frame; failures still cap at 2 min so
+      // genuine hangs don't bog the audit down.
+      const RENDER_TIMEOUT_MS = 120_000;
       const winner = await Promise.any([
-        stageCaption.waitFor({ state: 'visible', timeout: 60_000 }).then(() => 'caption'),
-        errStatus.waitFor({ state: 'visible', timeout: 60_000 }).then(() => 'rejected'),
+        stageCaption.waitFor({ state: 'visible', timeout: RENDER_TIMEOUT_MS }).then(() => 'caption'),
+        errStatus.waitFor({ state: 'visible', timeout: RENDER_TIMEOUT_MS }).then(() => 'rejected'),
       ]).catch((aggErr) => {
         // Both timed out — surface the original stage-caption failure
         // shape so the existing report layer still parses it.

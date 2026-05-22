@@ -13,9 +13,15 @@ export default defineConfig({
   ...base,
   fullyParallel: true,
   workers: 4,
-  // 712 × ~15 s budget per test = ~3 h serial → ~50 min wall at 4 workers.
-  // No per-test timeout change: the existing 90 s budget already covers the
-  // cold-CDN 60 s stage-caption deadline.
+  // Per-test timeout. Raised 2026-05-22 from inherited 90 s → 180 s
+  // because the inline-cap raise (200 MB → 1 GB) means EEGLAB v7.3
+  // .sets in the 500–900 MB range now fully load (instead of instantly
+  // rejecting at the cap), which takes 60–90 s of fetch + parse on a
+  // typical home connection. The stage-caption gate inside the spec
+  // is 120 s; this outer test timeout has to be larger so a slow-but-
+  // valid file doesn't fail with playwright's own timeout *before* the
+  // spec's race resolves.
+  timeout: 180_000,
   reporter: [
     ['list'],
     ['json', { outputFile: 'tests/evidence/audit-browser-reality/playwright-full.json' }],
