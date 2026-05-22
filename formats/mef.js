@@ -18,15 +18,18 @@
    This reader only handles **continuous, single-segment, unencrypted**
    recordings — the most common in-the-wild case.
 
-   TIER ACHIEVED: 1 (metadata only). RED block decompression is NOT
-   implemented; readWindow() throws a clean error explaining that the
-   viewer can surface the dataset's structure (channel count, sample
-   rate, duration) but cannot render samples. The Mayo RED codec is a
-   custom range-encoded differential coder (meflib.c L4000+, ~2000
-   LOC of bit-level decoding) and is out of scope for this initial
-   port. Real-world EEGDash datasets aren't MEF3, so this reader is
+   TIER ACHIEVED: 3 (full sample decode). The reader fetches the
+   .tidx file once per channel to build a sample→block map, then
+   range-fetches only the RED blocks that overlap the requested
+   window. Each block is decoded via formats/_mef-red.js (a literal
+   port of meflib's RED_decode), Int32 samples → Float32 with no
+   rescaling (the RED codec already restored the original integer
+   sample values via scale_factor + detrend).
+
+   Real-world EEGDash datasets aren't MEF3, so this reader is still
    primarily a structure-aware fallback for users who drag .mefd/
-   bundles into the viewer.
+   bundles into the viewer — but it now produces real waveforms
+   instead of a "format unsupported" placeholder.
 
    References:
    - Spec: msel-source/meflib (Apache 2.0)
@@ -51,6 +54,9 @@
   // 4 to ~256 channels. We accept up to 2048 to leave headroom for
   // research recordings; beyond that something is wrong.
   const MAX_CHANNELS = 2048;
+
+  // TSI entry size (meflib.h L499). One per RED block in the .tdat.
+  const TSI_ENTRY_BYTES = 56;
 
   /**
    * Parse a `.tmet` ArrayBuffer into a per-segment metadata object.
@@ -187,18 +193,168 @@
       if (!isNaN(d.getTime())) recording_start_iso = d.toISOString();
     }
 
-    async function readWindow(_startSample, _nWin) {
-      // Tier 1: the universal header parser knows what the file CONTAINS
-      // but the RED decoder isn't shipped, so we cannot return samples.
-      // The viewer surfaces this error as a "format unsupported" overlay,
-      // which is more useful than a silent black render.
-      throw new Error(
-        'mef.readWindow: MEF3 RED decompression is not implemented — ' +
-        'this reader can surface the recording structure (channels, ' +
-        'sample rate, duration) but cannot decode samples. Real-world ' +
-        'EEGDash datasets are not MEF3; this reader is a stub for users ' +
-        'who drag .mefd/ bundles into the viewer.',
+    const MefRed = globalThis.MefRed;
+    if (!MefRed) {
+      throw new Error('mef.open: globalThis.MefRed missing — load formats/_mef-red.js first');
+    }
+
+    // Per-channel cache of the parsed .tidx (array of block descriptors).
+    // Built lazily on the first readWindow call to avoid paying ~N_channels
+    // extra HTTP round-trips when the caller only wants metadata.
+    const ChannelBuffers = globalThis.ChannelBuffers;
+    if (!ChannelBuffers) {
+      throw new Error('mef.open: globalThis.ChannelBuffers missing — load formats/_buffers.js first');
+    }
+    /** @type {Array<Array<{file_offset: number, start_sample: number, number_of_samples: number, block_bytes: number}> | null>} */
+    const tidxCache = new Array(n_channels).fill(null);
+
+    /**
+     * Fetch + parse one channel's .tidx, returning the array of block
+     * descriptors. Cached for subsequent calls. We always fetch the full
+     * .tidx because it's small (≈ 56 bytes × n_blocks); for a 1-hour
+     * 1 kHz recording with 1-second blocks that's 56 × 3600 = 200 KiB.
+     */
+    async function loadTidx(chIdx) {
+      if (tidxCache[chIdx]) return tidxCache[chIdx];
+      const tidxUrl = segmentTriples[chIdx].tidx;
+      const buf = await HttpRange.fetchBuffer(tidxUrl);
+      const bytes = new Uint8Array(buf);
+      // Validate the .tidx universal header — magic + LE byte order.
+      const uh = MefSegment.parseUniversalHeader(bytes);
+      if (uh.file_type !== 'tidx') {
+        throw new Error(
+          `mef.readWindow: ${tidxUrl} magic=${JSON.stringify(uh.file_type)} ` +
+          `(expected "tidx")`,
+        );
+      }
+      const declared = channelMeta[chIdx].n_blocks;
+      // .tidx body is densely-packed 56-byte entries after the 1024-byte UH.
+      const indexRegion = (buf.byteLength - UH_BYTES);
+      const expectedBytes = declared * TSI_ENTRY_BYTES;
+      if (indexRegion < expectedBytes) {
+        throw new Error(
+          `mef.readWindow: .tidx ${tidxUrl} body is ${indexRegion} bytes ` +
+          `but .tmet declares ${declared} blocks × ${TSI_ENTRY_BYTES} = ${expectedBytes}`,
+        );
+      }
+      const dv = new DataView(buf, UH_BYTES, expectedBytes);
+      const entries = new Array(declared);
+      let runningEnd = 0;   // track the prior block's [start..end) for sanity
+      for (let b = 0; b < declared; b++) {
+        const e = MefSegment.parseTidxEntry(dv, b * TSI_ENTRY_BYTES);
+        // Sanity: start_sample must be non-decreasing across the segment.
+        if (b > 0 && e.start_sample < runningEnd - entries[b - 1].number_of_samples) {
+          throw new Error(
+            `mef.readWindow: .tidx ${tidxUrl} block ${b} start_sample=${e.start_sample} ` +
+            `precedes block ${b-1} start_sample=${entries[b-1].start_sample}`,
+          );
+        }
+        entries[b] = e;
+        runningEnd = e.start_sample + e.number_of_samples;
+      }
+      tidxCache[chIdx] = entries;
+      return entries;
+    }
+
+    /**
+     * Find the index of the first block whose sample range overlaps
+     * `startSample`. The TSI table is monotonic in start_sample, so a
+     * binary search is correct + fast. Returns 0 if startSample is
+     * before block 0 (the reader will simply emit leading samples from
+     * block 0).
+     */
+    function findStartBlock(blocks, startSample) {
+      let lo = 0, hi = blocks.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        const m = blocks[mid];
+        const blockEnd = m.start_sample + m.number_of_samples;
+        if (blockEnd <= startSample) lo = mid + 1;
+        else hi = mid;
+      }
+      // Clamp into valid range — startSample past EOF returns
+      // blocks.length, caller handles via clampWindow.
+      return Math.min(lo, Math.max(blocks.length - 1, 0));
+    }
+
+    /**
+     * Read [startSample, startSample+nWin) samples from every channel.
+     * Returns one Float32Array per channel (length nWin clamped to the
+     * recording's actual sample count — see ChannelBuffers.clampWindow).
+     *
+     * RED blocks decode to int32; we widen to float32 with no scaling
+     * because the RED codec has already applied scale_factor + detrend.
+     * Sentinel sample values (RED_NAN, ±INFINITY) are passed through as
+     * the corresponding finite float values; the renderer is responsible
+     * for filtering if it cares (most do not — sentinels appear only in
+     * corrupted recordings).
+     *
+     * @param {number} startSample
+     * @param {number} nWin
+     * @param {object} [opts] - forwarded to HttpRange.rangeFetch
+     * @returns {Promise<Float32Array[]>} one array per channel
+     */
+    async function readWindow(startSample, nWin, opts) {
+      const win = ChannelBuffers.clampWindow(startSample, nWin, nsamp0);
+      if (!win) return ChannelBuffers.empty(n_channels);
+      const { start, end, nWin: actualWin } = win;
+
+      const out = ChannelBuffers.alloc(n_channels, actualWin);
+
+      // Load tidx in parallel for all channels we haven't seen yet.
+      await Promise.all(
+        segmentTriples.map((_, idx) => loadTidx(idx)),
       );
+
+      // Per channel: find overlapping blocks, range-fetch them, decode,
+      // copy the window slice. Each channel's I/O is independent so we
+      // run them in parallel.
+      await Promise.all(channelMeta.map(async (_meta, chIdx) => {
+        const blocks = tidxCache[chIdx];
+        const tdatUrl = segmentTriples[chIdx].tdat;
+        const startBlockIdx = findStartBlock(blocks, start);
+        const target = out[chIdx];
+        let writeP = 0;
+        // The .tdat file layout: 1024-byte UH + concatenated blocks.
+        // file_offset in TSI is relative to the start of the blocks
+        // (i.e. excludes the 1024-byte UH).
+        const TDAT_BODY_BASE = UH_BYTES;
+        for (let bi = startBlockIdx; bi < blocks.length && writeP < actualWin; bi++) {
+          const b = blocks[bi];
+          // If we're past the requested window, stop. Theoretically
+          // findStartBlock guarantees b.start_sample <= start, but for
+          // subsequent iterations b.start_sample >= end means we're done.
+          if (b.start_sample >= end) break;
+          const byteStart = TDAT_BODY_BASE + b.file_offset;
+          const byteEnd   = byteStart + b.block_bytes - 1;
+          const blockBuf  = await HttpRange.rangeFetch(
+            tdatUrl, byteStart, byteEnd, b.block_bytes, opts,
+          );
+          const blockBytes = new Uint8Array(blockBuf);
+          // decodeBlock takes the buffer + an in-buffer offset. We've
+          // fetched exactly one block so offset=0.
+          const { samples } = MefRed.decodeBlock(blockBytes, 0);
+          // Map the [b.start_sample, b.start_sample+N) range into the
+          // requested [start, end) window:
+          //   srcOffset = max(0, start - b.start_sample)
+          //   dstOffset = max(0, b.start_sample - start)
+          //   copyLen   = min(samples.length - srcOffset, actualWin - dstOffset,
+          //                   end - max(start, b.start_sample))
+          const srcOffset = Math.max(0, start - b.start_sample);
+          const dstOffset = Math.max(0, b.start_sample - start);
+          const blockSamplesRemaining = samples.length - srcOffset;
+          const windowSamplesRemaining = actualWin - dstOffset;
+          const copyLen = Math.min(blockSamplesRemaining, windowSamplesRemaining);
+          if (copyLen <= 0) continue;
+          // Int32 → Float32 copy.
+          for (let i = 0; i < copyLen; i++) {
+            target[dstOffset + i] = samples[srcOffset + i];
+          }
+          writeP = dstOffset + copyLen;
+        }
+      }));
+
+      return out;
     }
 
     return {
@@ -215,7 +371,7 @@
       // Surface a small subset of the parsed header for tests + debug
       // overlays. Not part of the canonical reader API.
       _mef: {
-        tier:              1,
+        tier:              3,
         channels:          channelMeta.map((m, idx) => ({
           name:                m.universal_header.channel_name || ('Ch' + (idx + 1)),
           segment_number:      m.universal_header.segment_number,

@@ -60,10 +60,12 @@ importScripts(
   'formats/snirf.js',
   // NWB (HDF5) iEEG reader — reuses _jsfive loaded above for SNIRF + MAT v7.3.
   'formats/nwb.js',
-  // MEF3 iEEG (Mayo) — metadata-only (RED decompression deferred). The
-  // segment parser must load BEFORE mef.js because the public reader
-  // reaches through globalThis.MefSegment.
+  // MEF3 iEEG (Mayo) — Tier 3 full decode via RED (Range Encoded
+  // Differential) codec. Both helpers must load BEFORE mef.js
+  // because the public reader reaches through globalThis.MefSegment
+  // (header/TSI parsers) and globalThis.MefRed (block decoder).
   'formats/_mef-segment.js',
+  'formats/_mef-red.js',
   'formats/mef.js',
   // BTi/4D Neuroimaging MEG — directory bundle (no .ext). The config
   // parser must load BEFORE bti.js because the public reader reaches

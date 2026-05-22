@@ -34,6 +34,7 @@ export const KitReader         = require('../formats/kit.js');
 // require so other code can reach through globalThis.<Name>Reader.
 export const NwbReader         = require('../formats/nwb.js');
 export const MefSegment        = require('../formats/_mef-segment.js');
+export const MefRed            = require('../formats/_mef-red.js');
 export const MefReader         = require('../formats/mef.js');
 export const BtiConfig         = require('../formats/_bti-config.js');
 export const BtiReader         = require('../formats/bti.js');

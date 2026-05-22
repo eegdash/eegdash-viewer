@@ -156,18 +156,21 @@ const DEMOS = [
     notes: 'ITAB MEG (.raw + .mhd companion) — local fixture',
   },
 
-  // Metadata-only and stub tiers — reader open() throws a documented error.
+  // MEF3 was metadata-only in Lane J; Tier 3 (full RED decode) shipped
+  // in commit-K, so this is now a full-tier fixture demo.
   {
     id: 'mef-fixture',
     source: 'fixture',
-    tier: 'metadata',
+    tier: 'full',
     // MEF3 is a directory bundle. The viewer enters via the bundle root.
     url: 'http://localhost:8011/tests/fixtures/ieeg/mef-tiny.mefd/',
-    // RED decompression is deferred — readWindow() throws this message.
-    // The viewer surfaces it into the status / recording panel.
-    expected_error_pattern: /MEF3|RED|decompress|not (yet )?supported|metadata only/i,
-    notes: 'MEF3 (Mayo) — metadata-only reader; render shows clean documented error',
+    // The .mefd dispatch maps to the 'MEFD' pill (see worker.js
+    // FORMAT_DISPATCH key).
+    expected_pill: 'MEFD',
+    notes: 'MEF3 (Mayo) — Tier 3 full decode via RED codec; local fixture (4ch × 2.5 s sine bundle)',
   },
+
+  // Stub-tier (open() deliberately throws a documented error).
   {
     id: 'kriss-fixture',
     source: 'fixture',
