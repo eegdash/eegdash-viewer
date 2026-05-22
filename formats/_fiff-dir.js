@@ -213,6 +213,11 @@
    * @param {(start: number, end: number) => Promise<ArrayBuffer>} fetchRange
    * @param {object} [opts]
    * @param {number} [opts.chunk] - chunk size for range fetches (default 2 MB)
+   * @param {number} [opts.inferThreshold] - min uniform DATA_BUFFER tags
+   *   inside FIFFB_RAW_DATA before gallop+bisect inference activates
+   *   (default 5). Lower = faster on uniform files, higher = safer on
+   *   files where small uniform runs are surrounded by variable-size
+   *   buffers (which would otherwise be misidentified as uniform).
    * @returns {Promise<{entries: Array<{kind:number,type:number,size:number,position:number}>, blockIds: Map<number, number>}>}
    */
   api.buildDirectoryByHeaderWalk = async function (url, totalBytes, fetchRange, opts) {
