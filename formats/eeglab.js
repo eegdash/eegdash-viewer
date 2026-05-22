@@ -544,7 +544,109 @@
         throw new Error(`EEGLAB inline .set parse failed at ${setUrl}: ${e.message}`);
       }
     }
-    const eeg = MatV5.extractEegInline(vars);
+    let eeg;
+    try {
+      eeg = MatV5.extractEegInline(vars);
+    } catch (e) {
+      // V5 CHAR-sidecar fallback: EEG.data is a string referencing a
+      // sibling .fdt (e.g. ds003078). Mirror the v7.3 path: parse the
+      // filename out, derive the sibling URL, and serve windows from
+      // the named .fdt. The fdtFilename is set on the error by
+      // _matv5.js when class==='char'.
+      if (e && e.code === 'EEGLAB_DATA_IS_CHAR') {
+        const namedFdt = _validateCrossFdtName(e.fdtFilename);
+        const dir = setUrl.slice(0, setUrl.lastIndexOf('/') + 1);
+        const fdtUrl = dir + namedFdt;
+        console.warn(
+          `EEGLAB v5: /EEG/data is a CHAR sidecar pointer "${namedFdt}"; ` +
+          `following the named .fdt at ${fdtUrl}.`
+        );
+        // For the v5 CHAR-sidecar case we DO have access to the parsed
+        // numeric scalars (nbchan, srate, pnts, etc.) sitting in `vars`
+        // — they're separate top-level fields from EEG.data. Try to
+        // pull them directly from `vars`; fall back to the sidecar if
+        // they're absent.
+        const eegStruct = vars.get('EEG');
+        const fieldFrom = (name) => {
+          if (vars.has(name)) return vars.get(name);
+          if (eegStruct && eegStruct.class === 'struct' && eegStruct.data.has(name)) {
+            return eegStruct.data.get(name);
+          }
+          return null;
+        };
+        const scalarFrom = (name) => {
+          const v = fieldFrom(name);
+          if (!v || !v.data || !v.data.length) return null;
+          return Number(v.data[0]);
+        };
+        const nchanFromVars = scalarFrom('nbchan');
+        const fsFromVars = scalarFrom('srate');
+        const nchan = nchanFromVars ?? nChannelsFromSidecar;
+        const fs = fsFromVars ?? fsFromSidecar;
+        if (!nchan || !fs) {
+          throw new Error(
+            `EEGLAB v5 cross-basename: need nbchan and srate (either in ` +
+            `.set or in _channels.tsv + _eeg.json) to interpret named ` +
+            `.fdt sibling "${namedFdt}"`
+          );
+        }
+        // Fallback for STALE filename: real BIDS datasets (e.g.
+        // ds003078) ship .set files whose EEG.data CHAR still names
+        // the original acquisition file (`S_1_cond1_run1.fdt`) even
+        // though the BIDS curator renamed the sibling on disk to the
+        // canonical pattern (`sub-XX_..._eeg.fdt`). When the named
+        // filename 404s, retry with the same basename as the .set but
+        // `.fdt` extension. Mirrors brainvision.js stale-DataFile fix.
+        let effectiveFdtUrl = fdtUrl;
+        let totalBytesFdt;
+        try {
+          totalBytesFdt = await HttpRange.probeLength(effectiveFdtUrl);
+        } catch (probeErr) {
+          const msg = probeErr && probeErr.message ? probeErr.message : String(probeErr);
+          if (!/404|HTTP 4\d\d|Cannot determine length/.test(msg)) throw probeErr;
+          const fallbackUrl = setUrl.replace(/\.set(\?|$)/i, '.fdt$1');
+          if (fallbackUrl === fdtUrl) throw probeErr;
+          try {
+            totalBytesFdt = await HttpRange.probeLength(fallbackUrl);
+            console.warn(
+              `EEGLAB v5: CHAR sidecar "${namedFdt}" 404'd at ${fdtUrl}; ` +
+              `falling back to .set-basename sibling ${fallbackUrl}.`
+            );
+            effectiveFdtUrl = fallbackUrl;
+          } catch {
+            throw new Error(
+              `EEGLAB v5: cannot find .fdt sibling. Tried (1) ${fdtUrl} ` +
+              `from CHAR="${namedFdt}", (2) ${fallbackUrl} from .set basename. ` +
+              `Original error: ${msg}`,
+            );
+          }
+        }
+        if (totalBytesFdt % (nchan * BYTES_PER_SAMPLE) !== 0) {
+          throw new Error(
+            `.fdt size ${totalBytesFdt} is not a multiple of ` +
+            `${nchan}×${BYTES_PER_SAMPLE} — channel count may be wrong`
+          );
+        }
+        const nSamplesFdt = totalBytesFdt / (nchan * BYTES_PER_SAMPLE);
+        const labels = ChannelLabels.fromMetaOr(meta, nchan);
+        return {
+          n_channels: nchan,
+          n_samples: nSamplesFdt,
+          sampling_frequency: fs,
+          duration_s: nSamplesFdt / fs,
+          bytes_per_sample: BYTES_PER_SAMPLE,
+          url: effectiveFdtUrl,
+          channel_labels: labels,
+          bids_channels: meta.channels || null,
+          readWindow: async (startSample, nSamplesWindow, opts) => {
+            const win = ChannelBuffers.clampWindow(startSample, nSamplesWindow, nSamplesFdt);
+            if (!win) return ChannelBuffers.empty(nchan);
+            return readInterleavedWindow(effectiveFdtUrl, nchan, win.start, win.nWin, opts);
+          },
+        };
+      }
+      throw e;
+    }
 
     const nbchan = eeg.nbchan;
     // Sidecar values are advisory: warn on mismatch, but trust the
