@@ -259,13 +259,31 @@
       );
     }
 
-    if (totalBytes % (nChannels * BYTES_PER_SAMPLE) !== 0) {
-      throw new Error(
-        `.fdt size ${totalBytes} is not a multiple of ${nChannels}×4 — ` +
-        `channel count from sidecar may be wrong.`
+    // Truncation tolerance — observed on ds003570 (97MB short) and ds003751
+    // (only 1.7% present) on OpenNeuro. The .set is authoritative about
+    // nChannels (it was written in lockstep with the .fdt's record layout)
+    // so a leftover-bytes remainder means the .fdt is truncated, not that
+    // nChannels is wrong. Accept floor(file_bytes / record_size) samples
+    // with a loud warning — partial data is more useful than a hard reject,
+    // especially since these files are broken at the publisher's end and
+    // unlikely to be re-uploaded.
+    const recordSize = nChannels * BYTES_PER_SAMPLE;
+    const sampleRem = totalBytes % recordSize;
+    if (sampleRem !== 0) {
+      console.warn(
+        `EEGLAB .fdt: file size ${totalBytes}B is not a multiple of ` +
+        `${nChannels}×4=${recordSize}B (${sampleRem}B trailing); truncating ` +
+        `to ${Math.floor(totalBytes / recordSize)} samples. File is likely ` +
+        `truncated at the publisher — observed on ds003570 + ds003751.`
       );
     }
-    const nSamples = totalBytes / (nChannels * BYTES_PER_SAMPLE);
+    const nSamples = Math.floor(totalBytes / recordSize);
+    if (nSamples === 0) {
+      throw new Error(
+        `EEGLAB .fdt: file size ${totalBytes}B < record size ` +
+        `${recordSize}B — no full sample available.`
+      );
+    }
     const fileDur = nSamples / fs;
     const mismatch = classifyDurationMismatch(fileDur, meta.eeg_json.recording_duration);
     let trialsHint = null;
@@ -294,11 +312,15 @@
       bytes_per_sample: 4,
       trials_hint: trialsHint,
       url: fdtUrl,
-      // strict labels: throws via sidecar if meta is incomplete (split-fdt
-      // path guarantees `meta.channels` exists — no Ch1..ChN fallback here,
-      // unlike inline/.set paths). Do NOT migrate to ChannelLabels.fromMetaOr.
-      channel_labels: meta.channels.map(c => c.name),
-      bids_channels: meta.channels,
+      // Channel labels: use the BIDS sidecar IFF its row count matches the
+      // nChannels we just derived (either from EEG.nbchan or from the sidecar
+      // itself when .set was unparseable). On length mismatch — sidecar has
+      // 404 entries but .set says 75 (ds003645) — fall back to Ch1..ChN since
+      // the sidecar names belong to channels that aren't in the .fdt. On
+      // missing sidecar entirely, same fallback. This mirrors the inline-data
+      // path and unblocks .set+.fdt loading when _channels.tsv is absent.
+      channel_labels: ChannelLabels.fromMetaOr(meta, nChannels),
+      bids_channels: (meta.channels && meta.channels.length === nChannels) ? meta.channels : null,
       // Bounds-clamp here so callers can pan past the end without
       // worrying about negative ranges or off-by-one near EOF.
       readWindow: async (startSample, nSamplesWindow, opts) => {

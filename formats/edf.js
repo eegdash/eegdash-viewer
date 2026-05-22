@@ -313,10 +313,30 @@
     const recordSize = samplesPerRecord * bytesPerSample;
 
     if (recordSize === 0) throw new Error('EDF: zero-byte data record (signals report samples_per_record=0)');
-    if (dataBytes < 0 || dataBytes % recordSize !== 0) {
-      throw new Error(`EDF data section ${dataBytes}B is not a multiple of record size ${recordSize}B`);
+    if (dataBytes < 0) {
+      throw new Error(`EDF data section is negative (${dataBytes}B) — header_bytes > totalBytes`);
     }
-    const actualRecords = dataBytes / recordSize;
+    // Trailing-bytes tolerance — observed on ds003343 (BDF data section
+    // 11909232B vs record size 30000B, 29232B trailing). MNE-Python rejects
+    // here, but truncating to floor(dataBytes / recordSize) records lets
+    // the user view the available 396 of 397 records with a warning instead
+    // of a hard reject. Symmetry with the EEGLAB-truncated-fdt fix.
+    const recRem = dataBytes % recordSize;
+    if (recRem !== 0) {
+      console.warn(
+        `EDF/BDF data section ${dataBytes}B is not a multiple of record size ` +
+        `${recordSize}B (${recRem}B trailing). File is likely truncated mid-record; ` +
+        `displaying first ${Math.floor(dataBytes / recordSize)} complete records ` +
+        `(observed on ds003343 in the wild). If render looks corrupt, the file may ` +
+        `have a different layout — please report.`
+      );
+    }
+    const actualRecords = Math.floor(dataBytes / recordSize);
+    if (actualRecords === 0) {
+      throw new Error(
+        `EDF data section ${dataBytes}B < record size ${recordSize}B — no complete records.`
+      );
+    }
     if (hdr.n_records !== -1 && hdr.n_records !== actualRecords) {
       console.warn(`EDF declared ${hdr.n_records} records but file has ${actualRecords}; trusting file.`);
     }

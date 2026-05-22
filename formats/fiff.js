@@ -543,9 +543,18 @@
       );
     }
 
-    // If no raw_data block, return a meta-only reader (readWindow throws).
+    // No FIFFB_RAW_DATA (or empty raw block) → reject at open. The viewer
+    // would otherwise show 323 channels with nSamples=0 and the worker
+    // would throw "bad sample window: start=0 n=0" on first paint
+    // (observed on ds003352 — task FIFF with full MEAS_INFO but no actual
+    // signal samples). Surfacing the clean reason here lets the UI show
+    // the rejection text immediately instead of a generic worker error.
     if (!blocks.raw_data || blocks.raw_data.buffers.length === 0) {
-      return buildReaderFromMeas(meas);
+      throw new Error(
+        'FIFF: this file has MEAS_INFO but no FIFFB_RAW_DATA samples — ' +
+        'metadata-only file (calibration, events-only, or aborted recording). ' +
+        `(${meas.nchan || 0} channels described, 0 sample buffers found.)`
+      );
     }
 
     // Build per-buffer sample index: bytesPerSample × nchan determines

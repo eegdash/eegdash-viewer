@@ -222,6 +222,66 @@ test('open: inline .set ignores sidecar nbchan when it disagrees (warn only)', a
   }
 });
 
+test('open: split .set+.fdt with truncated .fdt accepts floor() samples with warning', async () => {
+  // ds003570/ds003751 in the wild: .fdt is truncated mid-sample. The
+  // .set declares (nbchan, pnts) that would imply more bytes than the
+  // .fdt actually contains. Pre-fix: hard-rejected with "size is not a
+  // multiple of N×4". Post-fix: warn + use floor(bytes/recordSize) samples.
+  //
+  // Construct a .set saying nbchan=4 (16-byte records) and a .fdt that
+  // has 100 complete records + 5 trailing bytes (truncated). Expect
+  // open() to succeed with n_samples=100 and a console.warn.
+  const nCh = 4, nPts = 100;
+  const recordSize = nCh * 4;
+  const fdtBytes = nPts * recordSize + 5;   // 5 trailing bytes
+  const fdtArr = new Float32Array(nPts * nCh);
+  for (let s = 0; s < nPts; s++) {
+    for (let c = 0; c < nCh; c++) fdtArr[s * nCh + c] = s + c * 1000;
+  }
+  const fdtFull = new Uint8Array(fdtBytes);
+  fdtFull.set(new Uint8Array(fdtArr.buffer), 0);
+  const fdtBlob = new Blob([fdtFull], { type: 'application/octet-stream' });
+  const fdtUrl = HttpRange.registerLocal(`trunc-test-${blobCounter++}.fdt`, fdtBlob);
+
+  // Minimal valid .set declaring nbchan=4, srate=128, pnts=200 (file
+  // would have 200 samples if not truncated; we have 100).
+  const buf = multiMatrixFile([
+    { name: 'nbchan', mxClass: mxDOUBLE, dims: [1, 1],
+      dataPayload: doublesPayload([nCh]), dataType: miDOUBLE },
+    { name: 'srate',  mxClass: mxDOUBLE, dims: [1, 1],
+      dataPayload: doublesPayload([128]), dataType: miDOUBLE },
+    { name: 'pnts',   mxClass: mxDOUBLE, dims: [1, 1],
+      dataPayload: doublesPayload([200]), dataType: miDOUBLE },
+    { name: 'trials', mxClass: mxDOUBLE, dims: [1, 1],
+      dataPayload: doublesPayload([1]), dataType: miDOUBLE },
+  ]);
+  const setUrl = registerBuf(buf);
+  // Sibling lookup is by `${prefix}_eeg.fdt`. Pick a fresh prefix and
+  // register the fdt against the matching key.
+  const prefix = `trunc-test-${blobCounter++}`;
+  const meta = {
+    eeg_url: setUrl,
+    prefix,
+    dir: 'https://localdrop.invalid/',
+    ext: 'set',
+    sibling_urls: { [`${prefix}_eeg.fdt`]: fdtUrl },
+    channels: null,
+    eeg_json: { sampling_frequency: 128, raw: {} },
+  };
+  const origWarn = console.warn;
+  const warnings = [];
+  console.warn = (msg) => warnings.push(msg);
+  try {
+    const rec = await EEGLABReader.open(meta);
+    assert.equal(rec.n_channels, nCh);
+    assert.equal(rec.n_samples, nPts, 'truncated to floor(bytes/recordSize)');
+    assert.ok(warnings.some(w => /trailing|truncated|not a multiple/.test(w)),
+      `expected a truncation warning, got: ${warnings.join(' | ')}`);
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
 test('open: split .set + .fdt path no longer requires _channels.tsv (parses .set instead)', async () => {
   // As of the ds003645/ds003751 fix: when the sidecar is missing,
   // we parse the .set itself to derive nbchan/srate. This test verifies

@@ -129,6 +129,53 @@ test('parseHeader: rejects underflow (truncated header buffer)', () => {
   assert.throws(() => EDFReader.parseHeader(buf), /header underflow/);
 });
 
+// Trailing-bytes tolerance: ds003343 in the wild has a BDF data section
+// that's 768B short of a complete final record (29232B trailing — about
+// 1 record's worth). MNE-Python rejects; we floor to complete records
+// and warn. This integration test exercises the open() path end-to-end
+// via the in-memory HttpRange registry to confirm:
+//   1. open() does NOT throw on trailing bytes
+//   2. n_samples reflects floor(data_bytes / record_size), not the
+//      declared n_records, when they disagree
+//   3. A warning fires
+import { HttpRange } from './_bootstrap.mjs';
+
+test('open: tolerates trailing partial record (ds003343 in the wild)', async () => {
+  const sig = TWO_EEG;
+  // Build a valid header, then append data: 5 complete records + 17
+  // trailing bytes. record_size = 2 sigs × 256 spr × 2 bytes/sample = 1024B.
+  const headerAB = buildHeader({ signals: sig, nRecords: 5, recDur: '1' });
+  const recordSize = 2 * 256 * 2;
+  const dataBytes = 5 * recordSize + 17;     // 17 trailing
+  const data = new Uint8Array(dataBytes);    // zeros are fine for layout test
+  // Mark each record's first int16 differently so we can verify slicing.
+  const dv = new DataView(data.buffer);
+  for (let r = 0; r < 5; r++) {
+    dv.setInt16(r * recordSize, 1000 + r, true);
+  }
+  const total = new Uint8Array(headerAB.byteLength + data.byteLength);
+  total.set(new Uint8Array(headerAB), 0);
+  total.set(data, headerAB.byteLength);
+  const blob = new Blob([total], { type: 'application/octet-stream' });
+  const url = HttpRange.registerLocal('trailing-record-test.edf', blob);
+
+  const origWarn = console.warn;
+  const warnings = [];
+  console.warn = (msg) => warnings.push(msg);
+  try {
+    const rec = await EDFReader.open({ eeg_url: url, ext: 'edf', sibling_urls: {}, eeg_json: { raw: {} } });
+    assert.equal(rec.n_channels, 2);
+    // 5 complete records × 256 samples/record = 1280 samples.
+    assert.equal(rec.n_samples, 1280, 'should floor to complete records');
+    assert.ok(
+      warnings.some(w => /trailing|not a multiple/.test(w)),
+      `expected trailing-bytes warning, got: ${warnings.join(' | ')}`
+    );
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
 test('parseHeader: warns on header_bytes / n_signals mismatch and uses spec formula', () => {
   // Hand-build a header where the declared header_bytes (999) contradicts
   // 256·(n_signals+1)=768. As of the ds003343 fix, the parser WARNS but
