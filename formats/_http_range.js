@@ -25,6 +25,42 @@
 
   function clearLocal() { _localBlobs.clear(); }
 
+  // Transient 5xx retry wrapper. CDN-fronted buckets (Cloudflare in
+  // front of S3, what cdn.eegdash.org runs) sometimes return 502/503/504
+  // for valid URLs due to upstream pool flake — usually resolves on the
+  // next request. The 648-dataset OpenNeuro audit hit 103 of these per
+  // run. A small retry+backoff turns most of them into passes without
+  // hurting the happy path (single fetch on 200/206).
+  //
+  // Only retries on the exact 502/503/504 status codes — NOT on 4xx
+  // (real "missing file" errors, must propagate immediately).
+  // NOT on network errors (those usually mean the caller aborted, or
+  // the host is unreachable — retry wouldn't help and could hide bugs).
+  const RETRY_STATUSES = new Set([502, 503, 504]);
+  const RETRY_DELAYS_MS = [200, 600, 1500]; // 3 retries with backoff
+
+  async function fetchWithRetry(url, init) {
+    let lastResponse = null;
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+      const r = await fetch(url, init);
+      if (!RETRY_STATUSES.has(r.status)) return r;
+      // Drain the body so the connection is freed before we retry.
+      try { await r.body?.cancel(); } catch { /* ignore */ }
+      lastResponse = r;
+      if (attempt === RETRY_DELAYS_MS.length) break;
+      const delay = RETRY_DELAYS_MS[attempt];
+      // Respect the original signal — if the caller aborts mid-retry,
+      // surface the abort instead of finishing the backoff.
+      const signal = init && init.signal;
+      if (signal && signal.aborted) throw new DOMException('aborted', 'AbortError');
+      await new Promise((res, rej) => {
+        const t = setTimeout(res, delay);
+        if (signal) signal.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('aborted', 'AbortError')); }, { once: true });
+      });
+    }
+    return lastResponse;
+  }
+
   // HEAD first; some S3 access policies block HEAD outright, so
   // fall back to a zero-byte GET with Range and parse the
   // Content-Range total. Local blobs short-circuit to `.size`.
@@ -34,11 +70,11 @@
       if (!blob) throw new Error(`Local drop missing: ${url}`);
       return blob.size;
     }
-    let r = await fetch(url, { method: 'HEAD' });
+    let r = await fetchWithRetry(url, { method: 'HEAD' });
     if (r.ok && r.headers.get('content-length')) {
       return Number(r.headers.get('content-length'));
     }
-    r = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+    r = await fetchWithRetry(url, { headers: { Range: 'bytes=0-0' } });
     if (r.status !== 206) {
       throw new Error(`Cannot determine length: HTTP ${r.status} for ${url}`);
     }
@@ -63,7 +99,7 @@
   // shipped character-identical local copies.
   async function probeLengthNoHead(url) {
     try {
-      const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+      const res = await fetchWithRetry(url, { headers: { Range: 'bytes=0-0' } });
       if (res.status === 206) {
         const cr = res.headers.get('content-range');
         const m = cr && /\/(\d+)$/.exec(cr);
@@ -168,7 +204,7 @@
 
   async function rangeFetchSingle(url, byteStart, byteEndInclusive, expectedBytes, opts) {
     const signal = opts && opts.signal;
-    const r = await fetch(url, {
+    const r = await fetchWithRetry(url, {
       headers: { Range: `bytes=${byteStart}-${byteEndInclusive}` },
       signal,
     });
@@ -287,7 +323,7 @@
     }
     // force-cache: OpenNeuro / static BIDS buckets serve immutable
     // content, so the browser cache is a free win across pans.
-    const r = await fetch(url, { cache: 'force-cache' });
+    const r = await fetchWithRetry(url, { cache: 'force-cache' });
     if (allowMissing && r.status === 404) return null;
     if (!r.ok) throw new Error(`${r.status} ${r.statusText} fetching ${url}`);
     return r.text();
@@ -317,7 +353,7 @@
     }
 
     const signal = opts && opts.signal;
-    const r = await fetch(url, {
+    const r = await fetchWithRetry(url, {
       headers: { Range: `bytes=${byteStart}-${byteEndInclusive}` },
       signal,
     });
