@@ -182,9 +182,45 @@
     // path prefix with the .vhdr, so we look it up in the
     // pre-computed map (keyed by the bare filename the .vhdr's
     // DataFile field carries).
-    const eegUrl = meta.sibling_urls?.[hdr.data_file] ??
-                   new URL(hdr.data_file, vhdrUrl).href;
-    const totalBytes = await HttpRange.probeLength(eegUrl);
+    //
+    // Fallback for STALE DataFile: real BIDS datasets (e.g. ds002158)
+    // sometimes have a .vhdr whose `DataFile=` still names the
+    // original acquisition file (`s2_run1_08062017.eeg`) even though
+    // the BIDS curator renamed the sibling on disk to the canonical
+    // pattern (`sub-02_..._eeg.eeg`). When the DataFile-derived URL
+    // 404s, retry with the same basename as the .vhdr but `.eeg`
+    // extension — matches MNE-Python's behaviour in
+    // mne/io/brainvision/brainvision.py::_check_paths_for_consistency.
+    const primaryEegUrl = meta.sibling_urls?.[hdr.data_file] ??
+                          new URL(hdr.data_file, vhdrUrl).href;
+    let eegUrl = primaryEegUrl;
+    let totalBytes;
+    try {
+      totalBytes = await HttpRange.probeLength(eegUrl);
+    } catch (e) {
+      // Detect the 404/missing-file class — but NOT every error type,
+      // we want to surface genuine network failures.
+      const msg = e && e.message ? e.message : String(e);
+      if (!/404|HTTP 4\d\d|Cannot determine length/.test(msg)) throw e;
+      const fallbackEegUrl = vhdrUrl.replace(/\.vhdr(\?|$)/i, '.eeg$1');
+      if (fallbackEegUrl === primaryEegUrl) throw e;
+      try {
+        totalBytes = await HttpRange.probeLength(fallbackEegUrl);
+        console.warn(
+          `BrainVision: DataFile="${hdr.data_file}" 404'd at ${primaryEegUrl}; ` +
+          `falling back to vhdr-basename sibling ${fallbackEegUrl}.`,
+        );
+        eegUrl = fallbackEegUrl;
+      } catch {
+        // Re-throw the ORIGINAL error with both paths annotated so the
+        // user sees both attempts.
+        throw new Error(
+          `BrainVision: cannot find .eeg sibling. Tried (1) ${primaryEegUrl} ` +
+          `from DataFile=${hdr.data_file}, (2) ${fallbackEegUrl} from vhdr basename. ` +
+          `Original error: ${msg}`,
+        );
+      }
+    }
     const recordBytes = hdr.n_channels * hdr.bytes_per_sample;
     if (recordBytes === 0) throw new Error('BrainVision: zero-byte sample (n_channels or bps is 0)');
     if (totalBytes % recordBytes !== 0) {

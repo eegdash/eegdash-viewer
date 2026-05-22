@@ -129,19 +129,31 @@ test('parseHeader: rejects underflow (truncated header buffer)', () => {
   assert.throws(() => EDFReader.parseHeader(buf), /header underflow/);
 });
 
-test('parseHeader: rejects header_bytes / n_signals mismatch', () => {
-  // Hand-build a header where the declared header_bytes contradicts
-  // 256·(n_signals+1). The validator should refuse it rather than
-  // walk off the end of the buffer.
-  const ns = 2;
-  let s = pad('0', 8) + pad('', 80) + pad('', 80) + pad('01.01.20', 8) + pad('00.00.00', 8);
-  s += pad(999, 8);                                              // declared header_bytes (wrong)
-  s += pad('', 44) + pad(1, 8) + pad('1', 8) + pad(ns, 4);
-  // Pad to 256 bytes to satisfy the buffer-length precheck.
-  s = s.padEnd(256, ' ');
-  const buf = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) buf[i] = s.charCodeAt(i) & 0x7f;
-  assert.throws(() => EDFReader.parseHeader(buf.buffer), /header_bytes \(999\)/);
+test('parseHeader: warns on header_bytes / n_signals mismatch and uses spec formula', () => {
+  // Hand-build a header where the declared header_bytes (999) contradicts
+  // 256·(n_signals+1)=768. As of the ds003343 fix, the parser WARNS but
+  // uses the spec-formula value rather than throwing — observed in the
+  // wild on BIOSEMI BDF files that mis-declare header_bytes.
+  // Use buildHeader to get valid signal records so parseHeader can complete.
+  const sig = [TWO_EEG[0], TWO_EEG[1]];
+  const headerBuf = buildHeader({ signals: sig });
+  // buildHeader returns an ArrayBuffer; overwrite bytes 184-191
+  // (header_bytes field) with bogus value "999".
+  const view = new Uint8Array(headerBuf);
+  const bogus = '999     ';
+  for (let i = 0; i < 8; i++) view[184 + i] = bogus.charCodeAt(i);
+  const origWarn = console.warn;
+  let warned = '';
+  console.warn = (msg) => { warned = msg; };
+  try {
+    const hdr = EDFReader.parseHeader(headerBuf);
+    assert.equal(hdr.header_bytes_declared, 999);
+    assert.equal(hdr.header_bytes_used, 256 * (sig.length + 1));
+    assert.equal(hdr.header_bytes, hdr.header_bytes_used);
+    assert.match(warned, /header_bytes field declares 999B but spec formula 256·\(2\+1\)=768B/);
+  } finally {
+    console.warn = origWarn;
+  }
 });
 
 test('parseHeader: annotation channel flagged via label match', () => {

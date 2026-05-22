@@ -130,12 +130,32 @@
     const recordDur   = parseAsciiFloat(ascii(v, 244, 8), 'record_duration');
     const nSignals    = parseAsciiInt(ascii(v, 252, 4), 'n_signals');
 
+    // The EDF/BDF spec mandates header_bytes = 256 × (n_signals + 1).
+    // Real-world files sometimes ship with a mis-declared header_bytes
+    // (n_signals and the data layout are correct; only the header_bytes
+    // field is wrong). Example from the EEGDash catalog:
+    //   ds003343: declares header_bytes=4608, n_signals=20.
+    //     Spec formula gives 5376. Bytes 4608-5376 are still ASCII
+    //     prefiltering metadata; binary data begins at 5376. So the
+    //     spec formula is right and the file's header_bytes is wrong.
+    //
+    // Strategy: when header_bytes disagrees with the spec formula,
+    // trust the spec formula (it's derived from n_signals which is
+    // also in the binary header and easier to corrupt-check via
+    // signal-record parsing). Warn instead of throwing.
     const expectedHeaderBytes = HEADER_FIXED * (nSignals + 1);
+    let effectiveHeaderBytes = headerBytes;
     if (headerBytes !== expectedHeaderBytes) {
-      throw new Error(`EDF header_bytes (${headerBytes}) ≠ 256·(n_signals+1)=${expectedHeaderBytes}`);
+      console.warn(
+        `EDF/BDF: header_bytes field declares ${headerBytes}B but spec formula ` +
+        `256·(${nSignals}+1)=${expectedHeaderBytes}B. Using the spec formula ` +
+        `(observed mis-declared header_bytes on ds003343 in the wild). ` +
+        `If render is corrupt, the file may have a different layout — please report.`,
+      );
+      effectiveHeaderBytes = expectedHeaderBytes;
     }
-    if (v.length < headerBytes) {
-      throw new Error(`EDF header buffer ${v.length}B < declared ${headerBytes}B`);
+    if (v.length < effectiveHeaderBytes) {
+      throw new Error(`EDF header buffer ${v.length}B < declared ${effectiveHeaderBytes}B`);
     }
 
     /** @type {Array<any>} */
@@ -168,10 +188,12 @@
     return {
       version: ascii(v, 0, 8),
       isBDF, isEdfPlus, isContinuous, reserved,
-      header_bytes: headerBytes,
+      header_bytes: effectiveHeaderBytes,
       n_records: nRecords,
       record_duration: recordDur,
       n_signals: nSignals,
+      header_bytes_declared: headerBytes,
+      header_bytes_used: effectiveHeaderBytes,
       signals,
     };
   };
@@ -255,17 +277,26 @@
     ]);
     const declaredHeaderBytes = parseAsciiInt(
       ascii(new Uint8Array(firstBuf), 184, 8), 'header_bytes (first probe)');
+    // ds003343 in the wild: declared header_bytes=4608, n_signals=20,
+    // but data actually starts at the spec-formula offset 5376 (header
+    // bytes 4608-5375 contain ASCII Prefiltering metadata). To handle
+    // this, we ALSO read n_signals here and fetch enough bytes to
+    // satisfy MAX(declared, spec-formula).
+    const declaredNSignals = parseAsciiInt(
+      ascii(new Uint8Array(firstBuf), 252, 4), 'n_signals (first probe)');
+    const specHeaderBytes = HEADER_FIXED * (declaredNSignals + 1);
+    const headerFetchBytes = Math.max(declaredHeaderBytes, specHeaderBytes);
 
     let headerBuf;
-    if (declaredHeaderBytes === HEADER_FIXED) {
+    if (headerFetchBytes === HEADER_FIXED) {
       headerBuf = firstBuf;
     } else {
       // Re-use what we already fetched: pull only the remaining
       // signal-header bytes and concatenate, instead of re-downloading
       // the fixed 256 we just got.
       const restBuf = await HttpRange.rangeFetch(
-        url, HEADER_FIXED, declaredHeaderBytes - 1, declaredHeaderBytes - HEADER_FIXED);
-      const merged = new Uint8Array(declaredHeaderBytes);
+        url, HEADER_FIXED, headerFetchBytes - 1, headerFetchBytes - HEADER_FIXED);
+      const merged = new Uint8Array(headerFetchBytes);
       merged.set(new Uint8Array(firstBuf), 0);
       merged.set(new Uint8Array(restBuf), HEADER_FIXED);
       headerBuf = merged.buffer;
