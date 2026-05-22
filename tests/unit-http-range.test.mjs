@@ -150,11 +150,22 @@ test('fetchTextOrNull: 404 returns null (sidecar absent is fine)', async () => {
   assert.equal(await HttpRange.fetchTextOrNull('https://example.invalid/x.json'), null);
 });
 
-test('fetchTextOrNull: 5xx throws (server error is not "absent")', async () => {
+test('fetchTextOrNull: 5xx returns null and warns (sidecar is optional)', async () => {
+  // Behavior change (2026-05-22, generosity pass): sidecars are optional
+  // by BIDS spec, so a CDN 502/503/504 on an optional sidecar shouldn't
+  // kill the load. Treat any non-2xx as missing. Strict mode (fetchText
+  // without allowMissing) still throws — see below.
   globalThis.fetch = async () => new Response(null, { status: 503 });
-  await assert.rejects(
-    () => HttpRange.fetchTextOrNull('https://example.invalid/x.json'),
-    /503/);
+  const origWarn = console.warn;
+  let warned = '';
+  console.warn = (m) => { warned = m; };
+  try {
+    const out = await HttpRange.fetchTextOrNull('https://example.invalid/x.json');
+    assert.equal(out, null);
+    assert.match(warned, /503/);
+  } finally {
+    console.warn = origWarn;
+  }
 });
 
 test('fetchText (strict) throws on 404', async () => {

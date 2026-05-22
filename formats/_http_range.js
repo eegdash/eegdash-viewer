@@ -324,7 +324,24 @@
     // force-cache: OpenNeuro / static BIDS buckets serve immutable
     // content, so the browser cache is a free win across pans.
     const r = await fetchWithRetry(url, { cache: 'force-cache' });
-    if (allowMissing && r.status === 404) return null;
+    // Optional-sidecar mode: treat ANY non-2xx as "missing" rather than
+    // only 404. Previously a CDN 502 on a coordsystem.json or events.tsv
+    // would kill the whole load even though those files aren't required
+    // to render a recording. The 648-dataset audit had ~20 cases where
+    // a transient sidecar 502 doomed an otherwise-perfectly-loadable
+    // recording (counted as reader-rejected). Surface a warn so the
+    // developer can investigate, but don't propagate the error.
+    if (allowMissing && !r.ok) {
+      if (r.status !== 404) {
+        // 404 is the "BIDS inheritance walk hit a dead end" expected
+        // case — silent. Anything else is noteworthy.
+        console.warn(
+          `Optional sidecar fetch returned HTTP ${r.status} for ${url}; ` +
+          `treating as missing.`,
+        );
+      }
+      return null;
+    }
     if (!r.ok) throw new Error(`${r.status} ${r.statusText} fetching ${url}`);
     return r.text();
   }

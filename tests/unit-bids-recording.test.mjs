@@ -1394,19 +1394,37 @@ test('iter10 fetchInheritedSidecar: deeper-level hits do NOT override a shallowe
   } finally { f.restore(); }
 });
 
-test('iter10 fetchInheritedSidecar: 500 at any path → throws (not silently swallowed)', async () => {
-  // fetchTextOrNull only nulls on 404; on 500 it throws. The throw
-  // propagates through Promise.all and out of loadRecordingMetadata.
-  // This kills the `if (allowMissing && r.status === 404)` mutants
-  // that would broaden 404 handling to all error codes.
+test('iter10 fetchInheritedSidecar: 500 at any path → warns, continues (sidecar optional)', async () => {
+  // Behavior change (2026-05-22): sidecars are optional. A 5xx on a
+  // sidecar URL warns and treats as missing; the walker keeps walking.
+  // The full load completes; eeg_json fields fall back to whatever is
+  // available (or remains null).
   const f = installFetch({
     [WALK_PATHS_EEG_JSON[0]]: new Response('boom', { status: 500, statusText: 'Internal Server Error' }),
   });
+  const origWarn = console.warn;
+  const warnings = [];
+  console.warn = (m) => { warnings.push(String(m)); };
   try {
-    await assert.rejects(
-      () => BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL),
-      /500/);
-  } finally { f.restore(); }
+    // The 500 is captured as a warn; downstream errors (missing
+    // _channels.tsv, etc.) are separate from this test's concern.
+    try {
+      await BIDSRecording.loadRecordingMetadata(EXAMPLE_EEG_URL);
+    } catch (e) {
+      // The error must NOT mention 500/fetching — those would mean
+      // the sidecar 500 was treated as fatal, which is the regression.
+      assert.doesNotMatch(e.message, /500|fetching/,
+        `error must not propagate sidecar 500: ${e.message}`);
+    }
+    // At least one warn must mention the 500 so users can diagnose.
+    assert.ok(
+      warnings.some(w => /500/.test(w)),
+      `expected a warning mentioning 500; got: ${warnings.join(' | ').slice(0,300)}`,
+    );
+  } finally {
+    console.warn = origWarn;
+    f.restore();
+  }
 });
 
 test('iter10 fetchInheritedSidecar: 200 with non-JSON body throws "Bad _eeg.json"', async () => {
