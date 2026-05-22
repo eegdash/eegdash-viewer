@@ -356,13 +356,24 @@
     // samples_per_record disagrees with the modal rate of the rest;
     // for uniform-rate files this is a no-op. Scoped to BDF so EDF/
     // EDF+ behaviour stays bit-identical for OpenNeuro datasets.
-    if (hdr.isBDF && displayIdx.length > 1) {
+    // Drop auxiliary signals at a non-modal sample rate so the displayed
+    // window is rectangular (channels × samples). Originally scoped to
+    // BDF only out of caution, but the same pattern is real on plain
+    // EDF too — markers/triggers/status channels at lower sample rates
+    // alongside the EEG block. Extended to all EDF variants as part of
+    // the "be more generous" pass (2026-05-22, audit category fix).
+    // The warn names every dropped channel so users can audit.
+    if (displayIdx.length > 1) {
       const modalSpr = pickModalSamplesPerRecord(displayIdx, hdr.signals);
       const filtered = displayIdx.filter(i => hdr.signals[i].samples_per_record === modalSpr);
       if (filtered.length !== displayIdx.length) {
         const dropped = displayIdx.filter(i => !filtered.includes(i));
         const labels = dropped.map(i => `${hdr.signals[i].label}(${hdr.signals[i].samples_per_record})`).join(', ');
-        console.warn(`BDF: dropping ${dropped.length} auxiliary channel(s) at non-modal rate: ${labels}; keeping ${filtered.length} at samples_per_record=${modalSpr}.`);
+        console.warn(
+          `${hdr.isBDF ? 'BDF' : 'EDF'}: dropping ${dropped.length} auxiliary ` +
+          `channel(s) at non-modal rate: ${labels}; keeping ${filtered.length} ` +
+          `at samples_per_record=${modalSpr}.`,
+        );
         displayIdx = filtered;
       }
     }
