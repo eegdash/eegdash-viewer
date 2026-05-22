@@ -1,12 +1,10 @@
 #!/usr/bin/env node
 /**
  * Synthesise a tiny CC0 MEF3 `.mefd/` bundle for testing
- * formats/mef.js. The output is structurally valid (universal
- * headers carry the correct magic + CRC, metadata Section 2 carries
- * the documented sampling_frequency / n_samples fields) but the .tdat
- * file is filled with a placeholder pattern — the test reader is
- * Tier 1 (metadata only, throws on readWindow), so no actual RED
- * blocks need to be encoded.
+ * formats/mef.js. As of Tier 3, the .tdat files now contain
+ * REAL RED-encoded blocks (synthesised via formats/_mef-red.js,
+ * which itself is a line-by-line port of meflib's RED_encode_exec
+ * — see formats/_mef-red-spec.md for the bit-level spec).
  *
  * Output: tests/fixtures/ieeg/mef-tiny.mefd/
  *   - A1.timd/A1-000000.{tmet, tdat, tidx}
@@ -15,6 +13,10 @@
  *   - A4.timd/A4-000000.{tmet, tdat, tidx}
  *
  *   Each channel: 2500 samples @ 1000 Hz = 2.5 s recording.
+ *   Each channel carries a deterministic sine wave at a different
+ *   frequency (A1=10 Hz, A2=20 Hz, A3=40 Hz, A4=80 Hz), amplitude
+ *   1000, so unit tests can verify Tier 3 decode by recomputing
+ *   the expected samples and comparing.
  *
  * Reference: msel-source/meflib (Apache 2.0) — meflib.h byte
  * offsets used here are documented inline against the upstream
@@ -31,17 +33,43 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 const require    = createRequire(import.meta.url);
 
-// Load the parser so the fixture's CRC matches what the reader expects.
-// _mef-segment.js attaches to globalThis on load.
+// Load the parser + RED codec. Both attach to globalThis on load.
 require(path.resolve(__dirname, '..', 'formats', '_mef-segment.js'));
+require(path.resolve(__dirname, '..', 'formats', '_mef-red.js'));
 const MefSegment = globalThis.MefSegment;
+const MefRed     = globalThis.MefRed;
 
 // ---- recording parameters ----------------------------------------
 const SESSION_NAME = 'mef-tiny';
 const CHANNELS     = ['A1', 'A2', 'A3', 'A4'];
 const N_SAMPLES    = 2500;
 const SAMPLE_RATE  = 1000.0;
-const N_BLOCKS     = 5;            // 500 samples per block (placeholder)
+const SAMPLES_PER_BLOCK = 500;
+const N_BLOCKS     = N_SAMPLES / SAMPLES_PER_BLOCK;   // 5
+// Per-channel sine frequency (Hz). Decoders can recompute the expected
+// samples by re-running synthesizeChannel() and compare.
+const CHANNEL_FREQ = { A1: 10, A2: 20, A3: 40, A4: 80 };
+// Start time μUTC — pinned so tests can assert recording_start_iso.
+const START_TIME_UUTC = 1767225600000000n;  // 2026-01-01T00:00:00Z
+
+/**
+ * Generate the deterministic sample series for a channel. Exported
+ * via module-level constants so the test file can re-run the exact
+ * formula. Amplitude 1000, integer-rounded sinusoid.
+ *
+ * @param {string} chName
+ * @returns {Int32Array} N_SAMPLES samples
+ */
+function synthesizeChannel(chName) {
+  const f = CHANNEL_FREQ[chName];
+  if (!f) throw new Error(`unknown channel ${chName}`);
+  const out = new Int32Array(N_SAMPLES);
+  for (let i = 0; i < N_SAMPLES; i++) {
+    // 2*pi*f*t with t = i / sample_rate. Round to int32.
+    out[i] = Math.round(1000 * Math.sin(2 * Math.PI * f * i / SAMPLE_RATE));
+  }
+  return out;
+}
 
 // ---- universal header constants (meflib.h L309-347) --------------
 const UH_BYTES                       = 1024;
@@ -146,7 +174,7 @@ function writeUniversalHeader(buf, fileTypeMagic, channelName, segmentNumber, nu
  * @param {number} segmentNumber
  * @returns {Buffer}
  */
-function buildTmet(channelName, segmentNumber) {
+function buildTmet(channelName, segmentNumber, maxBlockBytes) {
   const buf = Buffer.alloc(TMET_FILE_BYTES, 0);
 
   // ---- Section 1: encryption levels ------------------------------
@@ -161,11 +189,10 @@ function buildTmet(channelName, segmentNumber) {
   buf.writeDoubleLE(SAMPLE_RATE, sec2 + TSM2_SAMPLING_FREQUENCY_OFFSET);
   buf.writeBigInt64LE(BigInt(N_SAMPLES), sec2 + TSM2_NUMBER_OF_SAMPLES_OFFSET);
   buf.writeBigInt64LE(BigInt(N_BLOCKS),  sec2 + TSM2_NUMBER_OF_BLOCKS_OFFSET);
-  // maximum_block_bytes — placeholder (real RED blocks would carry
-  // actual size). Use 304 (RED_BLOCK_HEADER_BYTES) so the reader's
-  // sanity checks pass.
-  buf.writeBigInt64LE(304n, sec2 + TSM2_MAXIMUM_BLOCK_BYTES_OFFSET);
-  buf.writeUInt32LE(Math.ceil(N_SAMPLES / N_BLOCKS), sec2 + TSM2_MAXIMUM_BLOCK_SAMPLES_OFFSET);
+  // maximum_block_bytes — actual size of the largest encoded block.
+  // The reader uses this to size its block-fetch buffer.
+  buf.writeBigInt64LE(BigInt(maxBlockBytes), sec2 + TSM2_MAXIMUM_BLOCK_BYTES_OFFSET);
+  buf.writeUInt32LE(SAMPLES_PER_BLOCK, sec2 + TSM2_MAXIMUM_BLOCK_SAMPLES_OFFSET);
 
   // ---- Section 3: discretionary — left zero ----------------------
 
@@ -180,67 +207,102 @@ function buildTmet(channelName, segmentNumber) {
 }
 
 /**
+ * Encode all RED blocks for a channel. Returns the concatenated block
+ * bytes (no UH yet) plus an array of {file_offset, block_bytes}
+ * descriptors used to build the .tidx file. The first block in the
+ * series carries the discontinuity flag (per upstream convention:
+ * every segment-initial block is a discontinuity).
+ *
+ * @param {Int32Array} samples
+ * @returns {{ body: Uint8Array, blocks: Array<{fileOffset: number, blockBytes: number, samples: number, startTimeLow: number, startTimeHigh: number}> }}
+ */
+function encodeChannelBlocks(samples) {
+  const pieces = [];
+  const blocks = [];
+  let cursor = 0;
+  for (let b = 0; b < N_BLOCKS; b++) {
+    const startSample = b * SAMPLES_PER_BLOCK;
+    const slice = samples.subarray(startSample, startSample + SAMPLES_PER_BLOCK);
+    // μUTC of the first sample in this block, computed from the recording
+    // start + sample index. Microsecond precision so we pack low/high
+    // u32 halves into the encoder.
+    const startUUTC = START_TIME_UUTC + BigInt(Math.floor(startSample * 1e6 / SAMPLE_RATE));
+    const startTimeLow  = Number(startUUTC & 0xFFFFFFFFn) >>> 0;
+    const startTimeHigh = Number((startUUTC >> 32n) & 0xFFFFFFFFn) | 0;
+    const block = MefRed.encodeBlock(slice, {
+      // First block of each channel = discontinuity (segment start).
+      // Subsequent blocks are part of a continuous stream.
+      discontinuity: (b === 0),
+      startTimeLow,
+      startTimeHigh,
+    });
+    pieces.push(block);
+    blocks.push({
+      fileOffset: cursor,
+      blockBytes: block.length,
+      samples:    slice.length,
+      startSample,
+      startTimeLow,
+      startTimeHigh,
+    });
+    cursor += block.length;
+  }
+  const body = new Uint8Array(cursor);
+  let p = 0;
+  for (const piece of pieces) { body.set(piece, p); p += piece.length; }
+  return { body, blocks };
+}
+
+/**
  * Build one .tidx file. Layout: 1024-byte UH + N_BLOCKS * 56-byte
- * index entries. The reader's Tier 1 path doesn't actually consult
- * .tidx (it would for seek), but we ship a real file so the parseTidxEntry
- * helper has something to chew on.
+ * index entries.
  *
  * @param {string} channelName
  * @param {number} segmentNumber
+ * @param {Array} blockDescriptors - output of encodeChannelBlocks().blocks
  * @returns {Buffer}
  */
-function buildTidx(channelName, segmentNumber) {
-  const indexBytes = N_BLOCKS * TSI_ENTRY_BYTES;
+function buildTidx(channelName, segmentNumber, blockDescriptors) {
+  const indexBytes = blockDescriptors.length * TSI_ENTRY_BYTES;
   const fileBytes  = UH_BYTES + indexBytes;
   const buf = Buffer.alloc(fileBytes, 0);
 
-  // Per-block index. Each block "owns" N_SAMPLES / N_BLOCKS samples.
-  const samplesPerBlock = Math.floor(N_SAMPLES / N_BLOCKS);
-  // Placeholder RED block size — 304 = RED_BLOCK_HEADER_BYTES (no body).
-  const blockBytes = 304;
-  for (let b = 0; b < N_BLOCKS; b++) {
+  for (let b = 0; b < blockDescriptors.length; b++) {
+    const d    = blockDescriptors[b];
     const base = UH_BYTES + b * TSI_ENTRY_BYTES;
-    buf.writeBigInt64LE(BigInt(b * blockBytes), base + TSI_FILE_OFFSET_OFFSET);
-    // start_time: μUTC of the block's first sample
-    const startUUTC = 1767225600000000n + BigInt(Math.floor(b * samplesPerBlock * 1e6 / SAMPLE_RATE));
+    buf.writeBigInt64LE(BigInt(d.fileOffset), base + TSI_FILE_OFFSET_OFFSET);
+    const startUUTC = START_TIME_UUTC + BigInt(Math.floor(d.startSample * 1e6 / SAMPLE_RATE));
     buf.writeBigInt64LE(startUUTC, base + TSI_START_TIME_OFFSET);
-    buf.writeBigInt64LE(BigInt(b * samplesPerBlock), base + TSI_START_SAMPLE_OFFSET);
-    buf.writeUInt32LE(samplesPerBlock, base + TSI_NUMBER_OF_SAMPLES_OFFSET);
-    buf.writeUInt32LE(blockBytes,      base + TSI_BLOCK_BYTES_OFFSET);
+    buf.writeBigInt64LE(BigInt(d.startSample), base + TSI_START_SAMPLE_OFFSET);
+    buf.writeUInt32LE(d.samples,    base + TSI_NUMBER_OF_SAMPLES_OFFSET);
+    buf.writeUInt32LE(d.blockBytes, base + TSI_BLOCK_BYTES_OFFSET);
   }
 
   const bodyCrc = MefSegment.crcCalculate(
     new Uint8Array(buf.buffer, buf.byteOffset, fileBytes),
     UH_BYTES, fileBytes,
   );
-  writeUniversalHeader(buf, 'tidx', channelName, segmentNumber, N_BLOCKS, TSI_ENTRY_BYTES, BigInt(bodyCrc));
+  writeUniversalHeader(
+    buf, 'tidx', channelName, segmentNumber,
+    blockDescriptors.length, TSI_ENTRY_BYTES, BigInt(bodyCrc),
+  );
   return buf;
 }
 
 /**
- * Build one .tdat file. Layout: 1024-byte UH + N_BLOCKS * 304-byte
- * placeholder bodies (no actual RED data — Tier 1 readWindow throws
- * before touching this file). The fixture exists for completeness
- * (the reader's listing step requires all three files to be present)
- * and to anchor a future RED-decoder test.
+ * Build one .tdat file. Layout: 1024-byte UH + concatenated RED
+ * blocks (each already 8-byte aligned by the encoder). The block
+ * bytes are produced upstream by encodeChannelBlocks().
  *
  * @param {string} channelName
  * @param {number} segmentNumber
+ * @param {Uint8Array} body - concatenated RED blocks
  * @returns {Buffer}
  */
-function buildTdat(channelName, segmentNumber) {
-  const blockBytes = 304;       // RED_BLOCK_HEADER_BYTES — body left as zeros
-  const bodyBytes  = N_BLOCKS * blockBytes;
-  const fileBytes  = UH_BYTES + bodyBytes;
+function buildTdat(channelName, segmentNumber, body) {
+  const fileBytes = UH_BYTES + body.length;
   const buf = Buffer.alloc(fileBytes, 0);
-
-  // Write the RED_BLOCK_BLOCK_BYTES_OFFSET field of each placeholder
-  // block (offset 36 within the block) so a future RED decoder can at
-  // least walk the block table. The other RED header fields stay zero.
-  for (let b = 0; b < N_BLOCKS; b++) {
-    const base = UH_BYTES + b * blockBytes;
-    buf.writeUInt32LE(blockBytes, base + 36);  // RED_BLOCK_BLOCK_BYTES_OFFSET
-  }
+  buf.set(body, UH_BYTES);
 
   const bodyCrc = MefSegment.crcCalculate(
     new Uint8Array(buf.buffer, buf.byteOffset, fileBytes),
@@ -263,9 +325,15 @@ for (const ch of CHANNELS) {
   const chDir = path.join(outBase, ch + '.timd');
   fs.mkdirSync(chDir, { recursive: true });
 
-  const tmet = buildTmet(ch, segmentNumber);
-  const tidx = buildTidx(ch, segmentNumber);
-  const tdat = buildTdat(ch, segmentNumber);
+  // Order matters: encode RED blocks first → derive max_block_bytes
+  // for the .tmet header → build .tidx from block descriptors.
+  const samples = synthesizeChannel(ch);
+  const { body, blocks } = encodeChannelBlocks(samples);
+  const maxBlockBytes = blocks.reduce((m, b) => Math.max(m, b.blockBytes), 0);
+
+  const tmet = buildTmet(ch, segmentNumber, maxBlockBytes);
+  const tidx = buildTidx(ch, segmentNumber, blocks);
+  const tdat = buildTdat(ch, segmentNumber, body);
 
   fs.writeFileSync(path.join(chDir, ch + segSuffix + '.tmet'), tmet);
   fs.writeFileSync(path.join(chDir, ch + segSuffix + '.tdat'), tdat);

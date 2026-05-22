@@ -1,17 +1,26 @@
 // Unit tests for formats/mef.js — MEF3 (Mayo Clinic Multiscale
 // Electrophysiology Format v3) iEEG reader.
 //
-// Tier achieved: 1 (metadata only). readWindow() throws a clean
-// "RED decompression not implemented" error. The tests below verify:
+// Tier achieved: 3 (full sample decode via RED). readWindow now
+// returns decoded sample windows. The tests below verify:
 //   - universal header parsing (magic, version, CRC, channel name)
 //   - .tmet metadata section 2 fields (sample_rate, n_samples)
 //   - the reader's contract: n_channels, sampling_frequency, etc.
-//   - readWindow throws the documented error
+//   - readWindow decodes RED blocks against a known sine fixture
+//   - block-boundary windows are stitched correctly
 //   - encrypted recordings are rejected up-front
 //
 // Fixture: tests/fixtures/ieeg/mef-tiny.mefd/ (synthesised, CC0 —
 // see scripts/make-mef-fixture.mjs). 4 channels (A1..A4) × 2500
 // samples @ 1000 Hz = 2.5 s per channel.
+//
+// Each fixture channel carries a deterministic sine wave:
+//   A1: 10 Hz, A2: 20 Hz, A3: 40 Hz, A4: 80 Hz; amplitude 1000.
+// The encoder is a literal port of meflib's RED_encode_exec; the
+// decoder is a literal port of RED_decode. Round-trip success on
+// the fixture is therefore the strongest verification we have
+// without external binary test vectors (none are published by
+// upstream meflib).
 
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
@@ -25,7 +34,18 @@ require('../formats/_buffers.js');
 require('../formats/_labels.js');
 require('../formats/_decode.js');
 require('../formats/_mef-segment.js');
+require('../formats/_mef-red.js');
 const MefReader = require('../formats/mef.js');
+
+// Deterministic sine generator — must match scripts/make-mef-fixture.mjs.
+const CHANNEL_FREQ = { A1: 10, A2: 20, A3: 40, A4: 80 };
+const SAMPLE_RATE  = 1000;
+function expectedSample(chName, i) {
+  // Normalise -0 → +0 so equality against a Float32Array read (which
+  // canonicalises to +0) matches.
+  const v = Math.round(1000 * Math.sin(2 * Math.PI * CHANNEL_FREQ[chName] * i / SAMPLE_RATE));
+  return v === 0 ? 0 : v;
+}
 
 const FIXTURE_DIR = path.resolve('tests/fixtures/ieeg/mef-tiny.mefd');
 const FIXTURE_URL = 'file://' + FIXTURE_DIR + '/';
@@ -113,9 +133,14 @@ test('mef-segment: parseTidxEntry walks one index record', () => {
   const dv = new DataView(ab);
   const entry = globalThis.MefSegment.parseTidxEntry(dv, 1024);
   // Block 0 owns samples [0, 500), file_offset 0 within the .tdat body.
+  // The block_bytes value is now the actual encoded RED block size
+  // (varies per signal complexity) rather than the old 304-byte
+  // placeholder. We assert structural invariants instead of an
+  // exact size: must be 8-aligned and at least one full header big.
   assert.equal(entry.start_sample, 0);
   assert.equal(entry.number_of_samples, 500);
-  assert.equal(entry.block_bytes, 304);
+  assert.ok(entry.block_bytes >= 304, `block_bytes ${entry.block_bytes} < RED_BLOCK_HEADER_BYTES`);
+  assert.equal(entry.block_bytes % 8, 0, `block_bytes ${entry.block_bytes} must be 8-aligned`);
 });
 
 // ─── mef.read(.tmet buf) ──────────────────────────────────────────
@@ -199,7 +224,7 @@ test('mef: open() exposes per-channel _mef debug info', async () => {
   installLocalHttpRange();
   const r = await MefReader.open({ eeg_url: FIXTURE_URL });
   assert.ok(r._mef, '_mef debug object missing');
-  assert.equal(r._mef.tier, 1, 'Tier 1 (metadata only) reader');
+  assert.equal(r._mef.tier, 3, 'Tier 3 (full RED decode) reader');
   assert.equal(r._mef.channels.length, 4);
   assert.equal(r._mef.channels[0].mef_version, '3.0');
   assert.equal(r._mef.channels[0].n_blocks, 5);
@@ -210,26 +235,100 @@ test('mef: open() requires meta.eeg_url', async () => {
   await assert.rejects(() => MefReader.open({}), /eeg_url is required/);
 });
 
-test('mef: readWindow throws "RED decompression not implemented" — Tier 1 contract', async () => {
+test('mef: readWindow decodes a small head window against the known sine fixture', async () => {
   installLocalHttpRange();
   const r = await MefReader.open({ eeg_url: FIXTURE_URL });
-  await assert.rejects(
-    () => r.readWindow(0, 100),
-    /RED decompression is not implemented/,
-    'Tier 1 readWindow must throw a clean error, not return garbage',
-  );
+  const N = 100;
+  const win = await r.readWindow(0, N);
+  assert.equal(win.length, 4, 'one Float32Array per channel');
+  assert.equal(win[0].length, N);
+  // For each channel, sample i must equal the deterministic sine.
+  // r.channel_labels carries the same order as `win`.
+  for (let c = 0; c < 4; c++) {
+    const ch = r.channel_labels[c];
+    for (let i = 0; i < N; i++) {
+      const expected = expectedSample(ch, i);
+      assert.equal(
+        win[c][i], expected,
+        `channel ${ch} sample ${i}: got ${win[c][i]} expected ${expected}`,
+      );
+    }
+  }
 });
 
-test('mef: readWindow throws even at the tail boundary (no silent EOF return)', async () => {
-  // Pins the contract that we DON'T short-circuit-return an empty array
-  // when start ≥ n_samples — the consumer needs the unambiguous "RED
-  // not implemented" signal regardless of where they ask to read.
+test('mef: readWindow stitches across a RED block boundary', async () => {
+  // Fixture has 5 blocks × 500 samples. Read a window centred on the
+  // boundary between block 1 and block 2 (samples [450..550)) — this
+  // forces the reader to range-fetch two blocks, decode both, and
+  // splice them into one Float32Array.
   installLocalHttpRange();
   const r = await MefReader.open({ eeg_url: FIXTURE_URL });
-  await assert.rejects(
-    () => r.readWindow(r.n_samples + 100, 5),
-    /RED decompression is not implemented/,
-  );
+  const start = 450, N = 100;   // straddles block-boundary at sample 500
+  const win = await r.readWindow(start, N);
+  for (let c = 0; c < 4; c++) {
+    const ch = r.channel_labels[c];
+    for (let i = 0; i < N; i++) {
+      const expected = expectedSample(ch, start + i);
+      assert.equal(
+        win[c][i], expected,
+        `channel ${ch} sample ${start + i}: got ${win[c][i]} expected ${expected}`,
+      );
+    }
+  }
+});
+
+test('mef: readWindow spanning multiple blocks returns continuous samples', async () => {
+  // Read the entire 2.5 s recording in one call. This exercises every
+  // block of every channel and is the highest-coverage round-trip check.
+  installLocalHttpRange();
+  const r = await MefReader.open({ eeg_url: FIXTURE_URL });
+  const win = await r.readWindow(0, r.n_samples);
+  for (let c = 0; c < 4; c++) {
+    const ch = r.channel_labels[c];
+    // Spot-check the first sample of every block (boundary points the
+    // RED differential chain restarts at).
+    for (let block = 0; block < 5; block++) {
+      const idx = block * 500;
+      assert.equal(
+        win[c][idx], expectedSample(ch, idx),
+        `channel ${ch} block-${block} first sample (idx ${idx})`,
+      );
+    }
+    // And spot-check the very last sample.
+    const last = r.n_samples - 1;
+    assert.equal(win[c][last], expectedSample(ch, last),
+      `channel ${ch} last sample (idx ${last})`);
+  }
+});
+
+test('mef: readWindow returns empty arrays past EOF (no throw)', async () => {
+  // Pins the contract: requesting samples beyond n_samples returns the
+  // canonical empty per-channel array (zero-length Float32Arrays). This
+  // mirrors every other reader's behaviour and lets the renderer skip
+  // tile-fetch teardown gracefully.
+  installLocalHttpRange();
+  const r = await MefReader.open({ eeg_url: FIXTURE_URL });
+  const win = await r.readWindow(r.n_samples + 100, 5);
+  assert.equal(win.length, 4);
+  for (let c = 0; c < 4; c++) assert.equal(win[c].length, 0);
+});
+
+test('mef: readWindow clamps tail-overlapping requests to recording end', async () => {
+  // Ask for 200 samples starting 100 before EOF → reader returns just
+  // the trailing 100 samples (clampWindow semantics, shared with every
+  // other reader). Verifies the boundary math doesn't underflow.
+  installLocalHttpRange();
+  const r = await MefReader.open({ eeg_url: FIXTURE_URL });
+  const start = r.n_samples - 100;   // 2400
+  const win = await r.readWindow(start, 200);
+  // clampWindow truncates the request — actual returned length is
+  // n_samples - start = 100.
+  assert.equal(win[0].length, 100);
+  const ch = r.channel_labels[0];
+  for (let i = 0; i < 100; i++) {
+    assert.equal(win[0][i], expectedSample(ch, start + i),
+      `tail sample ${start + i} mismatch`);
+  }
 });
 
 test('mef: open() accepts pre-resolved segment_urls without listDir', async () => {
