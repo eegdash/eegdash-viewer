@@ -301,12 +301,29 @@
     const file = new jsfive.File(hdf5Bytes);
     applyCompactStoragePatch(file);
 
-    if (!file.keys.includes('EEG')) {
-      throw new Error('MAT v7.3 parse: no /EEG group at root (not an EEGLAB v7.3 save?)');
-    }
-    const eeg = file.get('EEG');
-    if (!eeg.keys || !eeg.keys.length) {
-      throw new Error('MAT v7.3 parse: /EEG group is empty');
+    // Two valid layouts at the root:
+    //   1. /EEG group wrapping the fields (most common — what EEGLAB
+    //      writes by default).
+    //   2. Fields flat at root: /data, /srate, /nbchan, /pnts, /trials, …
+    //      (observed on ds004105 / ds004118 / ds004121 / ds004122 /
+    //      ds004123). MATLAB's `save(..., '-v7.3', '-struct', 'EEG')`
+    //      with the `-struct` flag drops the wrapping group.
+    // We detect by looking for the canonical EEG fields at root before
+    // falling back to the wrapper path.
+    let eeg;
+    const flatRoot = ['data', 'srate', 'nbchan'].every(k => file.keys.includes(k));
+    if (flatRoot) {
+      eeg = file;  // jsfive root behaves like a group for these reads
+    } else if (file.keys.includes('EEG')) {
+      eeg = file.get('EEG');
+      if (!eeg.keys || !eeg.keys.length) {
+        throw new Error('MAT v7.3 parse: /EEG group is empty');
+      }
+    } else {
+      throw new Error(
+        'MAT v7.3 parse: no /EEG group at root and no flat /data,/srate,/nbchan layout ' +
+        '(not an EEGLAB v7.3 save?)',
+      );
     }
 
     const srate  = readScalar(eeg, 'srate');

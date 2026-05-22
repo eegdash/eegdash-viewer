@@ -172,7 +172,24 @@
 
   api.open = async function (meta) {
     const vhdrUrl = meta.eeg_url;
-    const hdr = api.parseHeader(await HttpRange.fetchText(vhdrUrl));
+    const vhdrText = await HttpRange.fetchText(vhdrUrl);
+    // Reject macOS AppleDouble (._*) sidecar files early. These are
+    // metadata files macOS Finder creates next to real ones; they have
+    // the same name with a `._` prefix and the magic bytes 00 05 16 07.
+    // Observed in the wild: ds007216 ships `._sub-...vhdr` alongside
+    // the real `sub-...vhdr` in the BIDS layout. When the catalog walk
+    // picks the AppleDouble URL by mistake, surface a precise message
+    // instead of an opaque parse failure.
+    if (vhdrText.charCodeAt(0) === 0x00 && vhdrText.charCodeAt(1) === 0x05 &&
+        vhdrText.charCodeAt(2) === 0x16 && vhdrText.charCodeAt(3) === 0x07) {
+      throw new Error(
+        'BrainVision: file looks like a macOS AppleDouble metadata file ' +
+        '(magic 00 05 16 07), not a real .vhdr header. Real .vhdr files ' +
+        'usually start with "Brain Vision Data Exchange Header File". ' +
+        'Try the sibling file without the "._" filename prefix.',
+      );
+    }
+    const hdr = api.parseHeader(vhdrText);
 
     // For BIDS-pathed sources (OpenNeuro, localdrop), the .eeg lives
     // next to the .vhdr — `new URL(relative, base)` handles absolute,
@@ -223,13 +240,29 @@
     }
     const recordBytes = hdr.n_channels * hdr.bytes_per_sample;
     if (recordBytes === 0) throw new Error('BrainVision: zero-byte sample (n_channels or bps is 0)');
-    if (totalBytes % recordBytes !== 0) {
-      throw new Error(
-        `.eeg size ${totalBytes}B not a multiple of n_channels·bps=${recordBytes}B; ` +
-        `header may misreport channel count or format.`
+    // Tolerate trailing partial sample — symmetric with the EEGLAB .fdt
+    // truncation fix and the EDF/BDF trailing-record fix. Observed on
+    // ds003816 (6893875 B vs 128 ch × 4 bps = 512 B per sample, 51 B
+    // trailing). The file is likely truncated mid-sample; we floor to
+    // complete samples and warn, since the user gets MORE value from
+    // viewing the available 13464 samples than from a hard reject.
+    const sampleRem = totalBytes % recordBytes;
+    if (sampleRem !== 0) {
+      console.warn(
+        `BrainVision .eeg: file size ${totalBytes}B is not a multiple of ` +
+        `n_channels·bps=${recordBytes}B (${sampleRem}B trailing). File ` +
+        `likely truncated mid-sample; displaying first ` +
+        `${Math.floor(totalBytes / recordBytes)} complete samples ` +
+        `(observed on ds003816). If header misreports n_channels or ` +
+        `binary_format the render will be wrong — please report.`,
       );
     }
-    const nSamples = totalBytes / recordBytes;
+    const nSamples = Math.floor(totalBytes / recordBytes);
+    if (nSamples === 0) {
+      throw new Error(
+        `BrainVision .eeg: file size ${totalBytes}B < record size ${recordBytes}B — no complete sample.`,
+      );
+    }
 
     warnIf(hdr.data_points_declared != null && hdr.data_points_declared !== nSamples,
       `.vhdr DataPoints=${hdr.data_points_declared} ≠ derived ${nSamples}; trusting file.`);

@@ -107,6 +107,10 @@ function scanForPrimary(keys, datatype, dsId) {
   // Find the first primary recording file in this datatype folder.
   for (const k of keys) {
     const filename = k.split('/').pop();
+    // macOS AppleDouble metadata files are sometimes uploaded next to
+    // real data (observed on ds007216). They share the basename but
+    // start with `._` and contain Finder metadata, not signal data.
+    if (filename.startsWith('._')) continue;
     const ext = filename.split('.').pop().toLowerCase();
     // Skip sidecars + companion bins (we only pick the primary header).
     if (filename.endsWith('.fdt') || filename.endsWith('.vmrk') || filename.endsWith('.eeg')) continue;

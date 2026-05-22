@@ -221,10 +221,39 @@
     const ab = buf instanceof ArrayBuffer
       ? buf
       : buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
-    const file = new jsfive.File(ab);
+    // jsfive crashes with assertion errors on some valid HDF5 features
+    // it doesn't fully support (e.g. fractal heap with rare extension
+    // types). Wrap construction + initial reads to surface a precise
+    // reader-side message instead of "thing is not a function" from the
+    // jsfive internals. Observed on ds007463 nirs file.
+    let file;
+    try {
+      file = new jsfive.File(ab);
+    } catch (e) {
+      throw new Error(
+        `SNIRF: jsfive failed to read this HDF5 file — likely a feature ` +
+        `our HDF5 library doesn't yet support (compression filter, ` +
+        `fractal heap extension, …). Original: ${e.message}`,
+      );
+    }
 
-    const nirs = pickNirsGroup(file);
-    const data = pickDataGroup(nirs);
+    let nirs, data;
+    try {
+      nirs = pickNirsGroup(file);
+      data = pickDataGroup(nirs);
+    } catch (e) {
+      // Same wrap for jsfive errors that fire during group traversal
+      // rather than file construction (observed: assert failures inside
+      // FractalHeap when walking root groups).
+      if (/is not a function|cannot read/i.test(e.message)) {
+        throw new Error(
+          `SNIRF: jsfive crashed while walking the HDF5 group tree — ` +
+          `the file uses an HDF5 feature our library doesn't fully ` +
+          `support. Original: ${e.message}`,
+        );
+      }
+      throw e;
+    }
 
     if (!data.keys.includes('dataTimeSeries')) {
       throw new Error('SNIRF: /nirs/data1/dataTimeSeries missing');
