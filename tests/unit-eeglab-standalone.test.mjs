@@ -244,6 +244,6 @@ test('open: split .set + .fdt path no longer requires _channels.tsv (parses .set
   };
   await assert.rejects(
     () => EEGLABReader.open(meta),
-    /need either _channels\.tsv \+ _eeg\.json BIDS sidecars OR a parseable \.set/,
+    /need either parseable \.set with EEG\.nbchan \+ EEG\.srate OR _channels\.tsv \+ _eeg\.json/,
   );
 });

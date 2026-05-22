@@ -159,21 +159,28 @@
     }
 
     // Split .set + .fdt path: the .fdt is a flat float32 blob with no
-    // header. We prefer the BIDS sidecar (_channels.tsv + _eeg.json)
-    // for nChannels and SamplingFrequency, but it's not always there.
+    // header. We need nChannels + SamplingFrequency to interpret it.
     //
-    // Real-world examples (EEGDash audit seed=44):
-    //   ds003645: .fdt + .set + _electrodes.tsv only — no _channels.tsv
-    //   ds003751: _eeg.json case-mismatch with .set basename — BIDS
-    //             inheritance walk fails to find the JSON
+    // Source priority — the .set is the authority, not the BIDS sidecar:
+    //   - sidecar _channels.tsv may list ALL acquired channels (including
+    //     bad/dropped ones, MEG system channels, status, etc.) while the
+    //     .set stores only the channels that were actually written to
+    //     the .fdt (after preprocessing / ICA / channel selection).
+    //   - Real example (ds003645): _channels.tsv has 404 entries (full
+    //     MEG sensor array + EEG + triggers); .set says nbchan=75 (the
+    //     subset that was preprocessed). .fdt size 162030000 = 75 × 4 ×
+    //     540100 → matches the .set, not the sidecar.
     //
-    // Fallback: parse the .set itself to extract nbchan + srate. The
-    // .set has these fields even when it's a split-file pair, because
-    // EEGLAB writes the full EEG struct to .set and only the numeric
-    // data array goes to .fdt. Mirrors MNE's behaviour in
-    // mne/io/eeglab/eeglab.py::_check_load_mat.
-    let nChannels = nChannelsFromSidecar;
-    let fs = sidecarFsValid ? sidecarFs : null;
+    // Strategy:
+    //   1. Always try to parse the .set to get its authoritative nbchan
+    //      + srate (the .fdt-data writer wrote these in lockstep with
+    //      the .fdt's actual layout).
+    //   2. If .set is unparseable, fall back to the BIDS sidecar values.
+    //   3. Warn if sidecar and .set disagree (BIDS data-curation hint).
+    let nChannels = null;
+    let fs = null;
+    let setParseFailed = false;
+    let setParseError = null;
     if (nChannels == null || fs == null) {
       try {
         const setBuf = await HttpRange.fetchBuffer(meta.eeg_url);
@@ -199,25 +206,45 @@
         };
         const nbchanFromSet = scalarFrom('nbchan');
         const srateFromSet  = scalarFrom('srate');
-        if (nChannels == null && nbchanFromSet) nChannels = nbchanFromSet;
-        if (fs == null && srateFromSet && srateFromSet > 0) fs = srateFromSet;
-        if (nChannels != null && fs != null) {
+        if (nbchanFromSet) nChannels = nbchanFromSet;
+        if (srateFromSet && srateFromSet > 0) fs = srateFromSet;
+        // Warn loudly when sidecar and .set disagree — almost always a
+        // sign of post-acquisition channel selection / preprocessing
+        // that wasn't reflected in the BIDS curation.
+        if (nChannelsFromSidecar != null && nChannels != null &&
+            nChannels !== nChannelsFromSidecar) {
           console.warn(
-            `EEGLAB .set+.fdt: BIDS sidecar incomplete; using .set's own ` +
-            `EEG.nbchan=${nChannels} and EEG.srate=${fs}.`,
+            `EEGLAB .set+.fdt: sidecar _channels.tsv lists ` +
+            `${nChannelsFromSidecar} channels but the .set declares ` +
+            `EEG.nbchan=${nChannels}. Trusting the .set (it matches ` +
+            `the .fdt's actual layout; the sidecar likely lists all ` +
+            `acquired channels including dropped/system ones).`,
+          );
+        }
+        if (sidecarFsValid && fs != null && Math.abs(fs - sidecarFs) > 0.5) {
+          console.warn(
+            `EEGLAB .set+.fdt: sidecar SamplingFrequency=${sidecarFs} but ` +
+            `EEG.srate=${fs} in the .set. Trusting the .set.`,
           );
         }
       } catch (e) {
-        // .set parse failure is recoverable as long as sidecar gave us
-        // what we need. Surface only if BOTH sources fail.
-        if (nChannels == null || fs == null) {
-          throw new Error(
-            `EEGLAB .set+.fdt: need either _channels.tsv + _eeg.json BIDS ` +
-            `sidecars OR a parseable .set with EEG.nbchan + EEG.srate. ` +
-            `Set parse error: ${e.message}`,
-          );
-        }
+        setParseFailed = true;
+        setParseError = e;
       }
+    }
+    // Sidecar fallback: only if .set parse failed AND sidecar has values.
+    if (nChannels == null && nChannelsFromSidecar != null) {
+      nChannels = nChannelsFromSidecar;
+    }
+    if (fs == null && sidecarFsValid) {
+      fs = sidecarFs;
+    }
+    if (!nChannels && setParseFailed) {
+      throw new Error(
+        `EEGLAB .set+.fdt: need either parseable .set with EEG.nbchan + EEG.srate ` +
+        `OR _channels.tsv + _eeg.json BIDS sidecars. ` +
+        `Set parse error: ${setParseError ? setParseError.message : 'unknown'}`,
+      );
     }
     if (!nChannels) {
       throw new Error(
