@@ -418,6 +418,11 @@
       duration_s:          n_samples / sfreq,
       channel_labels,
       channel_types,
+      // null (not undefined) so downstream code that does `bids_channels.map`
+      // or `bids_channels[0]` after a null-check guards correctly. Every
+      // other reader uses this convention; KIT diverged and caused a
+      // viewer pageerror on ds004738.
+      bids_channels:       (meta && Array.isArray(meta.channels) && meta.channels.length) ? meta.channels : null,
       bytes_per_sample:    sample_width,
       recording_start_iso: null,
       annotation_events:   [],
