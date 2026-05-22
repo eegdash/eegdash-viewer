@@ -32,6 +32,10 @@ export const KitReader         = require('../formats/kit.js');
 // Lane H readers (BIDS-allowed formats). Dependency order: helpers first,
 // then the public reader. Each module attaches its API to globalThis on
 // require so other code can reach through globalThis.<Name>Reader.
+// _h5-stream is the range-fetch HDF5 reader nwb.js delegates to for files
+// > 200 MB; it must be required BEFORE nwb.js so the global resolver
+// finds H5Stream when openStreaming runs.
+export const H5Stream          = require('../formats/_h5-stream.js');
 export const NwbReader         = require('../formats/nwb.js');
 export const MefSegment        = require('../formats/_mef-segment.js');
 export const MefRed            = require('../formats/_mef-red.js');
