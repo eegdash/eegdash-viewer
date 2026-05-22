@@ -32,23 +32,42 @@
   // run. A small retry+backoff turns most of them into passes without
   // hurting the happy path (single fetch on 200/206).
   //
-  // Only retries on the exact 502/503/504 status codes — NOT on 4xx
-  // (real "missing file" errors, must propagate immediately).
-  // NOT on network errors (those usually mean the caller aborted, or
-  // the host is unreachable — retry wouldn't help and could hide bugs).
-  const RETRY_STATUSES = new Set([502, 503, 504]);
-  const RETRY_DELAYS_MS = [200, 600, 1500]; // 3 retries with backoff
+  // Retries on transient server-side conditions:
+  //   - 502/503/504 — upstream pool flake (Cloudflare in front of S3)
+  //   - 429 — rate limiting; Cloudflare returns this when the client
+  //     exceeds the per-IP burst quota. Common during audit runs that
+  //     touch 600+ URLs quickly. Honors Retry-After header when set.
+  // NOT 4xx other than 429 (real "missing file" errors propagate).
+  // NOT network errors (those usually mean the caller aborted).
+  const RETRY_STATUSES = new Set([429, 502, 503, 504]);
+  // Longer tail for 429 — rate-limit windows on Cloudflare are usually
+  // 10 s; the schedule lets the last retry happen well after a typical
+  // window expiry. 200/600/1500/4000 ms = up to 6 s of accumulated wait
+  // before the 4th retry, which is enough for most edge-cache cooldowns.
+  const RETRY_DELAYS_MS = [200, 600, 1500, 4000];
 
   async function fetchWithRetry(url, init) {
     let lastResponse = null;
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
       const r = await fetch(url, init);
       if (!RETRY_STATUSES.has(r.status)) return r;
+      // Honor Retry-After when the server tells us when to come back.
+      // Cloudflare 429 responses sometimes include a delta-seconds value;
+      // if it's set and reasonable, prefer it over our backoff schedule.
+      const retryAfter = r.headers.get('retry-after');
       // Drain the body so the connection is freed before we retry.
       try { await r.body?.cancel(); } catch { /* ignore */ }
       lastResponse = r;
       if (attempt === RETRY_DELAYS_MS.length) break;
-      const delay = RETRY_DELAYS_MS[attempt];
+      let delay = RETRY_DELAYS_MS[attempt];
+      if (retryAfter) {
+        const parsed = Number(retryAfter);
+        // Cap at 10 s — anything longer means the server is broken,
+        // not just rate-limited, and we shouldn't block that long.
+        if (Number.isFinite(parsed) && parsed > 0 && parsed <= 10) {
+          delay = Math.max(delay, parsed * 1000);
+        }
+      }
       // Respect the original signal — if the caller aborts mid-retry,
       // surface the abort instead of finishing the backoff.
       const signal = init && init.signal;

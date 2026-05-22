@@ -12,7 +12,14 @@ import base from './playwright.config.mjs';
 export default defineConfig({
   ...base,
   fullyParallel: true,
-  workers: 4,
+  // Lowered 2026-05-22 from 4 → 2 workers because Cloudflare rate-limits
+  // the audit at 4 workers when running back-to-back full audits
+  // (observed: 402/647 datasets failed with 'Failed to fetch' after CDN
+  // started returning HTTP 429 to nearly every URL). 2 workers gives
+  // ~3-5 req/s instead of ~10-15 req/s, well within typical CDN burst
+  // quotas. Wall time roughly doubles (50 min → 90 min for 647), but
+  // we get clean results instead of mass 429.
+  workers: 2,
   // Per-test timeout. Raised 2026-05-22 from inherited 90 s → 180 s
   // because the inline-cap raise (200 MB → 1 GB) means EEGLAB v7.3
   // .sets in the 500–900 MB range now fully load (instead of instantly
