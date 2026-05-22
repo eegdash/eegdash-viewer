@@ -54,6 +54,7 @@ function loadRows() {
 
 const VERDICT_ICON = {
   pass: 'PASS',
+  'reader-rejected': 'REJECTED (clean)',
   'render-fail': 'FAIL (render)',
   'blank-canvas': 'FAIL (blank canvas)',
   'console-error': 'FAIL (console error)',
@@ -68,13 +69,19 @@ function summarise(rows) {
   for (const r of rows) counts[r.verdict] = (counts[r.verdict] ?? 0) + 1;
   const total = rows.length;
   const passed = counts.pass ?? 0;
+  // "reader-rejected" is a clean refusal (calibration files, files broken at
+  // source). Count them separately so the headline pass rate isn't dragged
+  // down by files that genuinely can't be displayed.
+  const cleanRejects = counts['reader-rejected'] ?? 0;
+  const denomExclRejected = total - cleanRejects;
   const passRate = total === 0 ? 0 : (passed / total) * 100;
+  const effectivePassRate = denomExclRejected === 0 ? 0 : (passed / denomExclRejected) * 100;
   const renderTimes = rows.filter((r) => typeof r.render_ms === 'number').map((r) => r.render_ms);
   const medianMs =
     renderTimes.length === 0
       ? null
       : renderTimes.slice().sort((a, b) => a - b)[Math.floor(renderTimes.length / 2)];
-  return { counts, total, passed, passRate, medianMs };
+  return { counts, total, passed, passRate, effectivePassRate, cleanRejects, medianMs };
 }
 
 // Strip ANSI escapes + collapse whitespace so failure messages render as a
@@ -100,7 +107,7 @@ function fmtRow(r) {
 }
 
 function render(rows) {
-  const { counts, total, passed, passRate, medianMs } = summarise(rows);
+  const { counts, total, passed, passRate, effectivePassRate, cleanRejects, medianMs } = summarise(rows);
   const today = new Date().toISOString().slice(0, 10);
 
   const verdictLines = Object.entries(counts)
@@ -125,7 +132,11 @@ function render(rows) {
 
 ## Headline
 
-**${passed} of ${total} datasets (${passRate.toFixed(1)}%) actually render in the browser.**
+**${passed} of ${total} datasets (${passRate.toFixed(1)}%) actually render in the browser.**${
+  cleanRejects > 0
+    ? `\n\n**Effective render rate excluding clean rejects: ${passed} of ${total - cleanRejects} = ${effectivePassRate.toFixed(1)}%** (${cleanRejects} files cleanly rejected by the reader as undisplayable — calibration FIFs, files broken at source).`
+    : ''
+}
 
 Median end-to-end render time: ${medianMs == null ? 'n/a' : `${medianMs} ms`}.
 

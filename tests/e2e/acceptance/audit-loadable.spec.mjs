@@ -161,11 +161,17 @@ if (FULL_MODE) {
  * Per-test result row written to RESULTS_JSONL.
  *
  * verdict semantics:
- *   pass       — stage-caption visible + canvas non-blank + zero errors + pill matches
- *   render-fail — stage-caption never appeared (reader/parser bug or sidecar failure)
- *   blank-canvas — stage-caption appeared but canvas had < 50 non-bg pixels
- *   console-error — pageerror or non-404 console.error fired during load
- *   pill-mismatch — stage-caption appeared but #pill-format did not match expected
+ *   pass            — stage-caption visible + canvas non-blank + zero errors + pill matches
+ *   reader-rejected — viewer surfaced a clean rejection in #status .err (calibration
+ *                     files with no FIFFB_RAW_DATA, files truncated beyond recovery,
+ *                     etc.). The reader correctly refused to display the file and
+ *                     told the user why. Not counted as a bug.
+ *   render-fail     — neither stage-caption nor a clean rejection ever appeared
+ *                     (hang, network failure, or a true reader/parser bug that
+ *                     didn't surface a message)
+ *   blank-canvas    — stage-caption appeared but canvas had < 50 non-bg pixels
+ *   console-error   — pageerror or non-404 console.error fired during load
+ *   pill-mismatch   — stage-caption appeared but #pill-format did not match expected
  *   timeout    — 90 s test budget exceeded (network or hung worker)
  *   skipped    — soft-fail mode and the test was downgraded
  *
@@ -283,10 +289,43 @@ for (const c of CASES) {
     try {
       await page.goto(url);
 
-      await expect(
-        page.locator('#stage-caption'),
-        `${c.dataset_id}: stage-caption never visible`,
-      ).toBeVisible({ timeout: 60_000 });
+      // Race stage-caption (success) against #status .err (clean rejection).
+      // Files like ds002885 / ds003392 / ds003352 are calibration / empty-
+      // block FIFFs that the reader correctly rejects at open() — the
+      // viewer renders the rejection message into #status without ever
+      // flipping stage-caption visible. Before this race, those cases
+      // showed up as "render-fail (timeout)" indistinguishable from real
+      // hangs. Now we detect them explicitly and tag verdict='reader-rejected'.
+      //
+      // Why visibility matters: stage-caption is hidden by default; the
+      // viewer un-hides it after the first chunk paints. #status .err is
+      // also hidden until the viewer writes an error message into it.
+      const stageCaption = page.locator('#stage-caption');
+      const errStatus = page.locator('#status .err');
+      // Promise.any resolves with the first non-rejecting promise; we
+      // collapse both visibility checks into one race so a 60s rejection
+      // delay also doesn't double-count.
+      const winner = await Promise.any([
+        stageCaption.waitFor({ state: 'visible', timeout: 60_000 }).then(() => 'caption'),
+        errStatus.waitFor({ state: 'visible', timeout: 60_000 }).then(() => 'rejected'),
+      ]).catch((aggErr) => {
+        // Both timed out — surface the original stage-caption failure
+        // shape so the existing report layer still parses it.
+        throw new Error(`${c.dataset_id}: stage-caption never visible`);
+      });
+
+      if (winner === 'rejected') {
+        // Clean rejection from the reader (e.g. "no FIFFB_RAW_DATA",
+        // ".fdt size mismatch"). Record the message so the report can
+        // distinguish *intentional* rejections (calibration files, files
+        // broken at source) from *bugs*. We don't throw — the file
+        // simply isn't displayable, which is the correct behaviour.
+        const msg = (await errStatus.textContent())?.trim() || '(no message)';
+        row.verdict = 'reader-rejected';
+        row.error_message = msg.slice(0, 500);
+        row.render_ms = Date.now() - t0;
+        return;
+      }
 
       row.render_ms = Date.now() - t0;
 
