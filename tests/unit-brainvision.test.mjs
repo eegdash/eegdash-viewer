@@ -88,9 +88,18 @@ test('parseHeader: rejects DataFormat=ASCII', () => {
   assert.throws(() => BrainVisionReader.parseHeader(txt), /DataFormat=BINARY/);
 });
 
-test('parseHeader: rejects DataOrientation=VECTORIZED (v1 unsupported)', () => {
+test('parseHeader: accepts DataOrientation=VECTORIZED (now supported)', () => {
+  // VECTORIZED is now a first-class layout. Header parse must succeed,
+  // and the orientation must be surfaced on the returned hdr so the
+  // reader can route to the per-channel range-fetch path.
   const txt = BASE_VHDR.replace('DataOrientation=MULTIPLEXED', 'DataOrientation=VECTORIZED');
-  assert.throws(() => BrainVisionReader.parseHeader(txt), /MULTIPLEXED/);
+  const hdr = BrainVisionReader.parseHeader(txt);
+  assert.equal(hdr.orientation, 'VECTORIZED');
+});
+
+test('parseHeader: rejects unknown DataOrientation', () => {
+  const txt = BASE_VHDR.replace('DataOrientation=MULTIPLEXED', 'DataOrientation=SPIRAL');
+  assert.throws(() => BrainVisionReader.parseHeader(txt), /unknown DataOrientation/);
 });
 
 test('parseHeader: rejects unknown BinaryFormat', () => {

@@ -445,9 +445,17 @@
   // unknown keys so dataset-specific extensions stay visible.
   api.parseEegJson = function (obj) {
     if (!obj || typeof obj !== 'object') throw new Error('_eeg.json is not an object');
-    const fs = obj.SamplingFrequency;
-    if (!isFinite(fs) || fs <= 0) {
-      throw new Error(`_eeg.json: SamplingFrequency must be a positive number (got ${fs})`);
+    let fs = obj.SamplingFrequency;
+    // Lenient: an invalid sidecar SamplingFrequency is NOT fatal. Most
+    // readers can derive sfreq from the file itself (EEGLAB EEG.srate,
+    // BrainVision SamplingInterval, EDF/BDF record duration). Treat the
+    // sidecar value as a hint that may be overridden. Observed in the
+    // wild on ds006466 where the sidecar value is `null`.
+    if (fs != null && (!isFinite(fs) || fs <= 0)) {
+      console.warn(
+        `_eeg.json: SamplingFrequency is invalid (${fs}); will derive from file.`
+      );
+      fs = null;
     }
     return {
       sampling_frequency: fs,

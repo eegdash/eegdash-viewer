@@ -368,7 +368,15 @@
   // Each fallback retains its own 200 MB ceiling so we don't OOM the
   // page on a non-streamable huge file.
   const INLINE_METADATA_BUDGET_BYTES = 16 * 1024 * 1024;  // 16 MB head probe
-  const INLINE_LEGACY_FALLBACK_CAP   = 200 * 1024 * 1024;  // 200 MB cap
+  // Legacy whole-file fallback cap. 1 GB is well within modern desktop
+  // browser ArrayBuffer limits (Chrome supports up to 4 GB on 64-bit
+  // systems). The cap exists to avoid catastrophic OOMs on low-end
+  // devices, not to protect against any specific browser limit.
+  //
+  // Affects 6 of 11 inline-data audit failures (286–903 MB struct-
+  // wrapped .set files): ds004019, ds004040, ds004151, ds005178,
+  // ds006648, ds006866. Files >1 GB still fail with a clear message.
+  const INLINE_LEGACY_FALLBACK_CAP   = 1024 * 1024 * 1024;  // 1 GB
 
   // Shared fallback shape used by 6 different branches inside
   // openInlineSet (v7.3, scan-failed, compressed, no-data, no-srate,

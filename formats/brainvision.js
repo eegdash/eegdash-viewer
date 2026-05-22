@@ -118,8 +118,8 @@
       throw new Error(`v1 only supports DataType=TIMEDOMAIN (got "${common.DataType}")`);
     }
     const orientation = (common.DataOrientation || 'MULTIPLEXED').toUpperCase();
-    if (orientation !== 'MULTIPLEXED') {
-      throw new Error(`v1 only supports DataOrientation=MULTIPLEXED (got "${orientation}")`);
+    if (orientation !== 'MULTIPLEXED' && orientation !== 'VECTORIZED') {
+      throw new Error(`unknown DataOrientation "${orientation}" (expected MULTIPLEXED or VECTORIZED)`);
     }
 
     const nChannels = parseInt(common.NumberOfChannels, 10);
@@ -251,8 +251,10 @@
       bytes_per_sample: hdr.bytes_per_sample,
       view_ctor: BIN_FORMATS[hdr.binary_format].view,
       scales,
+      orientation: hdr.orientation,
     };
 
+    const isVectorized = hdr.orientation === 'VECTORIZED';
     return {
       n_channels: hdr.n_channels,
       n_samples: nSamples,
@@ -260,14 +262,61 @@
       duration_s: nSamples / hdr.sampling_frequency,
       bytes_per_sample: hdr.bytes_per_sample,
       binary_format: hdr.binary_format,
+      data_orientation: hdr.orientation,
       url: eegUrl,
       vhdr_url: vhdrUrl,
       channel_labels: channelLabels,
       bids_channels: meta.channels || null,
-      readWindow: (start, n, opts) => readMultiplexedWindow(layout, start, n, opts),
-      readWindowStreaming: (start, n, opts) => streamMultiplexedWindow(layout, start, n, opts),
+      readWindow: isVectorized
+        ? (start, n, opts) => readVectorizedWindow(layout, start, n, opts)
+        : (start, n, opts) => readMultiplexedWindow(layout, start, n, opts),
+      // VECTORIZED has no fast streaming path (each channel needs its own
+      // disjoint range); the non-streaming readWindow does N parallel
+      // range fetches which is acceptable for typical EEG channel counts.
+      readWindowStreaming: isVectorized
+        ? undefined
+        : (start, n, opts) => streamMultiplexedWindow(layout, start, n, opts),
     };
   };
+
+  // VECTORIZED layout: byte offset of sample s, channel c = (c·N + s)·bps,
+  // where N = layout.n_samples (the total sample count). Channel c's
+  // samples live in a contiguous [c·N, (c+1)·N) byte block.
+  //
+  // For a window [start, start+nWin) we issue N parallel range fetches
+  // — one per channel, each covering only that channel's nWin samples.
+  // For typical EEG (64–128 channels, 10s window @ 500 Hz = 5k samples)
+  // each per-channel fetch is ~10–20 KB; total bandwidth is the same as
+  // MULTIPLEXED. HTTP/2 multiplexing keeps the 64–128 concurrent fetches
+  // light. Observed in the wild: ds003944, ds004000, ds004621, ds007655,
+  // ds003947 (all five formerly rejected with "v1 only supports
+  // MULTIPLEXED").
+  async function readVectorizedWindow(layout, startSample, nWinReq, opts) {
+    const win = ChannelBuffers.clampWindow(startSample, nWinReq, layout.n_samples);
+    if (!win) return ChannelBuffers.empty(layout.n_channels);
+    const { start, nWin } = win;
+    const nCh = layout.n_channels;
+    const bps = layout.bytes_per_sample;
+    const N = layout.n_samples;
+    const scales = layout.scales;
+    const out = ChannelBuffers.alloc(nCh, nWin);
+
+    // One range fetch per channel, in parallel.
+    const fetches = new Array(nCh);
+    for (let c = 0; c < nCh; c++) {
+      const byteStart = (c * N + start) * bps;
+      const byteEnd = byteStart + nWin * bps - 1;
+      fetches[c] = HttpRange.rangeFetch(layout.url, byteStart, byteEnd, nWin * bps, opts);
+    }
+    const bufs = await Promise.all(fetches);
+    for (let c = 0; c < nCh; c++) {
+      const view = new layout.view_ctor(bufs[c]);
+      const dst = out[c];
+      const s = scales[c];
+      for (let i = 0; i < nWin; i++) dst[i] = view[i] * s;
+    }
+    return out;
+  }
 
   // Hot path. Single contiguous range fetch, single typed-array view
   // over the buffer chosen at open() time, then a linear walk that

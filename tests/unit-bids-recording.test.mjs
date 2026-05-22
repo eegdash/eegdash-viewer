@@ -475,19 +475,34 @@ test('parseEegJson: only SamplingFrequency → all optionals are null, raw is mi
   });
 });
 
-test('parseEegJson: SamplingFrequency=0 → throws with exact "positive number" wording', () => {
-  // Kills the `<= 0` predicate mutation (line 548) AND the error
-  // message StringLiteral mutants.
-  assert.throws(
-    () => BIDSRecording.parseEegJson({ SamplingFrequency: 0 }),
-    /_eeg\.json: SamplingFrequency must be a positive number \(got 0\)/);
+test('parseEegJson: SamplingFrequency=0 → warns and returns null (lenient)', () => {
+  // Behavior change (2026-05-22): invalid SamplingFrequency is no longer
+  // fatal. The reader derives sfreq from the file itself (EEG.srate,
+  // .vhdr SamplingInterval, EDF record duration) — the sidecar is just
+  // a hint. Treating it as fatal mis-rejected ds006466 (sidecar=null).
+  const origWarn = console.warn;
+  let warned = '';
+  console.warn = (m) => { warned = m; };
+  try {
+    const out = BIDSRecording.parseEegJson({ SamplingFrequency: 0 });
+    assert.equal(out.sampling_frequency, null);
+    assert.match(warned, /SamplingFrequency is invalid/);
+  } finally {
+    console.warn = origWarn;
+  }
 });
 
-test('parseEegJson: SamplingFrequency=NaN → throws (isFinite guard)', () => {
-  // Kills the `!isFinite(fs)` guard mutation.
-  assert.throws(
-    () => BIDSRecording.parseEegJson({ SamplingFrequency: NaN }),
-    /must be a positive number/);
+test('parseEegJson: SamplingFrequency=NaN → warns and returns null (lenient)', () => {
+  const origWarn = console.warn;
+  let warned = '';
+  console.warn = (m) => { warned = m; };
+  try {
+    const out = BIDSRecording.parseEegJson({ SamplingFrequency: NaN });
+    assert.equal(out.sampling_frequency, null);
+    assert.match(warned, /invalid/);
+  } finally {
+    console.warn = origWarn;
+  }
 });
 
 test('parseEegJson: null input → throws "not an object"', () => {

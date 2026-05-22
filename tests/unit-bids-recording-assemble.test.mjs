@@ -89,18 +89,24 @@ test('assembleRecordingMetadata: malformed _eeg.json throws with URL in message'
   );
 });
 
-// ----- test 4: _eeg.json with invalid SamplingFrequency → throws --
+// ----- test 4: _eeg.json with invalid SamplingFrequency → lenient (warn) --
 
-test('assembleRecordingMetadata: _eeg.json with non-positive SamplingFrequency throws', async () => {
+test('assembleRecordingMetadata: _eeg.json with non-positive SamplingFrequency now warns (lenient)', async () => {
+  // Behavior change: invalid sidecar SamplingFrequency was previously
+  // fatal. Now we warn and pass null sampling_frequency to the reader,
+  // which derives sfreq from the file itself. Unblocks ds006466 where
+  // the sidecar value is `null` but the .set has EEG.srate=1000.
   regSidecar('_eeg.json', JSON.stringify({ SamplingFrequency: -1 }));
-  await assert.rejects(
-    () => BIDSRecording.loadRecordingMetadata(EEG_URL),
-    (err) => {
-      assert.match(err.message, /Bad _eeg\.json at/);
-      assert.match(err.message, /SamplingFrequency/);
-      return true;
-    }
-  );
+  const origWarn = console.warn;
+  let warned = '';
+  console.warn = (m) => { warned = m; };
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(EEG_URL);
+    assert.equal(meta.eeg_json.sampling_frequency, null);
+    assert.match(warned, /invalid/);
+  } finally {
+    console.warn = origWarn;
+  }
 });
 
 // ----- test 5: electrodes hit but BIDSLoader not loaded → silently skip --

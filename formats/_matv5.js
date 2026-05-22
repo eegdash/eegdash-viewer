@@ -357,16 +357,39 @@
       // miMATRIX subs; we collapse to the first element only — EEGLAB
       // top-level structs are scalar (1×1) anyway.
       const fields = new Map();
+      // Synthesize an empty placeholder for missing nested fields. Some
+      // writers truncate struct subelement lists when trailing fields
+      // are all-empty (observed on ds005185, ds005106 'labels' field of
+      // EEG.chanlocs; ds005876 'theta' field). The reader doesn't need
+      // these unused fields — the audit's earlier hard-reject was too
+      // strict. We log so callers can diagnose if it matters.
+      const emptyPlaceholder = () => ({ name: '', class: 'unknown', dims: [0, 0], data: [] });
+      let synthesizedCount = 0;
+      const synthesizedNames = [];
       for (let i = 0; i < nfields; i++) {
         const subMatrix = subs[5 + i];
         if (!subMatrix) {
-          throw new Error(`struct '${name}': missing subelement for field ${fieldNames[i]}`);
+          synthesizedCount++;
+          synthesizedNames.push(fieldNames[i]);
+          fields.set(fieldNames[i], emptyPlaceholder());
+          continue;
         }
-        // Each field is itself a nested matrix.
+        // Each field is itself a nested matrix. Non-miMATRIX is malformed
+        // — same lenient strategy: synthesize empty rather than throw.
         if (subMatrix.miType !== 14) {
-          throw new Error(`struct '${name}.${fieldNames[i]}': expected miMATRIX, got miType ${subMatrix.miType}`);
+          synthesizedCount++;
+          synthesizedNames.push(fieldNames[i]);
+          fields.set(fieldNames[i], emptyPlaceholder());
+          continue;
         }
         fields.set(fieldNames[i], await parseMatrix(subMatrix.payload));
+      }
+      if (synthesizedCount > 0) {
+        console.warn(
+          `MAT v5: struct '${name}' has ${synthesizedCount}/${nfields} ` +
+          `missing/malformed nested subelements — synthesized as empty: ` +
+          `[${synthesizedNames.slice(0, 6).join(', ')}${synthesizedNames.length > 6 ? ', ...' : ''}].`
+        );
       }
       return { name, class: 'struct', dims, data: fields };
     }
