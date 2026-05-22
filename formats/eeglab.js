@@ -159,17 +159,78 @@
     }
 
     // Split .set + .fdt path: the .fdt is a flat float32 blob with no
-    // header — we need _channels.tsv (channel count) and _eeg.json
-    // (sampling rate) to interpret it. These can't be derived from the
-    // file itself.
-    if (!hasChannels) {
-      throw new Error('EEGLAB .fdt reader needs _channels.tsv (we skip .set parsing).');
+    // header. We prefer the BIDS sidecar (_channels.tsv + _eeg.json)
+    // for nChannels and SamplingFrequency, but it's not always there.
+    //
+    // Real-world examples (EEGDash audit seed=44):
+    //   ds003645: .fdt + .set + _electrodes.tsv only — no _channels.tsv
+    //   ds003751: _eeg.json case-mismatch with .set basename — BIDS
+    //             inheritance walk fails to find the JSON
+    //
+    // Fallback: parse the .set itself to extract nbchan + srate. The
+    // .set has these fields even when it's a split-file pair, because
+    // EEGLAB writes the full EEG struct to .set and only the numeric
+    // data array goes to .fdt. Mirrors MNE's behaviour in
+    // mne/io/eeglab/eeglab.py::_check_load_mat.
+    let nChannels = nChannelsFromSidecar;
+    let fs = sidecarFsValid ? sidecarFs : null;
+    if (nChannels == null || fs == null) {
+      try {
+        const setBuf = await HttpRange.fetchBuffer(meta.eeg_url);
+        const matVer = MatV5.detectMatVersion(setBuf);
+        let vars;
+        if (matVer === 'v7.3' && typeof globalThis.Mat73 !== 'undefined') {
+          vars = await Mat73.parse(setBuf);
+        } else {
+          vars = await MatV5.parse(setBuf);
+        }
+        const eegStruct = vars.get('EEG');
+        const fieldFrom = (name) => {
+          if (vars.has(name)) return vars.get(name);
+          if (eegStruct && eegStruct.class === 'struct' && eegStruct.data.has(name)) {
+            return eegStruct.data.get(name);
+          }
+          return null;
+        };
+        const scalarFrom = (name) => {
+          const v = fieldFrom(name);
+          if (!v || !v.data || !v.data.length) return null;
+          return Number(v.data[0]);
+        };
+        const nbchanFromSet = scalarFrom('nbchan');
+        const srateFromSet  = scalarFrom('srate');
+        if (nChannels == null && nbchanFromSet) nChannels = nbchanFromSet;
+        if (fs == null && srateFromSet && srateFromSet > 0) fs = srateFromSet;
+        if (nChannels != null && fs != null) {
+          console.warn(
+            `EEGLAB .set+.fdt: BIDS sidecar incomplete; using .set's own ` +
+            `EEG.nbchan=${nChannels} and EEG.srate=${fs}.`,
+          );
+        }
+      } catch (e) {
+        // .set parse failure is recoverable as long as sidecar gave us
+        // what we need. Surface only if BOTH sources fail.
+        if (nChannels == null || fs == null) {
+          throw new Error(
+            `EEGLAB .set+.fdt: need either _channels.tsv + _eeg.json BIDS ` +
+            `sidecars OR a parseable .set with EEG.nbchan + EEG.srate. ` +
+            `Set parse error: ${e.message}`,
+          );
+        }
+      }
     }
-    if (!sidecarFsValid) {
-      throw new Error('EEGLAB .fdt reader needs SamplingFrequency in _eeg.json.');
+    if (!nChannels) {
+      throw new Error(
+        'EEGLAB .fdt reader needs nChannels (either from _channels.tsv ' +
+        'sidecar or EEG.nbchan in the .set file).',
+      );
     }
-    const nChannels = nChannelsFromSidecar;
-    const fs = sidecarFs;
+    if (!fs) {
+      throw new Error(
+        'EEGLAB .fdt reader needs SamplingFrequency (either from ' +
+        '_eeg.json sidecar or EEG.srate in the .set file).',
+      );
+    }
 
     if (totalBytes % (nChannels * BYTES_PER_SAMPLE) !== 0) {
       throw new Error(

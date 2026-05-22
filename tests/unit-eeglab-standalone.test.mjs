@@ -222,11 +222,13 @@ test('open: inline .set ignores sidecar nbchan when it disagrees (warn only)', a
   }
 });
 
-test('open: split .set + .fdt path still requires _channels.tsv', async () => {
-  // Sanity: the BIDS gate is only relaxed for the inline path. If a
-  // sibling .fdt resolves and the sidecar is missing, we still throw
-  // because the .fdt is a headerless float32 blob.
-  // Simulate: register a tiny "fdt" blob so probeLength succeeds.
+test('open: split .set + .fdt path no longer requires _channels.tsv (parses .set instead)', async () => {
+  // As of the ds003645/ds003751 fix: when the sidecar is missing,
+  // we parse the .set itself to derive nbchan/srate. This test verifies
+  // both the success and failure paths:
+  //  (a) bogus .set (not parseable) + no sidecar → "need either sidecar
+  //      or parseable .set" combined-source error
+  //  (b) The error message no longer mentions "_channels.tsv" exclusively
   const fdtBlob = new Blob([new Uint8Array(16)], { type: 'application/octet-stream' });
   const fdtUrl = HttpRange.registerLocal(`split-test-${blobCounter++}.fdt`, fdtBlob);
   const setBlob = new Blob([new Uint8Array(128)], { type: 'application/octet-stream' });
@@ -242,6 +244,6 @@ test('open: split .set + .fdt path still requires _channels.tsv', async () => {
   };
   await assert.rejects(
     () => EEGLABReader.open(meta),
-    /needs _channels\.tsv/,
+    /need either _channels\.tsv \+ _eeg\.json BIDS sidecars OR a parseable \.set/,
   );
 });
