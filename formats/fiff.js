@@ -422,23 +422,35 @@
 
     const dirInfo = globalThis.FiffDir.readDirPointer(headView);
 
-    // dir.entries: array of {kind,type,size,position}. Two paths to
-    // build it:
-    //   (a) DIR_POINTER is set → parse the end-of-file FIFF_DIR tag
-    //       (fast: 1 range fetch of the tail).
-    //   (b) DIR_POINTER payload is -1 (or DIR_POINTER tag is missing)
-    //       → walk the tag header stream sequentially. Big buffers
-    //       are skipped via pos += 16 + size, so total fetches scale
-    //       with N_TAGS, not file size. See MNE-Python
-    //       mne/_fiff/open.py:183-192 for the canonical reference.
+    // dir.entries: array of {kind,type,size,position}. Three paths:
+    //   (a) DIR_POINTER is set + dirOffset is in-range → parse the
+    //       end-of-file FIFF_DIR tag (fast: 1 range fetch of the tail).
+    //   (b) DIR_POINTER payload is -1 (sentinel for "no directory") →
+    //       walk the tag header stream sequentially.
+    //   (c) DIR_POINTER payload is a positive value BUT points past
+    //       end-of-file (malformed/truncated/split file — observed on
+    //       ds002885 where DIR_POINTER = 911M but file is 169M). MNE-
+    //       Python `_fiff/open.py:183-192` treats this as case (b) and
+    //       falls back to sequential walk; we match that behaviour.
     let dir;
-    if (!dirInfo.hasDirectory) {
+    const dirOutOfRange = dirInfo.hasDirectory &&
+      (dirInfo.dirOffset < 0 || dirInfo.dirOffset >= totalBytes);
+    if (!dirInfo.hasDirectory || dirOutOfRange) {
       const fetchRange = async (s, e) =>
         globalThis.HttpRange.rangeFetch(url, s, e, e - s + 1);
       dir = await globalThis.FiffDir.buildDirectoryByHeaderWalk(url, totalBytes, fetchRange);
     } else {
       // Parse directory entries → block ranges.
-      dir = globalThis.FiffDir.parseDirectory(shiftedView, dirInfo.dirOffset);
+      try {
+        dir = globalThis.FiffDir.parseDirectory(shiftedView, dirInfo.dirOffset);
+      } catch (e) {
+        // Defensive: even if dirOffset is in-range, the FIFF_DIR tag
+        // at that offset can be malformed. Same behaviour as MNE on
+        // any directory-parse error — fall back to header walk.
+        const fetchRange = async (s, e2) =>
+          globalThis.HttpRange.rangeFetch(url, s, e2, e2 - s + 1);
+        dir = await globalThis.FiffDir.buildDirectoryByHeaderWalk(url, totalBytes, fetchRange);
+      }
     }
     // To identify block IDs we need the 4-byte payload at each
     // BLOCK_START tag's position+16. For huge files those positions
