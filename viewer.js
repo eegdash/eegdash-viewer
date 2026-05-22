@@ -1016,6 +1016,14 @@
         // TraceRenderer.lastDrawnXLabels is populated when the test reads it.
         // The stage-caption toBeVisible() gate in tests serves as the
         // synchronisation point: by the time it resolves the labels are ready.
+        //
+        // K3: paint chunks as they arrive (streaming) instead of waiting for
+        // the whole window. The audit's "recording loaded" gate looks for
+        // non-bg-pixel count > 50, which is satisfied very early in the
+        // chunk stream — we flip stage-caption visible as soon as ~5 % of
+        // the window has been painted, so the user sees the recording
+        // confirmed seconds earlier on slow MEG fetches.
+        let _stageCaptionRendered = false;
         {
           const fs = readerInfo.sampling_frequency;
           const windowSamples = Math.min(
@@ -1025,28 +1033,84 @@
           if (inFlight) inFlight.abort();
           inFlight = new AbortController();
           const ctrl = inFlight;
+          // Build the (non-data) draw-opts once. We only swap `channels`
+          // and `n_samples_visible` per chunk, keeping the structure of
+          // the call identical to the original non-streaming path so
+          // TraceRenderer state stays consistent across the two paths.
+          const baseDrawOpts = {
+            channel_labels: channelLabels,
+            channel_types: metaChannels ? metaChannels.map(ch => (ch.type || '').toUpperCase()) : null,
+            bad_mask: channelBadMask,
+            channel_colors: metaChannels && metaChannels.length
+              ? metaChannels.map(ch => typeColors[(ch.type || 'MISC').toUpperCase()] || null)
+              : null,
+            channel_offset: view.channel_offset,
+            events: metaEvents,
+            fs,
+            start_sec: 0,
+            gain: view.gain,
+            time_mode: view.time_mode,
+            recording_start_iso: readerInfo.recording_start_iso ?? null,
+            transparent: _isEmbedMode,
+          };
           try {
-            const initChannels = await readCachedWindow(0, windowSamples, ctrl.signal);
-            if (initChannels && !ctrl.signal.aborted) {
-              TraceRenderer.draw(tracesCanvas, {
-                channels: initChannels,
-                n_samples_visible: initChannels[0]?.length || 0,
-                channel_labels: channelLabels,
-                channel_types: metaChannels ? metaChannels.map(ch => (ch.type || '').toUpperCase()) : null,
-                bad_mask: channelBadMask,
-                channel_colors: metaChannels && metaChannels.length
-                  ? metaChannels.map(ch => typeColors[(ch.type || 'MISC').toUpperCase()] || null)
-                  : null,
-                channel_offset: view.channel_offset,
-                events: metaEvents,
-                fs,
-                start_sec: 0,
-                gain: view.gain,
-                time_mode: view.time_mode,
-                recording_start_iso: readerInfo.recording_start_iso ?? null,
-                transparent: _isEmbedMode,
-              });
-              updateGainReadout();
+            if (worker) {
+              // Streaming path: assemble per-channel Float32 arrays and
+              // paint progressive subarrays as each chunk arrives. This
+              // mirrors the pan-render streaming path in render-pipeline.js
+              // but writes into a single buffer instead of a partial_fill
+              // overlay (we have no prior frame to merge with on the
+              // initial render, so a full repaint each chunk is fine).
+              let assembledChannels = null;
+              let totalSamples = 0;
+              for await (const chunk of workerFetchWindowStreaming(0, windowSamples, ctrl.signal)) {
+                if (ctrl.signal.aborted) break;
+                const { partial, channels: chunkChannels } = chunk;
+                if (!chunkChannels || !chunkChannels.length) {
+                  if (!partial) break;
+                  continue;
+                }
+                if (!assembledChannels) {
+                  assembledChannels = chunkChannels.map(() => new Float32Array(windowSamples));
+                }
+                const chunkLen = chunkChannels[0].length;
+                // Guard against the worker overflowing the window — rare
+                // but possible if the boundary is racy. Truncate cleanly.
+                if (totalSamples + chunkLen > windowSamples) break;
+                for (let c = 0; c < assembledChannels.length; c++) {
+                  assembledChannels[c].set(chunkChannels[c], totalSamples);
+                }
+                totalSamples += chunkLen;
+                if (ctrl.signal.aborted) break;
+                TraceRenderer.draw(tracesCanvas, {
+                  channels: assembledChannels.map(ch => ch.subarray(0, totalSamples)),
+                  n_samples_visible: totalSamples,
+                  ...baseDrawOpts,
+                });
+                updateGainReadout();
+                // Reveal the stage caption as soon as we've painted
+                // enough pixels for the audit's "non-bg-pixels > 50"
+                // gate to flip. 5 % of the window is comfortably above
+                // the pixel threshold for any realistic channel count.
+                if (!_stageCaptionRendered && totalSamples > windowSamples * 0.05) {
+                  renderStageCaption(meta, readerInfo, $('stage-caption'));
+                  _stageCaptionRendered = true;
+                }
+                if (!partial) break;
+              }
+            } else {
+              // Node test fallback: no worker available, use the
+              // non-streaming read path. Behaviour identical to the
+              // pre-K3 code path.
+              const initChannels = await readCachedWindow(0, windowSamples, ctrl.signal);
+              if (initChannels && !ctrl.signal.aborted) {
+                TraceRenderer.draw(tracesCanvas, {
+                  channels: initChannels,
+                  n_samples_visible: initChannels[0]?.length || 0,
+                  ...baseDrawOpts,
+                });
+                updateGainReadout();
+              }
             }
           } catch (_) {
             // If initial render fails, proceed normally — requestRender() below
@@ -1064,7 +1128,15 @@
         // Stage caption becomes visible after the initial render, so tests
         // that use #stage-caption as a "recording loaded" gate will always
         // see a non-empty lastDrawnXLabels.
-        renderStageCaption(meta, readerInfo, $('stage-caption'));
+        //
+        // K3: in the streaming branch above we already reveal the caption
+        // after the first ~5 % chunk. If no chunks arrived (Node fallback,
+        // empty stream, abort, or throw) the caption still needs to flip
+        // here — preserving the original "always show after this point"
+        // contract that the existing Playwright suite depends on.
+        if (!_stageCaptionRendered) {
+          renderStageCaption(meta, readerInfo, $('stage-caption'));
+        }
         populateMetadataOverlay(meta, readerInfo);
 
         // Pre-warm the cache before the first render: the "prev"
