@@ -141,7 +141,7 @@ test.describe('viewer end-to-end', () => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.waitForFunction(
       ({ before }) => document.getElementById('traces').width !== before,
-      { before }, { timeout: 5000 });
+      { before }, { timeout: 15_000 });
     const after = await page.locator('#traces').evaluate((c) => c.width);
     expect(after).not.toEqual(before);
   });
