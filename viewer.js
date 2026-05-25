@@ -837,6 +837,17 @@
         }
       });
       window.addEventListener('resize', requestRender);
+      // The window.resize listener fires before the ResizeObserver batch,
+      // so its rAF runs with stale dims from traces.js's WeakMap cache —
+      // canvas.width ends up unchanged. A ResizeObserver on the canvas
+      // PARENT (#stage) fires in the same batch as the traces.js observer
+      // that clears the cache, so the rAF it schedules redraws at the
+      // correct size. We observe #stage (not tracesCanvas) to avoid
+      // triggering during the canvas un-hide on initial load.
+      // See: traces.js deviceFitCanvas, viewer.spec.mjs ResizeObserver test.
+      if (typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(requestRender).observe($('stage'));
+      }
       $('window-sec').addEventListener('change', (e) => {
         view.window_sec = parseFloat(e.target.value);
         // Cache is keyed by sample count; changing the window

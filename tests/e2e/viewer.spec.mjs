@@ -133,15 +133,18 @@ test.describe('viewer end-to-end', () => {
 
   test('ResizeObserver reflows the canvas on window resize', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 768 });
-    await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}`);
-    await expect(page.locator('#stage-caption')).toBeVisible({ timeout: 60_000 });
+    // Use local EDF fixture — fast load avoids the S3 re-fetch that would
+    // be triggered when the viewport resize aborts the in-flight stream.
+    // Remote EEG_URL tests this on CI in 30+ s; local file completes in < 2 s.
+    await page.goto('/index.html?eeg=/test-data/edfplus-with-annotations.edf');
+    await expect(page.locator('#stage-caption')).toBeVisible({ timeout: 15_000 });
     const before = await page.locator('#traces').evaluate((c) => c.width);
     // Big viewport delta + rAF flush so the ResizeObserver invalidation
     // and the subsequent requestRender both land before we sample.
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.waitForFunction(
       ({ before }) => document.getElementById('traces').width !== before,
-      { before }, { timeout: 15_000 });
+      { before }, { timeout: 5_000 });
     const after = await page.locator('#traces').evaluate((c) => c.width);
     expect(after).not.toEqual(before);
   });
