@@ -67,6 +67,24 @@
           Math.round(ctx.view.window_sec * fs)
         );
 
+        // Fast path: same window position as last render (e.g. canvas resize,
+        // gain-pill update, or a re-render after ResizeObserver fires). Redraw
+        // immediately with lastChannels so canvas.width updates without a network
+        // round-trip. The abort above already cancelled any in-flight streaming, so
+        // this is safe — lastChannels still represents the correct visible window.
+        const lastSample = ctx.lastStartSec != null
+          ? Math.round(ctx.lastStartSec * fs) : -1;
+        const lastWindow = ctx.lastWindowSec != null
+          ? Math.round(ctx.lastWindowSec * fs) : -1;
+        if (ctx.lastChannels && startSample === lastSample && windowSamples === lastWindow) {
+          const drawOpts = ctx.buildDrawOpts(ctx.lastChannels, startSample, fs);
+          ctx.TraceRenderer.draw(ctx.tracesCanvas, drawOpts);
+          ctx.updateGainReadout();
+          if (ctx.lastPointerEvent) ctx.refreshCursor();
+          ctx.prefetchNeighbours();
+          return;
+        }
+
         // Use streaming path for foreground pan on cache miss + no active filters.
         const cacheKey = `${startSample}-${windowSamples}`;
         const cacheHit = ctx.readCache.has(cacheKey);
