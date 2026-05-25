@@ -67,16 +67,23 @@
           Math.round(ctx.view.window_sec * fs)
         );
 
-        // Fast path: same window position as last render (e.g. canvas resize,
-        // gain-pill update, or a re-render after ResizeObserver fires). Redraw
-        // immediately with lastChannels so canvas.width updates without a network
-        // round-trip. The abort above already cancelled any in-flight streaming, so
-        // this is safe — lastChannels still represents the correct visible window.
+        // Use streaming path for foreground pan on cache miss + no active filters.
+        const cacheKey = `${startSample}-${windowSamples}`;
+        const cacheHit = ctx.readCache.has(cacheKey);
+        const filtersOn = ctx.hasActiveFilters();
+        const useStreaming = ctx.worker && !cacheHit && !filtersOn;
+
+        // Fast path: same window + no active filters + lastChannels available.
+        // Covers canvas resize (window.resize / ResizeObserver) where the data
+        // window hasn't moved but the canvas pixel dimensions need updating.
+        // Guarded by !filtersOn so a filter toggle always goes through the
+        // worker path and never reuses unfiltered lastChannels.
         const lastSample = ctx.lastStartSec != null
           ? Math.round(ctx.lastStartSec * fs) : -1;
         const lastWindow = ctx.lastWindowSec != null
           ? Math.round(ctx.lastWindowSec * fs) : -1;
-        if (ctx.lastChannels && startSample === lastSample && windowSamples === lastWindow) {
+        if (!filtersOn && ctx.lastChannels &&
+            startSample === lastSample && windowSamples === lastWindow) {
           const drawOpts = ctx.buildDrawOpts(ctx.lastChannels, startSample, fs);
           ctx.TraceRenderer.draw(ctx.tracesCanvas, drawOpts);
           ctx.updateGainReadout();
@@ -84,12 +91,6 @@
           ctx.prefetchNeighbours();
           return;
         }
-
-        // Use streaming path for foreground pan on cache miss + no active filters.
-        const cacheKey = `${startSample}-${windowSamples}`;
-        const cacheHit = ctx.readCache.has(cacheKey);
-        const filtersOn = ctx.hasActiveFilters();
-        const useStreaming = ctx.worker && !cacheHit && !filtersOn;
         // Snapshot the cache generation at render start. The streaming
         // writeback at the end of the for-await loop only commits to
         // readCache if this still matches _cacheGen — otherwise a
