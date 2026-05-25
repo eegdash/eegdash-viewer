@@ -355,6 +355,7 @@
     let lastChannels = null;
     let lastStartSec = 0;
     let lastWindowSec = 10;
+    let lastFiltersOn = false;
     // Last pointer position over the canvas, used to refresh the cursor
     // readout when a new render lands while the mouse is already hovering.
     let lastPointerEvent = null;
@@ -492,6 +493,7 @@
       get lastChannels()   { return lastChannels; },   set lastChannels(v)   { lastChannels = v; },
       get lastStartSec()   { return lastStartSec; },   set lastStartSec(v)   { lastStartSec = v; },
       get lastWindowSec()  { return lastWindowSec; },  set lastWindowSec(v)  { lastWindowSec = v; },
+      get lastFiltersOn()  { return lastFiltersOn; },  set lastFiltersOn(v)  { lastFiltersOn = v; },
 
       // Read-only refs that the caller may rebind externally:
       get readerInfo()        { return readerInfo; },
