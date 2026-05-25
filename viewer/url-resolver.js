@@ -35,7 +35,44 @@
 
     const target = BIDS.resolveTargets(params);
 
-    if (target?.kind === 'url' || target?.kind === 'bids-path') {
+    if (target?.kind === 'url') {
+      load(target.eeg_url);
+      return;
+    }
+
+    if (target?.kind === 'bids-path') {
+      // Explicit ?sub= + ?suffix= form. If the built URL 404s we try
+      // discoverSubject + rebuild to absorb caller sub-ID mismatches
+      // (e.g. eegdash.org templates generating `sub-001` when the
+      // dataset actually uses `sub-1`). Probe is a single 1-byte Range
+      // GET — fast and cheap regardless of file size.
+      const HttpRange = globalThis.HttpRange;
+      let ok = false;
+      if (HttpRange && HttpRange.probeLength) {
+        try {
+          await HttpRange.probeLength(target.eeg_url);
+          ok = true;
+        } catch (e) {
+          ok = false;
+        }
+      }
+      if (ok) {
+        load(target.eeg_url);
+        return;
+      }
+      // Fallback: re-resolve with the dataset's actual first subject.
+      const realSub = await BIDS.discoverSubject(target.params).catch(() => null);
+      if (realSub && realSub !== target.params.sub) {
+        const retryUrl = BIDS.buildOpenNeuroEegUrl({ ...target.params, sub: realSub });
+        setStatus(
+          `Subject ${target.params.sub} not found in ${target.params.dataset}; ` +
+          `using ${realSub} (the dataset's first subject) instead.`,
+        );
+        load(retryUrl);
+        return;
+      }
+      // No alternative — surface the original URL anyway; the reader
+      // will produce the right 404 error message.
       load(target.eeg_url);
       return;
     }
@@ -87,7 +124,30 @@
       // 5 × 1-byte range requests.
       setStatus('Detecting modality...');
       try {
-        const suf = await BIDS.discoverSuffix(target.params);
+        let suf = await BIDS.discoverSuffix(target.params);
+        let resolvedSub = target.params.sub;
+        if (!suf) {
+          // Subject naming mismatch fallback. The caller's ?sub= might
+          // not match the dataset's actual subject IDs (common: passing
+          // `001` when the dataset uses `1`, or `01`; eegdash.org
+          // documentation pages sometimes generate sub IDs from generic
+          // templates that don't match the publisher's naming). Discover
+          // the real first subject and retry the modality probe before
+          // giving up. Mirrors the bids-path-discover-sub branch above.
+          const realSub = await BIDS.discoverSubject(target.params).catch(() => null);
+          if (realSub && realSub !== target.params.sub) {
+            const retryParams = { ...target.params, sub: realSub };
+            const retrySuf = await BIDS.discoverSuffix(retryParams);
+            if (retrySuf) {
+              setStatus(
+                `Subject ${target.params.sub} not found in ${target.params.dataset}; ` +
+                `using ${realSub} (the dataset's first subject) instead.`,
+              );
+              suf = retrySuf;
+              resolvedSub = realSub;
+            }
+          }
+        }
         if (!suf) {
           setStatus(
             `No EEG/iEEG/MEG/EMG/NIRS recording found at ` +
@@ -95,7 +155,7 @@
           );
           return;
         }
-        const resolved = { ...target.params, suffix: suf };
+        const resolved = { ...target.params, sub: resolvedSub, suffix: suf };
         load(BIDS.buildOpenNeuroEegUrl(resolved));
       } catch (err) {
         setStatus(`Modality probe failed: ${err.message || err}`);
