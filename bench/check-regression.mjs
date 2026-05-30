@@ -9,6 +9,15 @@
  *
  * Prints a formatted summary table to stdout.
  *
+ * Absolute timings are NOT comparable across CPU architectures (an Apple
+ * Silicon arm64 dev box runs the CPU-bound filter/MatV5 benches ~30-60%
+ * faster than a shared x64 CI runner). Each baseline entry is tagged with
+ * the host_arch it was captured on; when that arch differs from the arch of
+ * the current run, the comparison is reported as informational ("arch-diff")
+ * instead of a hard regression. To restore real gating on CI, capture a
+ * fresh baseline on the CI architecture (x64) and commit it:
+ *   Actions → "Perf nightly" → Run workflow (update_baseline: true)
+ *
  * Usage:
  *   node bench/check-regression.mjs            # normal check
  *   node bench/check-regression.mjs --update-baseline  # write fresh baseline.json
@@ -36,6 +45,11 @@ const P95_THRESH = 1.20;  // 20% regression allowed for p95
 // metrics where a 1 µs difference would register as 50% even though it's
 // well within measurement error. Anything under 0.5 ms absolute is noise.
 const MIN_ABSOLUTE_DELTA_MS = 0.5;
+
+// Architecture of the current run. Baseline entries captured on a different
+// arch are not validly comparable (different CPU → different absolute ms), so
+// those rows are reported informationally rather than as hard regressions.
+const RUNNER_ARCH = os.arch();
 
 // ---- bench file definitions -------------------------------------
 
@@ -108,7 +122,7 @@ function header() {
   ].join('  ');
 }
 
-function row(metric, baseline, current) {
+function row(metric, baseline, current, archMismatch = null) {
   const bp50 = baseline?.p50_ms;
   const bp95 = baseline?.p95_ms;
   const cp50 = current?.p50_ms;
@@ -127,8 +141,12 @@ function row(metric, baseline, current) {
     regresses.push(`p95+${d95.toFixed(0)}%`);
   }
 
-  const ok = regresses.length === 0;
-  const status = ok ? 'ok' : `REGRESS (${regresses.join(', ')})`;
+  // Cross-architecture comparison is not valid: deltas are shown for context
+  // but never counted as a regression, so the row stays "ok" for gating.
+  const ok = archMismatch != null || regresses.length === 0;
+  const status = archMismatch != null
+    ? `arch-diff (${archMismatch})`
+    : (regresses.length === 0 ? 'ok' : `REGRESS (${regresses.join(', ')})`);
 
   const fmtDelta = (d) => {
     if (d == null) return '   N/A'.padStart(COL.delta50);
@@ -178,7 +196,9 @@ for (const entry of BENCH_FILES) {
 console.log('\n' + '═'.repeat(130));
 console.log('  PERFORMANCE REGRESSION REPORT');
 console.log('  Baseline: ' + BASELINE_PATH);
-console.log('  Thresholds: p50 >+10% or p95 >+20% → FAIL');
+console.log(`  Baseline arch: ${baseline._meta?.host_arch ?? 'unknown'}   Runner arch: ${RUNNER_ARCH}`);
+console.log('  Thresholds: p50 >+10% or p95 >+20% → FAIL (same-arch only)');
+console.log('  arch-diff rows are informational: timings are not comparable across CPU arch.');
 console.log('  Network metrics are noisy on CI shared runners — nightly only, not PR gate.');
 console.log('═'.repeat(130));
 console.log('');
@@ -187,6 +207,9 @@ console.log('-'.repeat(130));
 
 const regressions = [];
 const newMetrics  = [];
+const archDiffs   = [];
+
+const baselineArch = baseline._meta?.host_arch;
 
 // Report all current results against baseline
 for (const [metric, current] of Object.entries(allResults)) {
@@ -198,9 +221,17 @@ for (const [metric, current] of Object.entries(allResults)) {
     console.log(r.line);
     continue;
   }
-  const r = row(metric, base, current);
+  // Per-entry host_arch (fall back to the file-level _meta arch). When it
+  // differs from the current run's arch the timings aren't comparable, so the
+  // row is informational-only and never counts toward the regression gate.
+  const baseArch = base.host_arch ?? baselineArch;
+  const archMismatch = (baseArch != null && baseArch !== RUNNER_ARCH)
+    ? `${baseArch}→${RUNNER_ARCH}`
+    : null;
+  const r = row(metric, base, current, archMismatch);
   console.log(r.line);
-  if (!r.ok) regressions.push({ metric, regresses: r.regresses });
+  if (archMismatch != null) archDiffs.push(metric);
+  else if (!r.ok) regressions.push({ metric, regresses: r.regresses });
 }
 
 // Warn about metrics in baseline not covered by current run
@@ -213,6 +244,14 @@ if (missingFromCurrentRun.length > 0) {
   for (const m of missingFromCurrentRun) {
     console.log(`    ${m}`);
   }
+}
+
+if (archDiffs.length > 0) {
+  console.log('-'.repeat(130));
+  console.log(`  ARCH-DIFF (informational, not gated): baseline arch ≠ runner arch (${RUNNER_ARCH})`);
+  console.log(`    ${archDiffs.length} metric(s) shown above with "arch-diff" status.`);
+  console.log('    To restore gating, capture an x64 baseline on CI and commit it:');
+  console.log('      Actions → "Perf nightly" → Run workflow (update_baseline: true)');
 }
 
 console.log('═'.repeat(130));
@@ -245,7 +284,11 @@ if (UPDATE_BASELINE) {
 const hadErrors = benchErrors.length > 0;
 
 if (regressions.length === 0 && !hadErrors) {
-  console.log('\nAll metrics within threshold. No regression detected.');
+  if (archDiffs.length > 0) {
+    console.log(`\nNo same-arch regression detected (${archDiffs.length} cross-arch metric(s) shown for info only).`);
+  } else {
+    console.log('\nAll metrics within threshold. No regression detected.');
+  }
   process.exit(0);
 } else {
   if (regressions.length > 0) {

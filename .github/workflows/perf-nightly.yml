@@ -20,6 +20,11 @@ on:
   schedule:
     - cron: '42 3 * * *'   # 03:42 UTC, off-peak (avoids OpenNeuro S3 peak hours)
   workflow_dispatch:
+    inputs:
+      update_baseline:
+        description: 'Re-capture the baseline on this (x64) runner and upload it as an artifact to commit. Use this to restore same-arch regression gating.'
+        type: boolean
+        default: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -43,6 +48,10 @@ jobs:
       # Run the full harness (filter + matv5 + readwindow over network).
       # The step always completes (exit 0/1); the result is surfaced in
       # the step summary so the nightly diff is visible without opening logs.
+      #
+      # Baselines are arch-tagged: rows captured on a different CPU arch than
+      # this runner are reported as "arch-diff" (informational) rather than a
+      # hard regression, so an arm64 dev baseline never false-fails on x64 CI.
       - name: Run performance harness
         id: perf
         run: |
@@ -50,6 +59,22 @@ jobs:
           EXIT=${PIPESTATUS[0]}
           echo "exit_code=$EXIT" >> "$GITHUB_OUTPUT"
           exit $EXIT
+
+      # Manual re-baseline path (workflow_dispatch with update_baseline: true).
+      # Captures fresh numbers on the x64 runner and uploads baseline.json as
+      # an artifact for a maintainer to download and commit — restoring valid
+      # same-arch regression gating. Never auto-commits.
+      - name: Re-capture baseline (x64)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.update_baseline }}
+        run: node bench/check-regression.mjs --update-baseline || true
+
+      - name: Upload re-captured baseline
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.update_baseline }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-${{ runner.arch }}-${{ github.run_id }}
+          path: bench/baseline.json
+          retention-days: 30
 
       # Post the summary table to the GitHub Actions step summary so it's
       # visible on the workflow run page without downloading logs.

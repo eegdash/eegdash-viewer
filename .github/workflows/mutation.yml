@@ -1,15 +1,26 @@
 name: Mutation testing (nightly)
 
-# Stryker mutation testing on traces.js. Runs nightly because a full
-# pass is ~2-15 minutes depending on cache state; that's too slow for
-# per-PR gating. Per-PR confidence comes from `npm run test:coverage`
-# (c8 gate) — mutation testing complements coverage with kill ratio.
+# Stryker mutation testing (traces/filters/bids-recording/viewer/worker/ctf).
+# Runs nightly because it's too slow for per-PR gating. Per-PR confidence
+# comes from `npm run test:coverage` (c8 gate) — mutation testing
+# complements coverage with kill ratio.
+#
+# Incremental caching (stryker.conf.json `incremental: true`):
+#   - A COLD pass (no cache) re-tests all ~3.4k mutants and takes ~2h on a
+#     shared x64 runner, so `timeout-minutes` is generous (see below). This
+#     only happens the first time, or after the cache expires/evicts.
+#   - WARM passes restore reports/stryker-incremental.json from the previous
+#     run and only re-test mutants in files that changed on main, finishing
+#     in minutes. The cache MUST be restored (not just saved) for this to
+#     work — the restore step below is what makes the nightly converge.
+#   - The incremental file is gitignored, so the Actions cache is the only
+#     thing carrying it run-to-run.
 #
 # Workflow:
 #   - Scheduled at 03:00 UTC (off-peak)
 #   - Manual trigger via Actions → "Mutation testing (nightly)" → Run
 #   - Artifacts uploaded on every run (success or failure) so the
-#     HTML report and incremental cache are inspectable post-run.
+#     HTML report is inspectable post-run.
 #
 # Tightening cadence: see docs/qa-strategy.md § Mutation Testing.
 
@@ -24,7 +35,10 @@ env:
 jobs:
   mutation:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Generous: a cold (uncached) pass over ~3.4k mutants is ~2h. Warm runs
+    # finish in minutes once the incremental cache is restored. GitHub-hosted
+    # runners allow up to 6h per job, so this only bounds a runaway run.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,6 +48,18 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
+      # Restore the incremental snapshot from the most recent prior run so
+      # Stryker only re-tests mutants in files that changed. The run-id suffix
+      # keeps each save under a unique (immutable) key; restore-keys matches
+      # the latest by prefix. Without this restore, every run is a cold ~2h
+      # pass (the previous save-only setup never converged).
+      - name: Restore Stryker incremental cache
+        uses: actions/cache/restore@v4
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-incremental-main-${{ github.run_id }}
+          restore-keys: |
+            stryker-incremental-main-
       - name: Run Stryker
         run: npm run mutation
       - name: Save Stryker incremental cache
@@ -41,7 +67,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: reports/stryker-incremental.json
-          key: stryker-incremental-main
+          key: stryker-incremental-main-${{ github.run_id }}
       - name: Upload mutation report
         if: always()
         uses: actions/upload-artifact@v4
