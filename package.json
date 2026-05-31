@@ -45,7 +45,7 @@
     "c8": "^11.0.0",
     "fast-check": "^4.8.0",
     "jsdom": "^29.1.1",
-    "tinybench": "^6.0.2",
+    "tinybench": "^5.1.0",
     "typescript": "^6.0.3"
   },
   "dependencies": {
