@@ -491,20 +491,17 @@
   // the walk path does when a sidecar is absent.
   async function loadFromEegdashRecord({ eegUrl, ext, dir, prefix, rootUrl, record }) {
     const depKeys = Array.isArray(record.storage?.dep_keys) ? record.storage.dep_keys : [];
-    // Resolve a sidecar by its exact dep_keys path when listed; otherwise
-    // fall back to the BIDS-inheritance walk for that one suffix. dep_keys
-    // is per-recording and may omit an inherited (dataset-level) sidecar, or
-    // list only binary siblings — e.g. BrainVision records carry .eeg/.vmrk/
-    // .dat in dep_keys but keep _channels.tsv alongside the .vhdr — so the
-    // walk fallback keeps channel/event metadata intact.
+    // Resolve each sidecar from its exact dep_keys path only — no inheritance
+    // walk, so the open path stays fast. Sidecars absent from dep_keys stay
+    // null: channels are recovered from the record's ch_names below, and
+    // events/electrodes/coordsystem degrade gracefully (the format reader
+    // still supplies channel labels + EDF/annotation events downstream).
     const fetchDep = async (suffix) => {
       const key = depKeys.find(k => k.endsWith(suffix));
-      if (key) {
-        const url = `${rootUrl}${key}`;
-        const text = await fetchTextOrNull(url);
-        if (text != null) return { text, url };
-      }
-      return fetchInheritedSidecar(dir, prefix, suffix);
+      if (!key) return null;
+      const url = `${rootUrl}${key}`;
+      const text = await fetchTextOrNull(url);
+      return text == null ? null : { text, url };
     };
     const [channels, events, electrodes, coordsystem] = await Promise.all([
       fetchDep('_channels.tsv'),
