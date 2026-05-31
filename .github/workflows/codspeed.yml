@@ -1,10 +1,13 @@
 name: CodSpeed benchmarks
 
+# DISABLED on push/PR: the benches run fine (tinybench is pinned to v5 for
+# plugin compatibility), but the CodSpeed upload step fails with 401 because
+# the repo isn't registered on codspeed.io / CODSPEED_TOKEN secret isn't set.
+# Auto-triggers are removed so this doesn't red CI. Perf tracking is covered
+# by the "Benchmarks (statistical)" workflow (bench.yml) in the meantime.
+# To re-enable: register the repo on codspeed.io, add the CODSPEED_TOKEN
+# secret, then restore the `pull_request` / `push` triggers below.
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
   workflow_dispatch: {}
 
 env:

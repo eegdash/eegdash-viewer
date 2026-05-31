@@ -30,3 +30,27 @@ jobs:
       - run: npm run test:net
 
       - run: npm run test:integration
+
+  # Large-file streaming (incl. the >500MB MEG FIFF targets gated out of
+  # PR CI). Opening 644MB-2GB recordings over a cold CDN edge is too noisy
+  # for the PR gate (24-40s cold vs ~3-4s warm); tracking it nightly catches
+  # real streaming regressions without flaking every PR. STREAMING_NIGHTLY=1
+  # un-skips the nightly-flagged targets in streaming-large.spec.mjs.
+  streaming-large:
+    name: Large-file streaming (nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npx playwright install --with-deps chromium
+
+      - name: Run large-file streaming (incl. >500MB FIFF)
+        run: STREAMING_NIGHTLY=1 npm run test:streaming-large
