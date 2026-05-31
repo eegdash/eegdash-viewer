@@ -2063,3 +2063,107 @@ test('discoverSubject: returns null when S3 list returns no sub- keys', async ()
     delete globalThis.fetch;
   }
 });
+
+// ---- per-recording records API fast path -----------------------
+// loadRecordingMetadata short-circuits the BIDS-inheritance walk when
+// the eegdash /records endpoint returns a record with a resolved
+// SamplingFrequency. These pin that contract + the graceful fallbacks.
+
+const RECORDS_MATCH = 'data.eegdash.org/api/eegdash/records?';
+
+test('records fast path: sfreq + dep_keys → uses record, skips inheritance walk', async () => {
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-021/ses-01/meg/sub-021_ses-01_task-rest_run-06_meg.fif`;
+  const chUrl  = `${ONEURO_BASE}/${ds}/sub-021/ses-01/meg/sub-021_ses-01_task-rest_run-06_channels.tsv`;
+  const recordsHits = [];
+  const f = installFetch(
+    { [chUrl]: new Response('name\ttype\nMEG001\tMEG\n', { status: 200 }) },
+    {
+      extraHandler: async (u) => {
+        if (u.includes(RECORDS_MATCH)) {
+          recordsHits.push(u);
+          return new Response(JSON.stringify({
+            success: true,
+            data: [{
+              sampling_frequency: 1200,
+              ntimes: 2400,
+              ch_names: ['MEG001', 'MEG002'],
+              storage: { dep_keys: [
+                'sub-021/ses-01/meg/sub-021_ses-01_task-rest_run-06_channels.tsv',
+                'sub-021/ses-01/meg/sub-021_ses-01_coordsystem.json',
+              ] },
+            }],
+          }), { status: 200 });
+        }
+        return undefined;
+      },
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 1200);
+    assert.equal(meta.eeg_json.recording_duration, 2, 'duration = ntimes / sfreq');
+    assert.equal(meta.sidecar_sources.eeg_json, 'eegdash:record');
+    assert.equal(meta.sidecar_sources.channels, chUrl, 'channels fetched at exact dep_key path');
+    assert.equal(recordsHits.length, 1, 'records API queried exactly once');
+    // The whole point: no _eeg.json inheritance-walk probes happened.
+    assert.ok(!f.calls.some(u => u.endsWith('_eeg.json')),
+      'fast path must not walk the inheritance tree for _eeg.json');
+  } finally { f.restore(); }
+});
+
+test('records fast path: record without sampling_frequency → falls back to walk', async () => {
+  const ds = freshDsId();
+  const eegUrl  = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const walkUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.json`;
+  const f = installFetch(
+    { [walkUrl]: new Response(VALID_EEG_JSON_BODY, { status: 200 }) },
+    {
+      extraHandler: async (u) =>
+        u.includes(RECORDS_MATCH)
+          ? new Response(JSON.stringify({ success: true, data: [{ sampling_frequency: null }] }), { status: 200 })
+          : undefined,
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 256, 'sfreq comes from the walked sidecar, not the record');
+    assert.equal(meta.sidecar_sources.eeg_json, walkUrl);
+  } finally { f.restore(); }
+});
+
+test('records fast path: malformed records response → falls back to walk', async () => {
+  const ds = freshDsId();
+  const eegUrl  = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.set`;
+  const walkUrl = `${ONEURO_BASE}/${ds}/sub-01/eeg/sub-01_task-rest_eeg.json`;
+  const f = installFetch(
+    { [walkUrl]: new Response(VALID_EEG_JSON_BODY, { status: 200 }) },
+    {
+      extraHandler: async (u) =>
+        u.includes(RECORDS_MATCH)
+          ? new Response('<<not json>>', { status: 200 })  // r.json() throws → caught → null
+          : undefined,
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+  } finally { f.restore(); }
+});
+
+test('records fast path: non-OpenNeuro host never queries the records API', async () => {
+  const eegUrl     = 'https://example.com/data/sub-01_task-rest_eeg.set';
+  const sidecarUrl = 'https://example.com/data/sub-01_task-rest_eeg.json';
+  const recordsHits = [];
+  const f = installFetch(
+    { [sidecarUrl]: new Response(VALID_EEG_JSON_BODY, { status: 200 }) },
+    {
+      extraHandler: async (u) => { if (u.includes('/api/eegdash/records')) recordsHits.push(u); return undefined; },
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 256);
+    assert.equal(recordsHits.length, 0, 'records API must not be queried for non-OpenNeuro hosts');
+  } finally { f.restore(); }
+});

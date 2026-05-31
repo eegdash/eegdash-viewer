@@ -439,6 +439,80 @@
     return null;
   }
 
+  // ---- per-recording records API (fast path) ------------------
+  // The eegdash backend exposes a per-RECORDING index at
+  // /api/eegdash/records, distinct from the dataset record consumed by
+  // eegdashFallback above. The dataset record's dep_keys was reduced to
+  // top-level files (CHANGES/README), so it can no longer locate
+  // sidecars — but each per-recording record still carries the resolved
+  // SamplingFrequency plus the exact sidecar paths for THAT recording.
+  // Querying it once lets us skip the BIDS-inheritance 404-walk
+  // entirely; it's the same source the eegdash Python client reads. We
+  // only attempt it for OpenNeuro S3 / CDN datasets — anything else
+  // (local fixtures, NEMAR) falls through to the inheritance walk.
+  const _eegdashRecordCache = new Map();   // `${dataset} ${relpath}` → record|null
+
+  // Dataset-root URL prefix (…/<datasetId>/) for an OpenNeuro dir,
+  // recognising the same buckets as openNeuroDatasetId. Returns null
+  // when dir is not an OpenNeuro S3 / CDN path.
+  function openNeuroRootUrl(dir) {
+    const m = /^(https?:\/\/(?:s3\.amazonaws\.com\/openneuro\.org|cdn\.eegdash\.org)\/[^/]+\/)/.exec(dir);
+    return m ? m[1] : null;
+  }
+
+  // Fetch the per-recording record (cached in-flight Promise so the
+  // call coalesces and a 404 — unindexed dataset — is remembered as
+  // null rather than re-probed). Never throws: any failure → null,
+  // which sends loadRecordingMetadata down the inheritance-walk path.
+  function fetchEegdashRecord(datasetId, relpath) {
+    const cacheKey = `${datasetId} ${relpath}`;
+    if (_eegdashRecordCache.has(cacheKey)) return _eegdashRecordCache.get(cacheKey);
+    const p = (async () => {
+      try {
+        const filter = encodeURIComponent(JSON.stringify({ dataset: datasetId, bids_relpath: relpath }));
+        const r = await fetchWithRetry(`${EEGDASH_BASE}/api/eegdash/records?filter=${filter}&limit=1`);
+        if (!r.ok) return null;
+        const json = await r.json();
+        const rec = json && Array.isArray(json.data) ? json.data[0] : null;
+        return rec || null;
+      } catch (e) {
+        return null;
+      }
+    })();
+    _eegdashRecordCache.set(cacheKey, p);
+    return p;
+  }
+
+  // Build the metadata bundle from a per-recording record: SamplingFrequency
+  // comes straight from the record; the sidecars it lists in
+  // storage.dep_keys are fetched at their exact paths (no inheritance
+  // walk). Sidecars not listed stay null — the format reader still fills
+  // channel labels + sfreq from the binary header downstream, exactly as
+  // the walk path does when a sidecar is absent.
+  async function loadFromEegdashRecord({ eegUrl, ext, dir, prefix, rootUrl, record }) {
+    const depKeys = Array.isArray(record.storage?.dep_keys) ? record.storage.dep_keys : [];
+    const fetchDep = async (suffix) => {
+      const key = depKeys.find(k => k.endsWith(suffix));
+      if (!key) return null;
+      const url = `${rootUrl}${key}`;
+      const text = await fetchTextOrNull(url);
+      return text == null ? null : { text, url };
+    };
+    const [channels, events, electrodes, coordsystem] = await Promise.all([
+      fetchDep('_channels.tsv'),
+      fetchDep('_events.tsv'),
+      fetchDep('_electrodes.tsv'),
+      fetchDep('_coordsystem.json'),
+    ]);
+    const sfreq = record.sampling_frequency;
+    const duration = (record.ntimes != null && sfreq) ? record.ntimes / sfreq : null;
+    return assembleRecordingMetadata({
+      eeg_url: eegUrl, ext, dir, prefix,
+      hits: { eeg_json: null, channels, events, electrodes, coordsystem },
+      recordMeta: { sampling_frequency: sfreq, recording_duration: duration },
+    });
+  }
+
   // ---- _eeg.json ----------------------------------------------
   // Required field per BIDS: SamplingFrequency. Everything else is
   // recorded for display but not load-bearing. We also pass through
@@ -589,6 +663,23 @@
   api.loadRecordingMetadata = async function (eegUrl) {
     const { dir, prefix, ext } = api.parseEegUrl(eegUrl);
 
+    // Fast path: the per-recording records API returns the resolved
+    // SamplingFrequency and the exact sidecar paths in a single request,
+    // so we can skip the BIDS-inheritance 404-walk (which is especially
+    // wasteful for MEG/iEEG, where the walk probes _eeg.json and never
+    // finds it). Only for OpenNeuro S3/CDN datasets; falls through to the
+    // walk when the dataset isn't indexed or the record carries no usable
+    // sampling frequency.
+    const rootUrl = openNeuroRootUrl(dir);
+    if (rootUrl) {
+      const datasetId = openNeuroDatasetId(dir);
+      const relpath = eegUrl.split('?')[0].slice(rootUrl.length);
+      const record = datasetId ? await fetchEegdashRecord(datasetId, relpath) : null;
+      if (record && record.sampling_frequency != null) {
+        return loadFromEegdashRecord({ eegUrl, ext, dir, prefix, rootUrl, record });
+      }
+    }
+
     // Fetch in parallel — each call walks the inheritance tree
     // independently, so a missing run-level file falls through to the
     // dataset root (BIDS principle). Fetches are tiny; the CORS
@@ -620,7 +711,7 @@
   // network walker (loadRecordingMetadata) and the NEMAR inline-map
   // walker (loadNemarRecording) — the only thing that varies between
   // them is *how* hits get materialised, not how they're parsed.
-  function assembleRecordingMetadata({ eeg_url, ext, dir, prefix, hits }) {
+  function assembleRecordingMetadata({ eeg_url, ext, dir, prefix, hits, recordMeta = null }) {
     const { eeg_json: eegJsonHit, channels: channelsHit, events: eventsHit,
             electrodes: electrodesHit, coordsystem: coordSysHit } = hits;
 
@@ -631,6 +722,14 @@
       } catch (e) {
         throw new Error(`Bad _eeg.json at ${eegJsonHit.url}: ${e.message}`);
       }
+    } else if (recordMeta) {
+      // SamplingFrequency resolved by the eegdash records API — no
+      // _eeg.json/_meg.json text was fetched. Remaining fields stay null
+      // and are filled by the format reader or optional sidecars.
+      eegJson = { sampling_frequency: recordMeta.sampling_frequency ?? null,
+                  recording_duration: recordMeta.recording_duration ?? null,
+                  eeg_reference: null, power_line_frequency: null,
+                  software_filters: null, manufacturer: null, raw: {} };
     } else {
       eegJson = { sampling_frequency: null, recording_duration: null, eeg_reference: null,
                   power_line_frequency: null, software_filters: null, manufacturer: null, raw: {} };
@@ -657,7 +756,7 @@
       // a real https URL for OpenNeuro, an `inline:<rawKey>` tag for
       // NEMAR. renderProvenance treats both as opaque labels.
       sidecar_sources: {
-        eeg_json:    eegJsonHit?.url   ?? null,
+        eeg_json:    eegJsonHit?.url   ?? (recordMeta ? 'eegdash:record' : null),
         channels:    channelsHit?.url  ?? null,
         events:      eventsHit?.url    ?? null,
         electrodes:  electrodesHit?.url ?? null,
