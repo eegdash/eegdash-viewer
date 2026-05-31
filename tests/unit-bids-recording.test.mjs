@@ -2167,3 +2167,39 @@ test('records fast path: non-OpenNeuro host never queries the records API', asyn
     assert.equal(recordsHits.length, 0, 'records API must not be queried for non-OpenNeuro hosts');
   } finally { f.restore(); }
 });
+
+test('records fast path: no _channels.tsv (BrainVision deps) → channels synthesised from ch_names', async () => {
+  // BrainVision records list .eeg/.vmrk binary siblings in dep_keys, not
+  // _channels.tsv, and here the inheritance-walk fallback also 404s. The
+  // channel panel must still populate from the record's ch_names — pins the
+  // regression where the fast path left meta.channels null (empty ch-list).
+  const ds = freshDsId();
+  const eegUrl = `${ONEURO_BASE}/${ds}/sub-xp101/eeg/sub-xp101_task-motorloc_eeg.vhdr`;
+  const f = installFetch(
+    {},  // nothing resolvable via the walk → forces the ch_names fallback
+    {
+      extraHandler: async (u) =>
+        u.includes(RECORDS_MATCH)
+          ? new Response(JSON.stringify({
+              success: true,
+              data: [{
+                sampling_frequency: 5000,
+                nchans: 3,
+                ch_names: ['Fp1', 'Fp2', 'Cz'],
+                storage: { dep_keys: [
+                  'sub-xp101/eeg/sub-xp101_task-motorloc_eeg.eeg',
+                  'sub-xp101/eeg/sub-xp101_task-motorloc_eeg.vmrk',
+                ] },
+              }],
+            }), { status: 200 })
+          : undefined,
+    },
+  );
+  try {
+    const meta = await BIDSRecording.loadRecordingMetadata(eegUrl);
+    assert.equal(meta.eeg_json.sampling_frequency, 5000);
+    assert.ok(Array.isArray(meta.channels), 'channels synthesised from ch_names');
+    assert.equal(meta.channels.length, 3, 'one channel row per ch_names entry');
+    assert.deepEqual(meta.channels.map(c => c.name), ['Fp1', 'Fp2', 'Cz']);
+  } finally { f.restore(); }
+});

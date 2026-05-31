@@ -491,12 +491,20 @@
   // the walk path does when a sidecar is absent.
   async function loadFromEegdashRecord({ eegUrl, ext, dir, prefix, rootUrl, record }) {
     const depKeys = Array.isArray(record.storage?.dep_keys) ? record.storage.dep_keys : [];
+    // Resolve a sidecar by its exact dep_keys path when listed; otherwise
+    // fall back to the BIDS-inheritance walk for that one suffix. dep_keys
+    // is per-recording and may omit an inherited (dataset-level) sidecar, or
+    // list only binary siblings — e.g. BrainVision records carry .eeg/.vmrk/
+    // .dat in dep_keys but keep _channels.tsv alongside the .vhdr — so the
+    // walk fallback keeps channel/event metadata intact.
     const fetchDep = async (suffix) => {
       const key = depKeys.find(k => k.endsWith(suffix));
-      if (!key) return null;
-      const url = `${rootUrl}${key}`;
-      const text = await fetchTextOrNull(url);
-      return text == null ? null : { text, url };
+      if (key) {
+        const url = `${rootUrl}${key}`;
+        const text = await fetchTextOrNull(url);
+        if (text != null) return { text, url };
+      }
+      return fetchInheritedSidecar(dir, prefix, suffix);
     };
     const [channels, events, electrodes, coordsystem] = await Promise.all([
       fetchDep('_channels.tsv'),
@@ -509,7 +517,7 @@
     return assembleRecordingMetadata({
       eeg_url: eegUrl, ext, dir, prefix,
       hits: { eeg_json: null, channels, events, electrodes, coordsystem },
-      recordMeta: { sampling_frequency: sfreq, recording_duration: duration },
+      recordMeta: { sampling_frequency: sfreq, recording_duration: duration, ch_names: record.ch_names },
     });
   }
 
@@ -735,7 +743,16 @@
                   power_line_frequency: null, software_filters: null, manufacturer: null, raw: {} };
     }
 
-    const channels = channelsHit ? api.parseChannelsTsv(channelsHit.text) : null;
+    let channels = channelsHit ? api.parseChannelsTsv(channelsHit.text) : null;
+    // Fallback: with no _channels.tsv anywhere, synthesise a minimal channel
+    // list from the record's ch_names so the channel panel still populates
+    // (names only — type/units/status come from _channels.tsv when present).
+    if (!channels && recordMeta && Array.isArray(recordMeta.ch_names) && recordMeta.ch_names.length) {
+      channels = recordMeta.ch_names.map((name, index) => ({
+        index, name, type: null, units: null, status: 'good',
+        low_cutoff: null, high_cutoff: null, sampling_frequency: null,
+      }));
+    }
     const events = eventsHit ? api.parseEventsTsv(eventsHit.text) : [];
 
     let electrodes = null, coordsystem = null;
