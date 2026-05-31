@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780239377144,
+  "lastUpdate": 1780241012700,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -433,6 +433,233 @@ window.BENCHMARK_DATA = {
             "range": "±7.74%",
             "unit": "ms",
             "extra": "p99=85.751ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "a00b049ac36ad4ba39010f3b89308b81105eecc9",
+          "message": "ci: route >500MB FIFF streaming to nightly; disable CodSpeed auto-run\n\n- streaming-large.spec.mjs: gate the 644MB/2GB MEG FIFF targets behind\n  STREAMING_NIGHTLY. Their open time is dominated by cold-CDN byte-transfer\n  of the huge file (24-40s cold vs ~3-4s warm) — variance no viewer-side\n  optimization controls — so they flake the PR gate. The .set/EDF streaming\n  targets stay in PR CI.\n- nightly.yml: add a \"Large-file streaming\" job that runs the spec with\n  STREAMING_NIGHTLY=1 so the huge-file path is still tracked daily.\n- codspeed.yml: drop push/PR triggers (workflow_dispatch only). The benches\n  run fine (tinybench pinned to v5) but the upload needs a CODSPEED_TOKEN +\n  repo registration that isn't set; perf is covered by bench.yml meanwhile.",
+          "timestamp": "2026-05-31T17:21:20+02:00",
+          "tree_id": "aab500f1b8afefc2d5c55d8d1994fb70f0df6ba0",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/a00b049ac36ad4ba39010f3b89308b81105eecc9"
+        },
+        "date": 1780241011868,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.405,
+            "range": "±1.75%",
+            "unit": "ms",
+            "extra": "p99=4.456ms, n=832samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.446,
+            "range": "±1.76%",
+            "unit": "ms",
+            "extra": "p99=4.597ms, n=818samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.3611,
+            "range": "±1.53%",
+            "unit": "ms",
+            "extra": "p99=4.433ms, n=848samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.384,
+            "range": "±1.85%",
+            "unit": "ms",
+            "extra": "p99=7.497ms, n=457samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.7642,
+            "range": "±1.67%",
+            "unit": "ms",
+            "extra": "p99=7.743ms, n=420samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.8856,
+            "range": "±2.32%",
+            "unit": "ms",
+            "extra": "p99=7.883ms, n=410samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.721,
+            "range": "±1.61%",
+            "unit": "ms",
+            "extra": "p99=7.723ms, n=424samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 8.8384,
+            "range": "±1.87%",
+            "unit": "ms",
+            "extra": "p99=11.837ms, n=227samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 9.9914,
+            "range": "±1.98%",
+            "unit": "ms",
+            "extra": "p99=12.300ms, n=201samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 9.6904,
+            "range": "±1.88%",
+            "unit": "ms",
+            "extra": "p99=12.297ms, n=207samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 9.6191,
+            "range": "±1.81%",
+            "unit": "ms",
+            "extra": "p99=12.095ms, n=208samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 16.9315,
+            "range": "±1.58%",
+            "unit": "ms",
+            "extra": "p99=20.488ms, n=119samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0098,
+            "range": "±0.27%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=204443samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0098,
+            "range": "±0.30%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=204837samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0098,
+            "range": "±0.28%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=203363samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 8.4061,
+            "range": "±1.82%",
+            "unit": "ms",
+            "extra": "p99=14.801ms, n=238samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0027,
+            "range": "±0.24%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=743721samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0027,
+            "range": "±0.28%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=740972samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0027,
+            "range": "±0.26%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=739276samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.5142,
+            "range": "±0.04%",
+            "unit": "ms",
+            "extra": "p99=242.962ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.8318,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=272.835ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.2334,
+            "range": "±0.16%",
+            "unit": "ms",
+            "extra": "p99=31.267ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.2855,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=30.512ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 30.3268,
+            "range": "±0.99%",
+            "unit": "ms",
+            "extra": "p99=33.756ms, n=66samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 40.7933,
+            "range": "±23.06%",
+            "unit": "ms",
+            "extra": "p99=233.800ms, n=64samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 49.4835,
+            "range": "±11.64%",
+            "unit": "ms",
+            "extra": "p99=150.783ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
