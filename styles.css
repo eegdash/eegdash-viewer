@@ -1088,3 +1088,69 @@ body.drag-active::after {
   margin-right: 5px;
   vertical-align: middle;
 }
+
+/* ============================================================
+   F10: Hand-pose panel — floating card on the stage, skeleton
+   playback synced to the traces time cursor (pose-panel.js).
+   Instrument styling: same tokens as .cursor-info-bar /
+   .stage-caption, tracked-uppercase mono chrome.
+   ============================================================ */
+.pose-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(23, 24, 26, 0.08);
+}
+/* display:flex would defeat the [hidden] UA style — re-assert it. */
+.pose-panel[hidden] { display: none; }
+.pose-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--line-2);
+}
+.pose-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.pose-close {
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.pose-close:hover { color: var(--ink); }
+.pose-canvas {
+  width: 220px;
+  height: 220px;
+  touch-action: none;      /* pointer-orbit owns gestures, not scroll */
+  cursor: grab;
+}
+.pose-canvas:active { cursor: grabbing; }
+.pose-caption {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  padding: 4px 10px 6px;
+}
+/* Embed mode: transparent card like .stage-caption so host pages
+   (sphinx-book-theme, notebook cells) bleed through. */
+body.embed .pose-panel {
+  background: transparent;
+  border-color: var(--line-2);
+  box-shadow: none;
+}
