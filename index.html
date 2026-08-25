@@ -70,7 +70,12 @@
 <script src="viewer/url-resolver.js?v=1"></script>
 <script src="viewer/render-helpers.js?v=1"></script>
 <script src="viewer/render-pipeline.js?v=1"></script>
-<script src="viewer.js?v=8"></script>
+<!-- F10: hand-pose sidecar panel — skeleton playback synced to the
+     time cursor via PosePanel.syncWindow/syncCursor hooks in viewer.js.
+     Loads before viewer.js is invoked but has no load-order dependency
+     (all integration points are optional-chained globals). -->
+<script src="pose-panel.js?v=1"></script>
+<script src="viewer.js?v=9"></script>
 <script src="perf.js?v=1"></script>
 </head>
 <body>

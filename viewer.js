@@ -312,6 +312,13 @@
     // multiplicative factor: "1× (~140 µV/slot)" instead of just "1×".
     // Falls back to "1×" when no draw has happened yet.
     function updateGainReadout() {
+      // F10: publish the visible-window centre to the hand-pose panel
+      // (pose-panel.js) if one is attached. Runs before the early
+      // returns so pose sync is not coupled to the gain node existing.
+      const PosePanel = globalThis.PosePanel;
+      if (PosePanel && readerInfo && Number.isFinite(view.start_sec)) {
+        PosePanel.syncWindow(view.start_sec, view.window_sec);
+      }
       const node = globalThis.document?.getElementById('gain-readout');
       if (!node) return;
       const tr = globalThis.TraceRenderer;
@@ -570,6 +577,10 @@
       const xInPlot = Math.max(0, Math.min(plotW, cssX - PAD_LEFT));
       const xFrac   = xInPlot / plotW;
       const tSec    = lastStartSec + xFrac * lastWindowSec;
+
+      // F10: hover-time override for the hand-pose panel (falls back to
+      // the window centre via its own TTL when the pointer leaves).
+      if (globalThis.PosePanel) globalThis.PosePanel.syncCursor(tSec);
 
       // Channel index: which vertical band does Y fall in?
       const yInPlot  = Math.max(0, Math.min(plotH, cssY - PAD_TOP));
