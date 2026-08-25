@@ -206,7 +206,7 @@
     ));
     const hits = Object.fromEntries(sidecarPlan.map(([k], i) => [k, results[i]]));
 
-    const meta = BR._assembleRecordingMetadata({ eeg_url: eegUrl, ext, dir, prefix, suffix: params.suffix || 'eeg', hits });
+    const meta = BR._assembleRecordingMetadata({ eeg_url: eegUrl, ext, dir, prefix, suffix: params.suffix, hits });
     meta.sibling_urls = sibling_urls;
     return meta;
   }

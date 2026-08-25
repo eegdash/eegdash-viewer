@@ -47,34 +47,49 @@ _CHAINS = [[5, 6, 7, 0], [5, 8, 9, 10, 1], [5, 11, 12, 13, 2], [5, 14, 15, 16, 3
 BONES = [i for chain in _CHAINS for pair in zip(chain, chain[1:]) for i in pair]
 
 
-def _rodrigues(axis, theta):
-    k = axis / (np.linalg.norm(axis) or 1.0)
-    K = np.array([[0, -k[2], k[1]], [k[2], 0, -k[0]], [-k[1], k[0], 0]])
-    return np.eye(3) + np.sin(theta) * K + (1 - np.cos(theta)) * (K @ K)
+def fk_frames_batch(angles, axes, rests):
+    """UmeTrack `_hand_skinning_transform` for all frames: (F, 20) → (F, 17, 4, 4).
+
+    Per joint the local transform is a Rodrigues rotation about its unit
+    axis anchored at its rest position; per finger the four joints chain
+    and the frames after joints 2, 3, 4 are kept (proximal, intermediate,
+    distal); root and wrist stay identity. Vectorised over frames.
+    """
+    angles = np.asarray(angles, float)
+    F = angles.shape[0]
+    K = np.zeros((N_DOF, 3, 3))
+    K[:, 0, 1], K[:, 0, 2] = -axes[:, 2], axes[:, 1]
+    K[:, 1, 0], K[:, 1, 2] = axes[:, 2], -axes[:, 0]
+    K[:, 2, 0], K[:, 2, 1] = -axes[:, 1], axes[:, 0]
+    KK = K @ K
+    s, c = np.sin(angles)[..., None, None], (1 - np.cos(angles))[..., None, None]
+    R = np.eye(3) + s * K + c * KK                                  # (F, 20, 3, 3)
+    L = np.tile(np.eye(4), (F, N_DOF, 1, 1))
+    L[..., :3, :3] = R
+    L[..., :3, 3] = rests - np.einsum("fqij,qj->fqi", R, rests)     # rotate about the anchor
+    out = np.tile(np.eye(4), (F, N_FRAMES, 1, 1))
+    for f in range(5):
+        T = L[:, 4 * f]
+        for j in range(1, 4):
+            T = T @ L[:, 4 * f + j]
+            out[:, 2 + 3 * f + (j - 1)] = T
+    return out
 
 
 def fk_frames(angles, axes, rests):
-    """UmeTrack `_hand_skinning_transform` for one frame → (17, 4, 4)."""
-    eye = np.eye(4)
-    out = [eye, eye]                                   # root, wrist
-    for f in range(5):
-        T = eye
-        for j in range(4):
-            q = 4 * f + j
-            R = _rodrigues(axes[q], angles[q])
-            L = np.eye(4)
-            L[:3, :3] = R
-            L[:3, 3] = rests[q] - R @ rests[q]        # rotate about the rest anchor
-            T = T @ L
-            if j >= 1:                                 # frames after joints 2, 3, 4
-                out.append(T)
-    return np.stack(out)
+    """Single-frame convenience wrapper: (20,) → (17, 4, 4)."""
+    return fk_frames_batch(np.asarray(angles)[None], axes, rests)[0]
+
+
+def skin_batch(frames, points, weights):
+    """Linear-blend skinning for all frames: Σ_k w[v,k] · F_k · [p_v, 1] → (F, V, 3)."""
+    P = np.c_[points, np.ones(len(points))]
+    return np.einsum("vk,fkij,vj->fvi", weights, frames, P, optimize=True)[..., :3]
 
 
 def skin(frames, points, weights):
-    """Linear-blend skinning: Σ_k w[v,k] · F_k · [p_v, 1]. weights: (V, 17)."""
-    P = np.c_[points, np.ones(len(points))]
-    return np.einsum("vk,kij,vj->vi", weights, frames, P)[:, :3]
+    """Single-frame convenience wrapper: (17, 4, 4) → (V, 3)."""
+    return skin_batch(np.asarray(frames)[None], points, weights)[0]
 
 
 def dense_landmark_weights(model):
@@ -148,14 +163,14 @@ def load_angles(recording, fs_out, start, duration):
         sys.exit(f"window [{start}, +{duration}] s is outside the {n / fs:.1f} s recording")
     step = max(1, int(round(fs / fs_out)))
     ang = raw.get_data(picks=joint_chs, start=i0, stop=i1)[:, ::step].astype(np.float32)
-    return ang, fs / step, step / fs
+    return ang, fs / step
 
 
-def build_sidecar(ang, fs_pose, dt, start, hm, mirror, check=False, mesh=True):
-    """Assemble the eegdash-pose document for angles (20, F)."""
+def build_sidecar(ang, fs_pose, start, hm, mirror, check=False, mesh=True):
+    """Assemble the eegdash-pose document for angles (20, F) at fs_pose Hz."""
     valid = np.isfinite(ang).all(axis=0)
     ang = np.nan_to_num(ang)
-    pos_raw = np.stack([skin(fk_frames(a, hm["axes"], hm["rests"]), hm["lm_rest"], hm["LW"]) for a in ang.T])
+    pos_raw = skin_batch(fk_frames_batch(ang.T, hm["axes"], hm["rests"]), hm["lm_rest"], hm["LW"])
     if check:
         check_against_emg2pose(ang, hm["model"], pos_raw)
     pos = (pos_raw * ([-1, 1, 1] if mirror else 1)).astype(np.float32)
@@ -170,7 +185,7 @@ def build_sidecar(ang, fs_pose, dt, start, hm, mirror, check=False, mesh=True):
         "names": LANDMARKS,
         "bones": BONES,
         "root": LANDMARKS.index("wrist"),
-        "duration_s": n_frames * dt,
+        "duration_s": n_frames / fs_pose,
         "start_s": float(start),
         "camera": DEFAULT_CAMERA,
         "positions": _f32(pos.reshape(-1)),
@@ -217,8 +232,8 @@ def main() -> None:
 
     rec = Path(args.recording)
     side = args.side or next((t for t in ("left", "right") if f"recording-{t}" in rec.stem), None)
-    ang, fs_pose, dt = load_angles(rec, args.fs, args.start, args.duration)
-    sidecar = build_sidecar(ang, fs_pose, dt, args.start, load_model(args.model), side == "left",
+    ang, fs_pose = load_angles(rec, args.fs, args.start, args.duration)
+    sidecar = build_sidecar(ang, fs_pose, args.start, load_model(args.model), side == "left",
                             check=args.check, mesh=not args.no_mesh)
     out = Path(args.out) if args.out else rec.with_name(rec.stem.rsplit("_", 1)[0] + "_desc-pose.json")
     out.parent.mkdir(parents=True, exist_ok=True)

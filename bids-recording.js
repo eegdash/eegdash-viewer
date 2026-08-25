@@ -357,12 +357,14 @@
       const paths = variants.map(v => `${here}${v}${suffix}`);
       paths.push(`${here}${bare}`);
       yield { here, paths, variants, bare };
-      const parent = here.replace(/[^/]+\/$/, '');
-      // Never climb above the origin: `https://host/` → `https://` would
-      // fabricate `https://<sidecar-name>/` hostnames (DNS errors, and a
-      // wasted round-trip for drag-drop / bridge files on localdrop.invalid).
-      const absolute = /^[a-z][a-z0-9+.-]*:\/\//i.test(here);   // NEMAR walks manifest-relative dirs
-      if (!parent || parent === here || (absolute && !/^[a-z][a-z0-9+.-]*:\/\/[^/]*\//i.test(parent))) break;
+      // Absolute URLs climb with the platform resolver, which stops at
+      // the origin (`https://host/` is its own parent) — never
+      // fabricating `https://<sidecar-name>/` hosts for drag-drop /
+      // bridge files on localdrop.invalid. NEMAR walks manifest-relative
+      // dirs, where `new URL` has no base: strip one segment instead.
+      let parent;
+      try { parent = new URL('..', here).href; } catch { parent = here.replace(/[^/]+\/$/, ''); }
+      if (!parent || parent === here) break;
       here = parent;
     }
   }
@@ -500,8 +502,8 @@
     // null: channels are recovered from the record's ch_names below, and
     // events/electrodes/coordsystem degrade gracefully (the format reader
     // still supplies channel labels + EDF/annotation events downstream).
-    const fetchDep = async (suffix) => {
-      const key = depKeys.find(k => k.endsWith(suffix));
+    const fetchDep = async (depSuffix) => {
+      const key = depKeys.find(k => k.endsWith(depSuffix));
       if (!key) return null;
       const url = `${rootUrl}${key}`;
       const text = await fetchTextOrNull(url);
@@ -516,7 +518,7 @@
     const sfreq = record.sampling_frequency;
     const duration = (record.ntimes != null && sfreq) ? record.ntimes / sfreq : null;
     return assembleRecordingMetadata({
-      eeg_url: eegUrl, ext, dir, prefix,
+      eeg_url: eegUrl, ext, dir, prefix, suffix,
       hits: { eeg_json: null, channels, events, electrodes, coordsystem },
       recordMeta: { sampling_frequency: sfreq, recording_duration: duration, ch_names: record.ch_names },
     });

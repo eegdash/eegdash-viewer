@@ -44,8 +44,9 @@ def test_landmark_order_matches_umetrack(hm):
 def test_build_sidecar_shape_and_mirror(hm):
     ang = np.zeros((exp.N_DOF, 3), np.float32)
     ang[0, 1] = np.nan
-    sc = exp.build_sidecar(ang, 30.0, 1 / 30, 10.0, hm, mirror=True)
+    sc = exp.build_sidecar(ang, 30.0, 10.0, hm, mirror=True)
     assert (sc["n_frames"], sc["n_joints"], sc["n_angles"], sc["start_s"]) == (3, 21, exp.N_DOF, 10.0)
+    assert sc["duration_s"] == 3 / 30.0
     assert np.frombuffer(base64.b64decode(sc["valid"]), np.uint8).tolist() == [1, 0, 1]
     pos = _f32(sc["positions"]).reshape(3, 21, 3)
     assert np.allclose(pos[0, :, 0], -hm["lm_rest"][:, 0])  # left hand: x mirrored
@@ -61,9 +62,9 @@ def test_load_angles_clamps_the_window(tmp_path):
     raw = mne.io.RawArray(np.zeros((exp.N_DOF + 1, int(4 * fs))), info, verbose="ERROR")
     path = tmp_path / "sub-1_task-a_recording-left_emg.edf"
     mne.export.export_raw(path, raw, fmt="edf", overwrite=True, verbose="ERROR")
-    ang, fs_pose, dt = exp.load_angles(path, 50.0, start=3.0, duration=10.0)  # overshoots: clamped to 1 s
-    assert ang.shape == (exp.N_DOF, 50) and fs_pose == 50.0 and dt == 1 / 50
-    ang_all, _, _ = exp.load_angles(path, 50.0, start=0.0, duration=None)
+    ang, fs_pose = exp.load_angles(path, 50.0, start=3.0, duration=10.0)  # overshoots: clamped to 1 s
+    assert ang.shape == (exp.N_DOF, 50) and fs_pose == 50.0
+    ang_all, _ = exp.load_angles(path, 50.0, start=0.0, duration=None)
     assert ang_all.shape[1] == 200  # every sample of the 4 s recording, none dropped
     with pytest.raises(SystemExit):
         exp.load_angles(path, 50.0, start=9.0, duration=None)

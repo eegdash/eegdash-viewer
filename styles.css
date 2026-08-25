@@ -789,7 +789,12 @@ code {
    but off screen; the hand-pose panel docks to the right of the traces
    instead of floating over them. */
 
-body.embed { background: transparent; }
+body.embed {
+  background: transparent;
+  --pose-canvas: 240px;                               /* docked hand canvas */
+  --pose-dock-w: calc(var(--pose-canvas) + 2px);      /* + panel borders */
+  --pose-dock-gap: 8px;
+}
 body.embed .app {
   grid-template-columns: 1fr;
   grid-template-rows: 38px auto 1fr;
@@ -827,13 +832,7 @@ body.embed .rail.left {
 }
 body.embed .rail-section { margin: 0; display: flex; align-items: center; gap: 10px; }
 body.embed .rail-title,
-body.embed .view-tip,
-body.embed .provenance,
-body.embed #electrode-link { display: none; }
-/* :has() in its own rules: an engine without it only loses these. */
-body.embed .rail-section:has(#channel-colors) { display: none; }
-body.embed .rail-section:has(#ch-list) { display: none; }
-body.embed .rail-section:has(#ev-list) { display: none; }
+body.embed [data-embed="hide"] { display: none; }   /* index.html tags what the toolbar drops */
 body.embed .status {
   max-width: 24ch;
   white-space: nowrap;
@@ -860,19 +859,17 @@ body.embed .stage-hint { padding: 16px; font-size: 11px; }
    the page pill covers pagination); the engraved caption would only
    collide with the time-axis labels in a 500px-tall cell. */
 body.embed .stage-caption { display: none; }
-body.embed { --pose-dock-w: 242px; --pose-dock-gap: 8px; }   /* 240px canvas + 1px borders */
 body.embed .pose-panel {
   position: static;
   flex: 0 0 var(--pose-dock-w);   /* never steals canvas width */
   width: var(--pose-dock-w);
-  align-self: stretch;
   margin: var(--pose-dock-gap) var(--pose-dock-gap) var(--pose-dock-gap) 0;
   overflow: hidden;
   background: transparent;
   border-color: var(--line-2);
   box-shadow: none;
 }
-body.embed .pose-canvas { width: 240px; height: 240px; }
+body.embed .pose-canvas { width: var(--pose-canvas); height: var(--pose-canvas); }
 body.embed .pose-caption { white-space: normal; overflow-wrap: anywhere; }
 /* The cursor readout spans the stage; stop it at the docked panel. */
 body.embed .stage:has(.pose-panel:not([hidden])) .cursor-info-bar { right: calc(var(--pose-dock-w) + var(--pose-dock-gap)); }

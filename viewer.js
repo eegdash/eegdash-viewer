@@ -293,6 +293,8 @@
     const provenance = $('provenance');
     const tracesCanvas = $('traces');
     const stageHint = $('stage-hint');
+    const pagePill = $('pill-page');
+    let pageLabel = null;   // last text written to the page pill
 
     const view = { start_sec: 0, window_sec: 10, gain: 1, time_mode: 'relative', channel_offset: 0 };
     // Recording-level events; cached so requestRender can pass them
@@ -327,12 +329,14 @@
       const tr = globalThis.TraceRenderer;
       // Channel page pill ("ch 1–25 of 36") when the 16px slot floor
       // paginates the recording (PgUp/PgDn); hidden otherwise.
-      const pagePill = globalThis.document?.getElementById('pill-page');
       if (pagePill && tr && readerInfo) {
         const total = tr.lastTotalChannels || 0, page = tr.lastMaxVisibleChannels || 0, offset = tr.lastChannelOffset || 0;
-        const paged = page > 0 && total > page;
-        pagePill.hidden = !paged;
-        if (paged) pagePill.textContent = `ch ${offset + 1}–${Math.min(total, offset + page)} of ${total}`;
+        const label = (page > 0 && total > page) ? `ch ${offset + 1}–${Math.min(total, offset + page)} of ${total}` : '';
+        if (label !== pageLabel) {              // runs every paint: touch the DOM only on change
+          pageLabel = label;
+          pagePill.hidden = !label;
+          if (label) pagePill.textContent = label;
+        }
       }
       const node = globalThis.document?.getElementById('gain-readout');
       if (!node) return;
@@ -873,12 +877,11 @@
       if (typeof ResizeObserver !== 'undefined') {
         const ro = new ResizeObserver(requestRender);
         ro.observe($('stage'));
-        // Embed mode docks the hand panel beside the canvas: the canvas
-        // box changes while #stage does not. Same observer batch as
+        // The canvas box can change while #stage does not (embed mode
+        // docks the hand panel beside it). Same observer batch as
         // traces.js's cache-clearing observer, so the rAF paints at the
-        // new size (the canvas is unhidden before the first paint, so
-        // the un-hide itself is one extra render, not a stale one).
-        if (globalThis.document.body.classList.contains('embed')) ro.observe(tracesCanvas);
+        // new size; the initial un-hide costs one extra render.
+        ro.observe(tracesCanvas);
       }
       $('window-sec').addEventListener('change', (e) => {
         view.window_sec = parseFloat(e.target.value);
@@ -952,7 +955,7 @@
         // BIDSRecording sidecar fetching stays on the main thread.
         const meta = await metaFn();
         if (epoch !== loadEpoch) return;
-        status.replaceChildren(el('strong', null, `${meta.prefix}_${meta.suffix || 'eeg'}.${meta.ext}`));
+        status.replaceChildren(el('strong', null, `${meta.prefix}_${meta.suffix}.${meta.ext}`));
         setPill('pill-format', meta.ext.toUpperCase());
         setPill('pill-fs', (meta.eeg_json.sampling_frequency ?? '?') + ' Hz');
         setPill('pill-channels', (meta.channels?.length ?? '?') + ' ch');
@@ -1220,23 +1223,16 @@
     // Support _eeg, _ieeg, _emg, _meg, _nirs and other electrophysiology suffixes
     const PHYSIO_FILENAME = new RegExp(`_(eeg|ieeg|emg|meg|nirs)\\.(${Object.keys(READERS).join('|')})$`, 'i');
 
-    function registerDrop(files) {
-      let physioUrl = null;
-      for (const file of files) {
-        const url = HttpRange.registerLocal(file.name, file);
-        if (!physioUrl && PHYSIO_FILENAME.test(file.name)) physioUrl = url;
-      }
-      return physioUrl;
-    }
 
     // Shared by drag-drop and the host-page bridge: swap the local
     // registry for `files`, open the physio file, and (un)dock the
     // hand-pose panel. Returns the synthetic URL that was loaded, or
     // null when no file matched a supported *_{suffix}.<ext> name.
     function openLocalFiles(files, opts = {}) {
-      // Reject before touching anything: an unsupported payload must
-      // not tear down the recording that is on screen.
-      if (![...files].some(f => PHYSIO_FILENAME.test(f.name))) {
+      // Pick the recording first: an unsupported payload must not tear
+      // down the recording that is on screen.
+      const physio = [...files].find(f => PHYSIO_FILENAME.test(f.name));
+      if (!physio) {
         const supported = Object.keys(READERS).join(',');
         status.replaceChildren(el('span', 'err',
           `Drop a *_{eeg,ieeg,emg,meg,nirs}.{${supported}} file (got: ${[...files].map(f => f.name).join(', ')})`));
@@ -1250,7 +1246,8 @@
       fallbackReader = null;
       clearReadCache();
       HttpRange.clearLocal();
-      const physioUrl = registerDrop(files);
+      for (const f of files) HttpRange.registerLocal(f.name, f);
+      const physioUrl = HttpRange.registerLocal(physio.name, physio);
       const PosePanel = globalThis.PosePanel;
       if (PosePanel) {
         if (opts.pose) PosePanel.openUrl(opts.pose);

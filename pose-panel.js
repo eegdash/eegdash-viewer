@@ -214,17 +214,15 @@
     let nAngles = json.n_angles != null ? (json.n_angles | 0) : 0;
     let angles = null;
     if (json.angles) {
-      const raw = decodeBlock(json.angles, 0, 'angles');
+      // Pinned length when n_angles is declared (exporter files); derived
+      // from the payload for hand-authored files that omit it.
+      angles = decodeBlock(json.angles, nAngles > 0 ? nFrames * nAngles * 4 : 0, 'angles');
       if (!nAngles) {
-        nAngles = raw.length / nFrames;
+        nAngles = angles.length / nFrames;
         if (!Number.isInteger(nAngles) || nAngles <= 0) {
-          throw new Error(`pose sidecar: angles payload (${raw.length} floats) is not a whole number per frame; set n_angles`);
+          throw new Error(`pose sidecar: angles payload (${angles.length} floats) is not a whole number per frame; set n_angles`);
         }
       }
-      if (raw.length !== nFrames * nAngles) {
-        throw new Error(`pose sidecar: angles payload is ${raw.length * 4} bytes, expected ${nFrames * nAngles * 4}`);
-      }
-      angles = raw;
       for (let f = 0; f < nFrames; f++) {     // any NaN angle invalidates the frame
         for (let q = 0; q < nAngles; q++) {
           if (Number.isFinite(angles[f * nAngles + q])) continue;
@@ -259,6 +257,24 @@
 
   // ---- pure: sampling ----------------------------------------
 
+  /** Reused Float32Array cached on the parsed record under `key`. */
+  const scratch = (parsed, key, len) =>
+    (parsed[key] && parsed[key].length === len) ? parsed[key] : (parsed[key] = new Float32Array(len));
+
+  /**
+   * Locate tSec on the frame grid: clamp into the sidecar window
+   * (`start_s`-relative), pick the bracketing frames and the blend.
+   * Returns { t, f0, f1, alpha }; `valid` is checked by the callers
+   * against their own arrays.
+   */
+  function sampleAt(parsed, tSec, interpolate) {
+    const { fs, nFrames, durationS, startS } = parsed;
+    const t = Math.max(0, Math.min(durationS, tSec - startS));
+    const fExact = Math.min(nFrames - 1, t * fs);
+    const f0 = Math.floor(fExact);
+    return { t, f0, f1: Math.min(nFrames - 1, f0 + 1), alpha: interpolate ? fExact - f0 : 0 };
+  }
+
   /**
    * Sample the parsed record at time tSec. Linear interpolation between
    * neighbouring frames when `interpolate` (default). Clamps to the
@@ -270,17 +286,9 @@
    * The returned positions array is reused between calls (scratch) —
    * copy it if you need to retain it.
    */
-  /** Reused Float32Array cached on the parsed record under `key`. */
-  const scratch = (parsed, key, len) =>
-    (parsed[key] && parsed[key].length === len) ? parsed[key] : (parsed[key] = new Float32Array(len));
-
   function frameAt(parsed, tSec, interpolate = true) {
-    const { fs, nFrames, nJoints, durationS, startS, positions, valid } = parsed;
-    const t = Math.max(0, Math.min(durationS, tSec - (startS || 0)));
-    const fExact = Math.min(nFrames - 1, t * fs);
-    const f0 = Math.floor(fExact);
-    const f1 = Math.min(nFrames - 1, f0 + 1);
-    const alpha = interpolate ? fExact - f0 : 0;
+    const { nJoints, positions, valid } = parsed;
+    const { t, f0, f1, alpha } = sampleAt(parsed, tSec, interpolate);
 
     const badFrame = (f) => (valid && !valid[f]) ||
       !Number.isFinite(positions[f * nJoints * 3]);
@@ -305,13 +313,9 @@
    * Returns { ok:true, t, angles } | { ok:false, reason:'ik-failure', t }.
    */
   function anglesAt(parsed, tSec, interpolate = true) {
-    const { fs, nFrames, nAngles, durationS, startS, angles, valid } = parsed;
+    const { nAngles, angles, valid } = parsed;
     if (!angles) return { ok: false, reason: 'no-angles', t: 0 };
-    const t = Math.max(0, Math.min(durationS, tSec - (startS || 0)));
-    const fExact = Math.min(nFrames - 1, t * fs);
-    const f0 = Math.floor(fExact);
-    const f1 = Math.min(nFrames - 1, f0 + 1);
-    const alpha = interpolate ? fExact - f0 : 0;
+    const { t, f0, f1, alpha } = sampleAt(parsed, tSec, interpolate);
 
     if ((valid && !valid[f0]) || (alpha > 0 && valid && !valid[f1])) {
       return { ok: false, reason: 'ik-failure', t };
@@ -326,25 +330,7 @@
     return { ok: true, t, angles: out };
   }
 
-  // ---- pure: linear-blend skinning (v2 mesh path) ---------------
-
-  /**
-   * Rodrigues rotation of `d` around unit axis `k` by angle θ.
-   * Writes into `out`. Standard formula:
-   *   v·cosθ + (k×v)·sinθ + k(k·v)(1-cosθ)
-   */
-  function rotateAroundAxis(out, d, k, theta) {
-    const c = Math.cos(theta), s = Math.sin(theta);
-    const kdv = k[0] * d[0] + k[1] * d[1] + k[2] * d[2];
-    const cx = k[1] * d[2] - k[2] * d[1];
-    const cyk = k[2] * d[0] - k[0] * d[2];
-    const cz = k[0] * d[1] - k[1] * d[0];
-    const oneC = 1 - c;
-    out[0] = d[0] * c + cx * s + k[0] * kdv * oneC;
-    out[1] = d[1] * c + cyk * s + k[1] * kdv * oneC;
-    out[2] = d[2] * c + cz * s + k[2] * kdv * oneC;
-    return out;
-  }
+  // ---- skinning glue (the math lives in pose-kinematics.js) -----
 
   function skinCached(parsed, angles, rest, weights, nPoints, key) {
     const mesh = parsed.mesh;
@@ -576,6 +562,9 @@
     const container = opts.container
       || doc.getElementById('stage')
       || doc.body;
+    // Optional header button: revealed while a sidecar is loaded,
+    // aria-pressed mirrors the panel (openUrl wires its click).
+    const toggleBtn = opts.toggleButton || null;
 
     const root = el('div', 'pose-panel');
     root.setAttribute('hidden', '');
@@ -598,6 +587,7 @@
     const DEFAULT_CAM = { yaw: -0.5, pitch: 0.25 };
     const cam = { ...DEFAULT_CAM, zoom: 1, mode: 'auto' };
     let home = DEFAULT_CAM;   // sidecar `camera` overrides on load
+    const resetCam = () => { cam.yaw = home.yaw; cam.pitch = home.pitch; cam.zoom = 1; };
 
     // Time state: visible-window centre from syncWindow; transient
     // hover override from syncCursor with TTL fallback.
@@ -613,7 +603,7 @@
     // Docked (embed) layout: showing/hiding changes the traces canvas
     // width; viewer.js watches the canvas box with a ResizeObserver.
     function reflect(visible) {
-      if (_toggleBtn) _toggleBtn.setAttribute('aria-pressed', String(visible));
+      if (toggleBtn) toggleBtn.setAttribute('aria-pressed', String(visible));
     }
 
     function schedule() {
@@ -671,16 +661,14 @@
       cam.zoom = Math.max(0.3, Math.min(8, cam.zoom * Math.exp(-e.deltaY * 0.001)));
       schedule();
     }, { passive: false });
-    canvas.addEventListener('dblclick', () => {
-      cam.yaw = home.yaw; cam.pitch = home.pitch; cam.zoom = 1;
-      schedule();
-    });
+    canvas.addEventListener('dblclick', () => { resetCam(); schedule(); });
 
     // Only the newest load() may touch `parsed`: a slow sidecar fetch
     // that resolves after clear() or a newer load() is dropped.
     let loadSeq = 0;
     async function load(url) {
       const seq = ++loadSeq;
+      if (toggleBtn) toggleBtn.hidden = false;
       try {
         const res = await globalThis.fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -688,7 +676,7 @@
         if (seq !== loadSeq) return;
         parsed = next;
         home = parsed.camera || DEFAULT_CAM;
-        cam.yaw = home.yaw; cam.pitch = home.pitch; cam.zoom = 1;
+        resetCam();
         show();
         schedule();
       } catch (err) {
@@ -705,6 +693,7 @@
       parsed = null;
       caption.textContent = '';
       hide();
+      if (toggleBtn) toggleBtn.hidden = true;
     }
 
     function show() { root.removeAttribute('hidden'); reflect(true); }
@@ -717,13 +706,16 @@
     }
 
     function syncWindow(startSec, windowSec) {
-      centerT = startSec + windowSec / 2;
+      const next = startSec + windowSec / 2;
+      if (next === centerT) return;          // same frame: nothing to repaint
+      centerT = next;
       schedule();
     }
     function syncCursor(t) {
-      if (t == null) { cursorT = null; schedule(); return; }
-      cursorT = t; cursorAt = Date.now();
-      schedule();
+      if (t == null) { if (cursorT != null) { cursorT = null; schedule(); } return; }
+      const same = t === cursorT;
+      cursorT = t; cursorAt = Date.now();    // keep the hover TTL fresh
+      if (!same) schedule();
     }
 
     return {
@@ -753,7 +745,6 @@
   // call the MODULE-level syncWindow/syncCursor below, which forward to
   // this instance — mount() users manage controllers directly.
   let _active = null;
-  let _toggleBtn = null;   // optional header button (index.html `.header-right`)
 
   /**
    * Open a sidecar URL on the shared controller: mounts (and wires
@@ -762,12 +753,11 @@
    */
   function openUrl(url) {
     if (!_active) {
-      _active = mount({});
+      const toggleButton = globalThis.document?.getElementById('pose-toggle') || null;
+      _active = mount({ toggleButton });
       attachKeys(_active);
-      _toggleBtn = globalThis.document?.getElementById('pose-toggle') || null;
-      if (_toggleBtn) _toggleBtn.addEventListener('click', () => _active.toggle());
+      if (toggleButton) toggleButton.addEventListener('click', () => _active.toggle());
     }
-    if (_toggleBtn) _toggleBtn.hidden = false;
     _active.load(url);
     return _active;
   }
@@ -775,7 +765,6 @@
   /** Drop the shared panel's sidecar and hide it + its button (a recording without one was opened). */
   function hideActive() {
     _active?.clear();
-    if (_toggleBtn) _toggleBtn.hidden = true;
   }
 
   function bootFromParams(params) {
@@ -799,7 +788,7 @@
     FORMAT, VERSION,
     FK_DOF, FK_FRAMES,
     b64ToBytes, parseSidecar, parseMeshBlock, frameAt, anglesAt,
-    rotateAroundAxis, umetrackFrames, skinPoints, skinMesh, skinLandmarks,
+    umetrackFrames, skinPoints, skinMesh, skinLandmarks,
     rotateProject, drawFrame, drawMesh, nextMode,
     mount, attachKeys, openUrl, hideActive, bootFromParams, syncWindow, syncCursor,
   };
