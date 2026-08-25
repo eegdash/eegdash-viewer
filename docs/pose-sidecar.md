@@ -9,7 +9,8 @@ the resulting geometry. For emg2pose BDF conversions use the bundled
 exporter: `python scripts/export-pose-sidecar.py <recording_emg.bdf>`
 (auto-detects `recording-<side>` mirroring; needs `mne`, `torch` and
 facebookresearch/emg2pose). Point the panel at it with `?pose=<url>`
-(resolved against the page URL).
+(resolved against the page URL). In an iframe host, pass it as the `pose`
+field of the postMessage bridge instead (see [embedding.md](embedding.md)).
 
 ## File naming convention
 

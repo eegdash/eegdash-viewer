@@ -291,6 +291,10 @@ self.onmessage = async function (evt) {
 
       case 'LOAD_FILE': {
         const { ext, eeg_url, sidecars } = msg;
+        // Mirror the main thread's local-blob registry (drag-drop /
+        // host-bridge files) so readers resolve localdrop.invalid URLs here.
+        HttpRange.clearLocal();
+        for (const f of msg.local_files || []) HttpRange.registerLocal(f.name, f.blob);
         const readerModule = READERS[ext];
         if (!readerModule) {
           self.postMessage({

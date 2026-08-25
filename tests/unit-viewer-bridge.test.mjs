@@ -22,8 +22,9 @@ for (const id of ['shortcuts-overlay', 'metadata-overlay']) {
   }
 }
 globalThis.fetch = async () => new Response('', { status: 404, statusText: 'Not Found' });
+let workerInstance = null;
 globalThis.Worker = class {
-  constructor() { this.sent = []; }
+  constructor() { this.sent = []; workerInstance = this; }
   postMessage(msg) {
     this.sent.push(msg);
     if (msg && msg.type === 'INIT') {
@@ -78,6 +79,11 @@ test('bridge: open message registers the file locally and starts load()', async 
   // `${meta.prefix}_eeg.${meta.ext}` for every modality (viewer.js
   // `load()`, a pre-existing display quirk), so accept `_emg`/`_eeg`.
   assert.match(status, /localdrop\.invalid\/sub-01_task-x_emg\.bdf|sub-01_task-x_(emg|eeg)\.bdf/, `status: ${status}`);
+  // The worker owns a separate registry: LOAD_FILE must carry the blobs.
+  const load = workerInstance.sent.find(m => m.type === 'LOAD_FILE');
+  assert.ok(load, 'LOAD_FILE sent');
+  assert.deepEqual(load.local_files.map(f => f.name), ['sub-01_task-x_emg.bdf']);
+  assert.equal(load.local_files[0].blob.size, 512);
 });
 
 test('bridge: pose url opens the shared pose panel; a later open without pose hides it', async () => {

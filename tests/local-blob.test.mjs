@@ -82,3 +82,11 @@ test('local-Blob: filenames with spaces / unicode get URL-encoded', () => {
   // Encoded so URL parsers don't choke; the registry maps the encoded URL.
   assert.match(url, /sub%2001_eeg\.set$/);
 });
+
+test('local-Blob: localEntries lists registered files by original name', () => {
+  HttpRange.registerLocal('sub-01_ses-02_task-a_emg.bdf', rampBlob(8));
+  HttpRange.registerLocal('sub-01_ses-02_task-a_channels.tsv', rampBlob(4));
+  const entries = HttpRange.localEntries();
+  assert.deepEqual(entries.map(e => e.name), ['sub-01_ses-02_task-a_emg.bdf', 'sub-01_ses-02_task-a_channels.tsv']);
+  assert.equal(entries[0].blob.size, 8);
+});

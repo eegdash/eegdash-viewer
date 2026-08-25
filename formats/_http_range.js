@@ -25,6 +25,17 @@
 
   function clearLocal() { _localBlobs.clear(); }
 
+  /**
+   * Everything registered so far as { name, blob } — what LOAD_FILE
+   * ships to the worker, whose HttpRange has its own (empty) registry.
+   * Blobs structured-clone without copying, so this is cheap.
+   */
+  function localEntries() {
+    return [..._localBlobs].map(([url, blob]) => ({
+      name: decodeURIComponent(url.slice(LOCAL_PREFIX.length)), blob,
+    }));
+  }
+
   // Transient 5xx retry wrapper. CDN-fronted buckets (Cloudflare in
   // front of S3, what cdn.eegdash.org runs) sometimes return 502/503/504
   // for valid URLs due to upstream pool flake — usually resolves on the
@@ -364,7 +375,16 @@
     if (!r.ok) throw new Error(`${r.status} ${r.statusText} fetching ${url}`);
     return r.text();
   }
-  const fetchTextOrNull = (url) => fetchText(url, { allowMissing: true });
+  // Optional sidecars must never sink a load: a thrown network error
+  // (DNS, offline, aborted) is "missing" too, not a fatal condition.
+  async function fetchTextOrNull(url) {
+    try {
+      return await fetchText(url, { allowMissing: true });
+    } catch (err) {
+      console.warn(`Optional sidecar fetch failed for ${url} (${err.message}); treating as missing.`);
+      return null;
+    }
+  }
 
   // ---- Streaming fetch ----------------------------------------
   // Returns an AsyncIterable<{ offset, bytes: Uint8Array }> where
@@ -458,7 +478,7 @@
   const api = {
     probeLength, probeLengthNoHead, rangeFetch, rangeFetchStreaming, fetchBuffer,
     fetchText, fetchTextOrNull,
-    registerLocal, clearLocal,
+    registerLocal, clearLocal, localEntries,
     _STREAM_THRESHOLD: STREAM_THRESHOLD,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

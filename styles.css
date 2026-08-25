@@ -169,7 +169,8 @@ code {
 /* Time-mode toggle — same visual weight as a pill, but interactive.
    Lives in the header next to the readout pills; flips between
    "rel" (seconds-from-start) and "clock" (HH:MM:SS) on click. */
-#time-mode-toggle {
+#time-mode-toggle,
+#pose-toggle {
   appearance: none;
   font-family: var(--mono);
   font-size: 10.5px;
@@ -184,7 +185,8 @@ code {
   transition: border-color 140ms, color 140ms, background 140ms;
   margin-left: 2px;
 }
-#time-mode-toggle:hover:not(:disabled) {
+#time-mode-toggle:hover:not(:disabled),
+#pose-toggle:hover {
   border-color: var(--ink-2);
   color: var(--ink);
 }
@@ -197,6 +199,12 @@ code {
   opacity: 0.35;
   cursor: not-allowed;
 }
+#pose-toggle[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+#pose-toggle[hidden] { display: none; }
 .pill[data-changed="true"] {
   /* Subtle pulse when a pill's value changes — used for fs/channels/duration
      after the binary header resolves them. Driven by JS toggling the attr. */
@@ -704,6 +712,7 @@ code {
 .stage-caption[hidden] { display: none; }
 .stage-caption .val { color: var(--ink-2); font-weight: 500; }
 .stage-caption .sep { color: var(--ink-3); }
+.stage-caption .ch-page:empty { display: none; }
 
 /* ----- cursor readout ------------------------------------ */
 
@@ -774,17 +783,18 @@ code {
 .cursor-dot[hidden] { display: none; }
 
 /* ----- embed mode ---------------------------------------- */
-/* (?embed=1) The host page provides outer context (an eegdash docs
-   page already has the wordmark, breadcrumbs, etc.), so we collapse
-   to a thin header — the eegdash mark stays as a brand anchor so
-   the iframe reads as part of the parent product. The rail hides;
-   only traces + the engraved stage caption remain. */
+/* (?embed=1) Notebook cells and docs pages host the viewer in an
+   iframe. The header collapses to the brand mark + pills; the left
+   rail folds into a one-row toolbar (recording · window · gain ·
+   filters) so the essentials stay reachable without a 320px column;
+   channel/event lists stay keyboard-reachable (`i` overlay, PgUp/PgDn)
+   but off screen; the hand-pose panel docks to the right of the traces
+   instead of floating over them. */
 
 body.embed { background: transparent; }
-body.embed .rail.left { display: none; }
 body.embed .app {
   grid-template-columns: 1fr;
-  grid-template-rows: 38px 1fr;
+  grid-template-rows: 38px auto 1fr;
 }
 body.embed .header {
   background: transparent;
@@ -792,8 +802,7 @@ body.embed .header {
   min-height: 38px;
 }
 body.embed .brand-title,
-body.embed .brand-sub,
-body.embed .header-right .pill { display: none; }
+body.embed .brand-sub { display: none; }
 body.embed .brand-mark { width: 18px; height: 18px; }
 body.embed .brand-eegdash {
   margin-left: 0;
@@ -802,15 +811,72 @@ body.embed .brand-eegdash {
   opacity: 1;                  /* the wordmark IS the brand here */
   height: 24px;
 }
+
+/* Rail → toolbar. Sections become inline groups; the heavy lists hide.
+   Budget at 1100px: recording ≈ 250, view ≈ 330, filters ≈ 400 → fits
+   one row with 14px group gaps; narrower hosts wrap the filters row. */
+body.embed .rail.left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 5px 14px 7px;
+  border-right: 0;
+  border-bottom: 1px solid var(--line-2);
+  background: transparent;
+  overflow: visible;
+}
+body.embed .rail-section { margin: 0; display: flex; align-items: center; gap: 10px; }
+body.embed .rail-title { margin: 0; }
+body.embed .rail-section:has(.view-controls) .rail-title,
+body.embed .rail-section:has(#channel-colors),
+body.embed .rail-section:has(#ch-list),
+body.embed .rail-section:has(#ev-list),
+body.embed .view-tip,
+body.embed .provenance,
+body.embed #electrode-link { display: none; }
+body.embed .status {
+  max-width: 26ch;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: normal;
+}
+body.embed .status .err { white-space: normal; }
+body.embed .view-controls { flex-direction: row; gap: 14px; }
+body.embed .view-controls label { grid-template-columns: auto auto auto; gap: 6px; }
+body.embed .view-controls input[type="range"] { width: 80px; }
+body.embed #filter-controls { flex-direction: row; gap: 10px; }
+body.embed .filter-row { padding: 0; gap: 6px; }
+
+/* Stage: canvas + docked pose column. */
 body.embed .stage {
+  display: flex;
+  align-items: stretch;
   background: transparent;     /* let the host page bleed through */
 }
+body.embed .traces { flex: 1 1 auto; min-width: 0; }
 body.embed .stage-hint { padding: 16px; font-size: 11px; }
 body.embed .stage-caption {
   bottom: 8px;
   left: 12px;
   font-size: 9.5px;
 }
+body.embed .pose-panel {
+  position: static;
+  flex: 0 0 242px;           /* 240px canvas + 1px borders: never steals canvas width */
+  width: 242px;
+  align-self: stretch;
+  margin: 8px 8px 8px 0;
+  overflow: hidden;
+  background: transparent;
+  border-color: var(--line-2);
+  box-shadow: none;
+}
+body.embed .pose-canvas { width: 240px; height: 240px; }
+body.embed .pose-caption { white-space: normal; overflow-wrap: anywhere; }
+/* The cursor readout spans the stage; stop it at the docked panel. */
+body.embed .stage:has(.pose-panel:not([hidden])) .cursor-info-bar { right: 250px; }
 
 /* ----- drag-drop overlay --------------------------------- */
 
@@ -1146,11 +1212,4 @@ body.drag-active::after {
   font-size: 10px;
   color: var(--muted);
   padding: 4px 10px 6px;
-}
-/* Embed mode: transparent card like .stage-caption so host pages
-   (sphinx-book-theme, notebook cells) bleed through. */
-body.embed .pose-panel {
-  background: transparent;
-  border-color: var(--line-2);
-  box-shadow: none;
 }

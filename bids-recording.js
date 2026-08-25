@@ -358,7 +358,11 @@
       paths.push(`${here}${bare}`);
       yield { here, paths, variants, bare };
       const parent = here.replace(/[^/]+\/$/, '');
-      if (!parent || parent === here) break;
+      // Never climb above the origin: `https://host/` → `https://` would
+      // fabricate `https://<sidecar-name>/` hostnames (DNS errors, and a
+      // wasted round-trip for drag-drop / bridge files on localdrop.invalid).
+      const absolute = /^[a-z][a-z0-9+.-]*:\/\//i.test(here);   // NEMAR walks manifest-relative dirs
+      if (!parent || parent === here || (absolute && !/^[a-z][a-z0-9+.-]*:\/\/[^/]+\//i.test(parent))) break;
       here = parent;
     }
   }

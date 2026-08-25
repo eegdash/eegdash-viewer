@@ -202,6 +202,7 @@
       el('span', 'val', `${reader.sampling_frequency} Hz`), sep(),
       el('span', 'val', `${reader.duration_s.toFixed(1)} s`), sep(),
       globalThis.document.createTextNode(meta.ext.toUpperCase()),
+      el('span', 'ch-page'),
     );
     captionEl.hidden = false;
   }
@@ -319,9 +320,18 @@
       if (PosePanel && readerInfo && Number.isFinite(view.start_sec)) {
         PosePanel.syncWindow(view.start_sec, view.window_sec);
       }
+      const tr = globalThis.TraceRenderer;
+      // Channel page indicator ("ch 1–25 of 36 · PgDn") when the slot
+      // floor paginates the recording; empty otherwise (CSS hides it).
+      const page = globalThis.document?.querySelector('#stage-caption .ch-page');
+      const range = tr && tr.lastVisibleRange;
+      if (page && range) {
+        page.textContent = range.total > range.count
+          ? `ch ${range.offset + 1}–${range.offset + range.count} of ${range.total} · PgDn`
+          : '';
+      }
       const node = globalThis.document?.getElementById('gain-readout');
       if (!node) return;
-      const tr = globalThis.TraceRenderer;
       const slotMv = tr ? tr.lastSlotMicrovolts : 0;
       const factor = view.gain.toFixed(2) + '×';
       if (slotMv > 0 && isFinite(slotMv)) {
@@ -923,7 +933,8 @@
       try {
         // BIDSRecording sidecar fetching stays on the main thread.
         const meta = await metaFn();
-        status.replaceChildren(el('strong', null, `${meta.prefix}_eeg.${meta.ext}`));
+        const suffix = (/_(eeg|ieeg|emg|meg|nirs)\.[^/]*$/i.exec(meta.eeg_url || '') || [null, 'eeg'])[1];
+        status.replaceChildren(el('strong', null, `${meta.prefix}_${suffix}.${meta.ext}`));
         setPill('pill-format', meta.ext.toUpperCase());
         setPill('pill-fs', (meta.eeg_json.sampling_frequency ?? '?') + ' Hz');
         setPill('pill-channels', (meta.channels?.length ?? '?') + ' ch');
@@ -961,8 +972,12 @@
           await workerReadyPromise;
           // fetchHeader handles the pendingRequests('__LOAD__') seam,
           // sends LOAD_FILE, and counts the messages_sent stat.
+          // Local (drag-drop / host-bridge) blobs live in this thread's
+          // registry; the worker has its own, so hand them over with the
+          // load (structured clone shares the bytes, no copy).
           readerInfo = await rpc.fetchHeader({
             type: 'LOAD_FILE', ext: meta.ext, eeg_url: meta.eeg_url, sidecars: meta,
+            local_files: HttpRange.localEntries(),
           });
         } else {
           // Fallback: open reader directly (Node unit tests, no Worker).
@@ -1285,6 +1300,10 @@
       });
       const parent = globalThis.parent;
       if (parent && parent !== globalThis) {
+        // Framed: the host will (usually) push a recording; say so
+        // instead of the drag-drop copy while we wait.
+        const lead = stageHint && stageHint.querySelector('p');
+        if (lead) lead.textContent = 'Waiting for the host page to send a recording';
         try { parent.postMessage({ type: BRIDGE_READY }, '*'); } catch { /* sandboxed host */ }
       }
     }
