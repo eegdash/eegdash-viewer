@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787694249871,
+  "lastUpdate": 1787695216823,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -2022,6 +2022,233 @@ window.BENCHMARK_DATA = {
             "range": "±8.76%",
             "unit": "ms",
             "extra": "p99=117.718ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "40063fb8a8b8ed277bcca552ca8b46293c53dc6e",
+          "message": "refactor(pose,embed): simplify pass — shared sampler, controller-owned toggle, URL-resolver walker, tagged embed markup, batched exporter FK\n\n- pose-panel: one sampleAt() for frameAt/anglesAt, dead rotateAroundAxis\n  removed, resetCam(), no-op syncWindow/syncCursor skip the repaint,\n  the header toggle is passed into mount() and owned by the controller,\n  angles decode pinned by decodeBlock when n_angles is declared.\n- viewer: page pill resolved once and written only on change, single\n  PHYSIO_FILENAME scan in openLocalFiles, canvas ResizeObserver\n  unconditional, meta.suffix guaranteed by the loader (eegdash fast path\n  now forwards it).\n- bids-recording: inheritance walk climbs with new URL('..') — stops at\n  the origin by construction, manifest-relative dirs keep the strip.\n- embed CSS: index.html tags rail parts with data-embed=\"hide\" (one\n  rule, no :has() id list); dock width derived from --pose-canvas.\n- exporter: vectorised FK + skinning over frames (~70× faster), fs_pose\n  is the single rate (dt dropped).",
+          "timestamp": "2026-08-25T23:52:13+02:00",
+          "tree_id": "f3360d531ed8cb100db87a0d467b319af2072792",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/40063fb8a8b8ed277bcca552ca8b46293c53dc6e"
+        },
+        "date": 1787695216106,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.3789,
+            "range": "±1.70%",
+            "unit": "ms",
+            "extra": "p99=4.545ms, n=841samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.3657,
+            "range": "±1.60%",
+            "unit": "ms",
+            "extra": "p99=4.375ms, n=846samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.3337,
+            "range": "±1.55%",
+            "unit": "ms",
+            "extra": "p99=4.436ms, n=858samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.2698,
+            "range": "±1.68%",
+            "unit": "ms",
+            "extra": "p99=6.777ms, n=469samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.6932,
+            "range": "±2.11%",
+            "unit": "ms",
+            "extra": "p99=8.871ms, n=427samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.6092,
+            "range": "±1.76%",
+            "unit": "ms",
+            "extra": "p99=7.030ms, n=434samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.6035,
+            "range": "±1.46%",
+            "unit": "ms",
+            "extra": "p99=6.911ms, n=435samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 8.5396,
+            "range": "±1.73%",
+            "unit": "ms",
+            "extra": "p99=12.853ms, n=235samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 9.1681,
+            "range": "±1.47%",
+            "unit": "ms",
+            "extra": "p99=11.155ms, n=219samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 9.2136,
+            "range": "±1.71%",
+            "unit": "ms",
+            "extra": "p99=11.444ms, n=218samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 9.164,
+            "range": "±1.55%",
+            "unit": "ms",
+            "extra": "p99=11.334ms, n=219samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 16.7102,
+            "range": "±1.11%",
+            "unit": "ms",
+            "extra": "p99=18.251ms, n=120samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0099,
+            "range": "±0.22%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=202392samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0098,
+            "range": "±0.62%",
+            "unit": "ms",
+            "extra": "p99=0.019ms, n=203370samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0098,
+            "range": "±0.21%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=204246samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 8.2356,
+            "range": "±1.02%",
+            "unit": "ms",
+            "extra": "p99=10.017ms, n=243samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0027,
+            "range": "±0.21%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=736020samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0028,
+            "range": "±1.53%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=725621samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0027,
+            "range": "±1.49%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=727696samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.7092,
+            "range": "±0.06%",
+            "unit": "ms",
+            "extra": "p99=243.492ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.6575,
+            "range": "±0.03%",
+            "unit": "ms",
+            "extra": "p99=272.588ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.1829,
+            "range": "±0.06%",
+            "unit": "ms",
+            "extra": "p99=30.235ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.2101,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=30.436ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 30.6635,
+            "range": "±7.64%",
+            "unit": "ms",
+            "extra": "p99=61.381ms, n=66samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 25.7423,
+            "range": "±4.17%",
+            "unit": "ms",
+            "extra": "p99=40.152ms, n=78samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 31.9409,
+            "range": "±5.76%",
+            "unit": "ms",
+            "extra": "p99=56.886ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
