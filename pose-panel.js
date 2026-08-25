@@ -603,6 +603,21 @@
 
     closeBtn.addEventListener('click', () => hide());
 
+    // Optional header button (index.html `.header-right`): visible
+    // only once a panel exists, mirrors the `p` key.
+    const toggleBtn = doc.getElementById('pose-toggle');
+    if (toggleBtn) {
+      toggleBtn.hidden = false;
+      toggleBtn.addEventListener('click', () => toggle());
+    }
+    function reflect(visible) {
+      if (toggleBtn) toggleBtn.setAttribute('aria-pressed', String(visible));
+      // Docked (embed) layout: the panel shares the stage row with the
+      // traces canvas, so its visibility changes the canvas width.
+      // viewer.js refits on window resize; nudge it.
+      try { globalThis.dispatchEvent(new globalThis.Event('resize')); } catch { /* no window */ }
+    }
+
     function schedule() {
       if (rafId != null) return;
       rafId = globalThis.requestAnimationFrame(() => {
@@ -674,8 +689,8 @@
       }
     }
 
-    function show() { root.removeAttribute('hidden'); }
-    function hide() { root.setAttribute('hidden', ''); }
+    function show() { root.removeAttribute('hidden'); reflect(true); }
+    function hide() { root.setAttribute('hidden', ''); reflect(false); }
     function toggle() { root.hasAttribute('hidden') ? show() : hide(); }
     /** Cycle skeleton/mesh view; no-op without a mesh block. */
     function cycleMode() {
@@ -721,15 +736,30 @@
   // this instance — mount() users manage controllers directly.
   let _active = null;
 
+  /**
+   * Open a sidecar URL on the shared controller: mounts (and wires
+   * keys) on first use, then just reloads — hosts that push a new
+   * recording (postMessage bridge, drag-drop) never stack panels.
+   */
+  function openUrl(url) {
+    if (!_active) {
+      _active = mount({});
+      attachKeys(_active);
+    }
+    _active.load(url);
+    return _active;
+  }
+
+  /** Hide the shared panel (a recording without a sidecar was opened). */
+  function hideActive() {
+    _active?.hide();
+  }
+
   function bootFromParams(params) {
     const poseUrl = params && params.get ? params.get('pose') : null;
     if (!poseUrl) return null;
     const abs = globalThis.location ? new URL(poseUrl, globalThis.location.href).href : poseUrl;
-    const controller = mount({});
-    attachKeys(controller);
-    controller.load(abs);
-    _active = controller;
-    return controller;
+    return openUrl(abs);
   }
 
   /** Module-level bridge: visible-window centre (viewer.js hook). */
@@ -746,7 +776,7 @@
     FORMAT, VERSION,
     b64ToBytes, parseSidecar, parseMeshBlock, frameAt, anglesAt,
     rotateAroundAxis, skinMesh, rotateProject, drawFrame, drawMesh, nextMode,
-    mount, attachKeys, bootFromParams, syncWindow, syncCursor,
+    mount, attachKeys, openUrl, hideActive, bootFromParams, syncWindow, syncCursor,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.PosePanel = api;
