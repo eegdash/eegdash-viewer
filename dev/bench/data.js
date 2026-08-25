@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780241012700,
+  "lastUpdate": 1787657811812,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -660,6 +660,233 @@ window.BENCHMARK_DATA = {
             "range": "±11.64%",
             "unit": "ms",
             "extra": "p99=150.783ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4101c562a83b265e02adc6a37c870860f5e8341c",
+          "message": "Merge pull request #1 from eegdash/feat/pose-panel\n\nfeat(pose): synchronized hand-pose panel from JSON sidecars (F10)",
+          "timestamp": "2026-08-25T13:28:46+02:00",
+          "tree_id": "6c9c38bd1bfa098b775c49dc8e83bd72a9343379",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/4101c562a83b265e02adc6a37c870860f5e8341c"
+        },
+        "date": 1787657810637,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.2077,
+            "range": "±1.44%",
+            "unit": "ms",
+            "extra": "p99=3.842ms, n=906samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.1648,
+            "range": "±1.31%",
+            "unit": "ms",
+            "extra": "p99=3.844ms, n=924samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.1481,
+            "range": "±1.25%",
+            "unit": "ms",
+            "extra": "p99=3.846ms, n=932samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.2477,
+            "range": "±2.07%",
+            "unit": "ms",
+            "extra": "p99=7.264ms, n=471samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.3547,
+            "range": "±1.59%",
+            "unit": "ms",
+            "extra": "p99=7.658ms, n=460samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.3563,
+            "range": "±1.63%",
+            "unit": "ms",
+            "extra": "p99=7.680ms, n=460samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.249,
+            "range": "±1.26%",
+            "unit": "ms",
+            "extra": "p99=7.597ms, n=471samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 8.0506,
+            "range": "±1.77%",
+            "unit": "ms",
+            "extra": "p99=12.976ms, n=249samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 8.3353,
+            "range": "±1.61%",
+            "unit": "ms",
+            "extra": "p99=13.620ms, n=240samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 8.4218,
+            "range": "±1.86%",
+            "unit": "ms",
+            "extra": "p99=13.619ms, n=238samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 8.35,
+            "range": "±1.70%",
+            "unit": "ms",
+            "extra": "p99=13.594ms, n=240samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 14.95,
+            "range": "±0.82%",
+            "unit": "ms",
+            "extra": "p99=19.152ms, n=134samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0097,
+            "range": "±0.17%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=206326samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0097,
+            "range": "±0.18%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=205217samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0097,
+            "range": "±0.21%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=207106samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 7.9651,
+            "range": "±0.77%",
+            "unit": "ms",
+            "extra": "p99=9.987ms, n=252samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0026,
+            "range": "±0.19%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=759415samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0026,
+            "range": "±0.21%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=755606samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0026,
+            "range": "±0.20%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=757564samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.4957,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=242.401ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.496,
+            "range": "±0.03%",
+            "unit": "ms",
+            "extra": "p99=272.462ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.2088,
+            "range": "±0.15%",
+            "unit": "ms",
+            "extra": "p99=31.220ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.208,
+            "range": "±0.12%",
+            "unit": "ms",
+            "extra": "p99=30.827ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 14.6576,
+            "range": "±2.31%",
+            "unit": "ms",
+            "extra": "p99=21.099ms, n=137samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 17.8615,
+            "range": "±2.54%",
+            "unit": "ms",
+            "extra": "p99=27.906ms, n=113samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 26.526,
+            "range": "±3.48%",
+            "unit": "ms",
+            "extra": "p99=47.607ms, n=76samples"
           },
           {
             "name": "readwindow_bv_large_2s",
