@@ -50,6 +50,11 @@ viewer holds no credentials.
 </script>
 ```
 
+Trust note: notebook outputs carry a script, so Jupyter renders them
+when the cell was run in the session or the notebook is trusted
+(`jupyter trust notebook.ipynb`); an untrusted saved notebook shows an
+empty cell until then.
+
 Size note: bytes inlined in a notebook output are saved with the
 notebook. braindecode refuses recordings above `max_bytes` (256 MiB by
 default); crop or downsample first for anything larger. The pose
