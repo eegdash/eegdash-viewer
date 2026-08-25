@@ -202,7 +202,6 @@
       el('span', 'val', `${reader.sampling_frequency} Hz`), sep(),
       el('span', 'val', `${reader.duration_s.toFixed(1)} s`), sep(),
       globalThis.document.createTextNode(meta.ext.toUpperCase()),
-      el('span', 'ch-page'),
     );
     captionEl.hidden = false;
   }
@@ -321,14 +320,14 @@
         PosePanel.syncWindow(view.start_sec, view.window_sec);
       }
       const tr = globalThis.TraceRenderer;
-      // Channel page indicator ("ch 1–25 of 36 · PgDn") when the slot
-      // floor paginates the recording; empty otherwise (CSS hides it).
-      const page = globalThis.document?.querySelector('#stage-caption .ch-page');
+      // Channel page pill ("ch 1–25 of 36") when the 16px slot floor
+      // paginates the recording (PgUp/PgDn); hidden otherwise.
+      const pagePill = globalThis.document?.getElementById('pill-page');
       const range = tr && tr.lastVisibleRange;
-      if (page && range) {
-        page.textContent = range.total > range.count
-          ? `ch ${range.offset + 1}–${range.offset + range.count} of ${range.total} · PgDn`
-          : '';
+      if (pagePill && range) {
+        const paged = range.total > range.count;
+        pagePill.hidden = !paged;
+        if (paged) pagePill.textContent = `ch ${range.offset + 1}–${range.offset + range.count} of ${range.total}`;
       }
       const node = globalThis.document?.getElementById('gain-readout');
       if (!node) return;

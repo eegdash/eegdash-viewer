@@ -712,7 +712,6 @@ code {
 .stage-caption[hidden] { display: none; }
 .stage-caption .val { color: var(--ink-2); font-weight: 500; }
 .stage-caption .sep { color: var(--ink-3); }
-.stage-caption .ch-page:empty { display: none; }
 
 /* ----- cursor readout ------------------------------------ */
 
@@ -812,9 +811,10 @@ body.embed .brand-eegdash {
   height: 24px;
 }
 
-/* Rail → toolbar. Sections become inline groups; the heavy lists hide.
-   Budget at 1100px: recording ≈ 250, view ≈ 330, filters ≈ 400 → fits
-   one row with 14px group gaps; narrower hosts wrap the filters row. */
+/* Rail → toolbar. Sections become inline groups (titles off — the
+   controls are self-describing), the heavy lists hide. Budget at 1100px:
+   recording ≈ 170, window ≈ 115, gain ≈ 270, filters ≈ 340 → one row;
+   narrower hosts wrap the filters. */
 body.embed .rail.left {
   display: flex;
   flex-wrap: wrap;
@@ -828,7 +828,7 @@ body.embed .rail.left {
 }
 body.embed .rail-section { margin: 0; display: flex; align-items: center; gap: 10px; }
 body.embed .rail-title { margin: 0; }
-body.embed .rail-section:has(.view-controls) .rail-title,
+body.embed .rail-title,
 body.embed .rail-section:has(#channel-colors),
 body.embed .rail-section:has(#ch-list),
 body.embed .rail-section:has(#ev-list),
@@ -836,7 +836,7 @@ body.embed .view-tip,
 body.embed .provenance,
 body.embed #electrode-link { display: none; }
 body.embed .status {
-  max-width: 26ch;
+  max-width: 24ch;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -845,7 +845,7 @@ body.embed .status {
 body.embed .status .err { white-space: normal; }
 body.embed .view-controls { flex-direction: row; gap: 14px; }
 body.embed .view-controls label { grid-template-columns: auto auto auto; gap: 6px; }
-body.embed .view-controls input[type="range"] { width: 80px; }
+body.embed .view-controls input[type="range"] { width: 72px; }
 body.embed #filter-controls { flex-direction: row; gap: 10px; }
 body.embed .filter-row { padding: 0; gap: 6px; }
 
@@ -857,11 +857,10 @@ body.embed .stage {
 }
 body.embed .traces { flex: 1 1 auto; min-width: 0; }
 body.embed .stage-hint { padding: 16px; font-size: 11px; }
-body.embed .stage-caption {
-  bottom: 8px;
-  left: 12px;
-  font-size: 9.5px;
-}
+/* The header pills already say format · fs · channels · duration (and
+   the page pill covers pagination); the engraved caption would only
+   collide with the time-axis labels in a 500px-tall cell. */
+body.embed .stage-caption { display: none; }
 body.embed .pose-panel {
   position: static;
   flex: 0 0 242px;           /* 240px canvas + 1px borders: never steals canvas width */
