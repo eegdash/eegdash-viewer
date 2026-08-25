@@ -5,7 +5,10 @@ Companion JSON file for BIDS electrophysiology recordings that carries
 (`pose-panel.js`, Lane F10). The viewer intentionally contains *no*
 kinematics: forward kinematics / skinning runs once upstream (e.g.
 emg2pose's UmeTrack `HandModel` in Python), and this file stores only
-the resulting geometry. Point the panel at it with `?pose=<url>`
+the resulting geometry. For emg2pose BDF conversions use the bundled
+exporter: `python scripts/export-pose-sidecar.py <recording_emg.bdf>`
+(auto-detects `recording-<side>` mirroring; needs `mne`, `torch` and
+facebookresearch/emg2pose). Point the panel at it with `?pose=<url>`
 (resolved against the page URL).
 
 ## File naming convention
