@@ -66,39 +66,59 @@
     return new Float32Array(bytes.buffer, bytes.byteOffset, bytes.length >> 2);
   }
 
+  // UmeTrack hand model constants (emg2pose/UmeTrack/lib/common/hand.py):
+  // 5 fingers × 4 joints drive 17 skinning frames — root, wrist, then
+  // (proximal, intermediate, distal) per finger.
+  const FK_DOF = 20;
+  const FK_FRAMES = 17;
+
+  function sparseWeights(block, prefix, nPoints, what) {
+    const wv = decodeBlock(block[prefix + 'weight_vertex'], 0, what + ' weight_vertex');
+    const wb = decodeBlock(block[prefix + 'weight_bone'], 0, what + ' weight_bone');
+    const ww = decodeBlock(block[prefix + 'weight_value'], 0, what + ' weight_value');
+    const N = wv.length;
+    if (!N || wb.length !== N || ww.length !== N) {
+      throw new Error(`pose sidecar: ${what} sparse weight arrays must share one length`);
+    }
+    for (let i = 0; i < N; i++) {
+      if (wb[i] >= FK_FRAMES) throw new Error(`pose sidecar: ${what} weight bone index out of range`);
+      if (wv[i] >= nPoints) throw new Error(`pose sidecar: ${what} weight vertex index out of range`);
+    }
+    return { wv, wb, ww };
+  }
+
   /**
-   * Validate + decode the optional v2 mesh block (docs/pose-sidecar.md).
-   * Requires the sibling `angles` array: skinning needs per-frame joint
-   * angles; `positions` alone cannot reconstruct bone rotations.
-   * Returns { nVerts, nTris, restVertices, triangles,
-   *            weightVertex, weightBone, weightValue, axes, jointRest }.
+   * Validate + decode the optional mesh block (docs/pose-sidecar.md).
+   * Mode `umetrack-fk`: the sidecar ships the hand model (rest vertices,
+   * triangles, sparse skinning weights over the 17 UmeTrack frames, the
+   * 20 joint axes/anchors) and the viewer runs forward kinematics +
+   * linear-blend skinning per frame from the sibling `angles` block.
+   * Optional `rest_landmarks` + `landmark_weight_*` let the same FK
+   * reproduce the 21 skeleton landmarks (used by tests as an oracle
+   * against `positions`).
+   * Returns { nVerts, nTris, restVertices, triangles, weights, axes,
+   *            jointRest, mirrorX, landmarks|null }.
    */
-  function parseMeshBlock(mesh, nJoints, anglesArr) {
+  function parseMeshBlock(mesh, nAngles, anglesArr, nJoints) {
     if (!mesh || typeof mesh !== 'object') {
       throw new Error('pose sidecar: mesh block object required');
     }
     if (!anglesArr) {
       throw new Error('pose sidecar: mesh mode needs the angles block');
     }
-    if (mesh.mode !== 'umetrack-lbs') {
+    if (mesh.mode !== 'umetrack-fk') {
       throw new Error(`pose sidecar: unknown mesh mode ${JSON.stringify(mesh.mode)}`);
+    }
+    if (nAngles !== FK_DOF) {
+      throw new Error(`pose sidecar: umetrack-fk needs n_angles=${FK_DOF}, got ${nAngles}`);
     }
     const restVertices = decodeBlock(mesh.rest_vertices, 0, 'rest_vertices');
     if (restVertices.length === 0 || restVertices.length % 3 !== 0) {
       throw new Error('pose sidecar: rest_vertices must be non-empty xyz triples');
     }
     const nVerts = restVertices.length / 3;
-
-    const weightVertex = decodeBlock(mesh.weight_vertex, 0, 'weight_vertex');
-    const weightBone = decodeBlock(mesh.weight_bone, 0, 'weight_bone');
-    const weightValue = decodeBlock(mesh.weight_value, 0, 'weight_value');
-    const N = weightVertex.length;
-    if (!N || weightBone.length !== N || weightValue.length !== N) {
-      throw new Error('pose sidecar: sparse weight arrays must share one length');
-    }
-
-    const axes = decodeBlock(mesh.joint_axes, nJoints * 12, 'joint_axes');
-    const jointRest = decodeBlock(mesh.joint_rest, nJoints * 12, 'joint_rest');
+    const axes = decodeBlock(mesh.joint_axes, FK_DOF * 12, 'joint_axes');
+    const jointRest = decodeBlock(mesh.joint_rest, FK_DOF * 12, 'joint_rest');
     const triangles = decodeBlock(mesh.triangles, 0, 'triangles');
     if (triangles.length === 0 || triangles.length % 3 !== 0) {
       throw new Error('pose sidecar: triangles must be non-empty index triples');
@@ -106,15 +126,17 @@
     for (let i = 0; i < triangles.length; i++) {
       if (triangles[i] >= nVerts) throw new Error('pose sidecar: triangle index out of range');
     }
-    for (let i = 0; i < N; i++) {
-      if (weightBone[i] >= nJoints) throw new Error('pose sidecar: weight bone index out of range');
-      if (weightVertex[i] >= nVerts) throw new Error('pose sidecar: weight vertex index out of range');
+    const weights = sparseWeights(mesh, '', nVerts, 'mesh');
+    let landmarks = null;
+    if (mesh.rest_landmarks) {
+      const rest = decodeBlock(mesh.rest_landmarks, nJoints * 12, 'rest_landmarks');
+      landmarks = { rest, weights: sparseWeights(mesh, 'landmark_', nJoints, 'landmark') };
     }
     return {
       nVerts, nTris: triangles.length / 3,
-      restVertices, triangles,
-      weightVertex, weightBone, weightValue,
-      axes, jointRest,
+      restVertices, triangles, weights, axes, jointRest,
+      mirrorX: mesh.mirror_x === true,
+      landmarks,
     };
   }
 
@@ -188,22 +210,33 @@
     // v2: optional per-frame joint angles (n_frames × n_joints) feeding
     // the mesh skinning path. Same frame grid and validity semantics as
     // `positions`.
+    // `n_angles` is the joint-angle count per frame (UmeTrack: 20 DOF
+    // for 21 landmarks); it defaults to n_joints for hand-authored files.
+    const nAngles = json.n_angles != null ? (json.n_angles | 0) : nJoints;
     let angles = null;
     if (json.angles) {
-      angles = decodeBlock(json.angles, nFrames * nJoints * 4, 'angles');
+      if (nAngles <= 0) throw new Error('pose sidecar: n_angles must be > 0');
+      angles = decodeBlock(json.angles, nFrames * nAngles * 4, 'angles');
       for (let f = 0; f < nFrames; f++) {
-        if (!Number.isFinite(angles[f * nJoints])) {
+        if (!Number.isFinite(angles[f * nAngles])) {
           valid = valid || new Uint8Array(nFrames).fill(1);
           valid[f] = 0;
         }
       }
     }
 
-    const mesh = json.mesh ? parseMeshBlock(json.mesh, nJoints, angles) : null;
+    const mesh = json.mesh ? parseMeshBlock(json.mesh, nAngles, angles, nJoints) : null;
+
+    // Optional default camera (radians) chosen by the exporter so the
+    // first frame reads as a hand (palm/back facing the viewer).
+    let camera = null;
+    if (json.camera && Number.isFinite(json.camera.yaw) && Number.isFinite(json.camera.pitch)) {
+      camera = { yaw: Number(json.camera.yaw), pitch: Number(json.camera.pitch) };
+    }
 
     return {
-      fs, nFrames, nJoints, durationS,
-      bones, names, valid, positions, angles, mesh,
+      fs, nFrames, nJoints, nAngles, durationS,
+      bones, names, valid, positions, angles, mesh, camera,
     };
   }
 
@@ -254,8 +287,9 @@
    * Returns { ok:true, t, angles } | { ok:false, reason:'ik-failure', t }.
    */
   function anglesAt(parsed, tSec, interpolate = true) {
-    const { fs, nFrames, nJoints, durationS, angles, valid } = parsed;
+    const { fs, nFrames, nAngles, durationS, angles, valid } = parsed;
     if (!angles) return { ok: false, reason: 'no-angles', t: 0 };
+    const nJoints = nAngles;
     const t = Math.max(0, Math.min(durationS, tSec));
     const fExact = Math.min(nFrames - 1, t * fs);
     const f0 = Math.floor(fExact);
@@ -298,67 +332,102 @@
     return out;
   }
 
+  const IDENT34 = Float64Array.from([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0]);
+
+  /** out = A · B for 3×4 row-major affines (rotation | translation). */
+  function mulAffine(out, A, B) {
+    for (let r = 0; r < 3; r++) {
+      const a0 = A[r * 4], a1 = A[r * 4 + 1], a2 = A[r * 4 + 2], a3 = A[r * 4 + 3];
+      out[r * 4]     = a0 * B[0] + a1 * B[4] + a2 * B[8];
+      out[r * 4 + 1] = a0 * B[1] + a1 * B[5] + a2 * B[9];
+      out[r * 4 + 2] = a0 * B[2] + a1 * B[6] + a2 * B[10];
+      out[r * 4 + 3] = a0 * B[3] + a1 * B[7] + a2 * B[11] + a3;
+    }
+    return out;
+  }
+
   /**
-   * Skin the rest-pose mesh at sampled joint angles.
-   * Convention (matching emg2pose's UmeTrack `_skin_points`): joint j's
-   * transform rotates by axis-angle(axes_j, θ_j) about anchor
-   * jointRest_j; each vertex is the weight-normalized blend of its
-   * per-bone transformed rest position.
-   *
-   * Returns a reused Float32Array(V*3).
+   * UmeTrack forward kinematics (`_hand_skinning_transform` in
+   * emg2pose/UmeTrack/lib/common/hand_skinning.py): per finger, chain the
+   * four joint transforms — each a rotation by `angles[q]` about
+   * `axes[q]` anchored at `rests[q]` — and keep the frames after joints
+   * 2, 3 and 4 (proximal, intermediate, distal). Root and wrist stay at
+   * identity (emg2pose fixes the wrist transform).
+   * Writes 17 row-major 3×4 affines into `out` (Float32Array(17 * 12)).
    */
+  function umetrackFrames(angles, axes, rests, out) {
+    out.fill(0);
+    out.set(IDENT34, 0);
+    out.set(IDENT34, 12);
+    const L = umetrackFrames._L || (umetrackFrames._L = new Float64Array(12));
+    const T = umetrackFrames._T || (umetrackFrames._T = new Float64Array(12));
+    const N = umetrackFrames._N || (umetrackFrames._N = new Float64Array(12));
+    const k = [0, 0, 0], e = [0, 0, 0];
+    for (let f = 0; f < 5; f++) {
+      T.set(IDENT34);
+      for (let j = 0; j < 4; j++) {
+        const q = 4 * f + j;
+        k[0] = axes[q * 3]; k[1] = axes[q * 3 + 1]; k[2] = axes[q * 3 + 2];
+        // Rotation columns via Rodrigues on the basis vectors.
+        rotateAroundAxis(e, [1, 0, 0], k, angles[q]); L[0] = e[0]; L[4] = e[1]; L[8] = e[2];
+        rotateAroundAxis(e, [0, 1, 0], k, angles[q]); L[1] = e[0]; L[5] = e[1]; L[9] = e[2];
+        rotateAroundAxis(e, [0, 0, 1], k, angles[q]); L[2] = e[0]; L[6] = e[1]; L[10] = e[2];
+        // Translation so the joint rotates about its rest anchor: t = r − R·r.
+        const rx = rests[q * 3], ry = rests[q * 3 + 1], rz = rests[q * 3 + 2];
+        L[3]  = rx - (L[0] * rx + L[1] * ry + L[2] * rz);
+        L[7]  = ry - (L[4] * rx + L[5] * ry + L[6] * rz);
+        L[11] = rz - (L[8] * rx + L[9] * ry + L[10] * rz);
+        mulAffine(N, T, L);
+        T.set(N);
+        if (j >= 1) out.set(T, (2 + 3 * f + (j - 1)) * 12);
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Linear-blend skinning: p' = Σ_k w[v,k] · F_k · [p_v, 1] over the sparse
+   * (vertex, bone, weight) triplets; weights sum to 1 per vertex in the
+   * UmeTrack model. `mirrorX` flips x afterwards (left hands).
+   */
+  function skinPoints(frames, rest, weights, nPoints, mirrorX, out) {
+    out.fill(0);
+    const { wv, wb, ww } = weights;
+    for (let i = 0; i < wv.length; i++) {
+      const v = wv[i], w = ww[i];
+      if (w === 0) continue;
+      const m = wb[i] * 12;
+      const px = rest[v * 3], py = rest[v * 3 + 1], pz = rest[v * 3 + 2];
+      out[v * 3]     += w * (frames[m]     * px + frames[m + 1] * py + frames[m + 2]  * pz + frames[m + 3]);
+      out[v * 3 + 1] += w * (frames[m + 4] * px + frames[m + 5] * py + frames[m + 6]  * pz + frames[m + 7]);
+      out[v * 3 + 2] += w * (frames[m + 8] * px + frames[m + 9] * py + frames[m + 10] * pz + frames[m + 11]);
+    }
+    if (mirrorX) for (let v = 0; v < nPoints; v++) out[v * 3] = -out[v * 3];
+    return out;
+  }
+
+  function framesFor(parsed, angles) {
+    let fr = parsed._fkFrames;
+    if (!fr || fr.length !== FK_FRAMES * 12) fr = parsed._fkFrames = new Float32Array(FK_FRAMES * 12);
+    return umetrackFrames(angles, parsed.mesh.axes, parsed.mesh.jointRest, fr);
+  }
+
+  /** Skin the hand mesh at sampled joint angles. Returns a reused Float32Array(V*3). */
   function skinMesh(parsed, angles) {
     const mesh = parsed.mesh;
     if (!mesh) throw new Error('skinMesh: sidecar has no mesh block');
-    const V3 = mesh.nVerts * 3;
     let out = parsed._meshScratch;
-    if (!out || out.length !== V3) out = parsed._meshScratch = new Float32Array(V3);
+    if (!out || out.length !== mesh.nVerts * 3) out = parsed._meshScratch = new Float32Array(mesh.nVerts * 3);
+    return skinPoints(framesFor(parsed, angles), mesh.restVertices, mesh.weights, mesh.nVerts, mesh.mirrorX, out);
+  }
 
-    // Per-joint rotation matrices (3x3 row-major) — J ≈ 25, negligible.
-    const J = parsed.nJoints;
-    const R = skinMesh._R || (skinMesh._R = new Float32Array(9));
-    // (recomputed fully every call)
-    const tmp = skinMesh._tmp || (skinMesh._tmp = [0, 0, 0]);
-    const axes = mesh.axes, rests = mesh.jointRest;
-    for (let j = 0; j < J; j++) {
-      const kx = axes[j * 3], ky = axes[j * 3 + 1], kz = axes[j * 3 + 2];
-      tmp[0] = kx; tmp[1] = ky; tmp[2] = kz;
-      // Rodrigues applied to the three unit basis vectors gives R columns.
-      const ex = rotateAroundAxis([0, 0, 0], [1, 0, 0], tmp, angles[j]);
-      const ey = rotateAroundAxis([0, 0, 0], [0, 1, 0], tmp, angles[j]);
-      const ez = rotateAroundAxis([0, 0, 0], [0, 0, 1], tmp, angles[j]);
-      // Column-major storage in rows of ex/ey/ez → transpose into R.
-      R[0] = ex[0]; R[1] = ey[0]; R[2] = ez[0];
-      R[3] = ex[1]; R[4] = ey[1]; R[5] = ez[1];
-      R[6] = ex[2]; R[7] = ey[2]; R[8] = ez[2];
-
-      // Apply this bone to all its weighted vertices now (weights are
-      // grouped implicitly — we instead loop weights once below, so
-      // store per-joint R rows in a flat table).
-      if (!skinMesh._RT || skinMesh._RT.length !== J * 9) {
-        skinMesh._RT = new Float32Array(J * 9);
-      }
-      skinMesh._RT.set(R, j * 9);
-    }
-
-    const { restVertices, weightVertex, weightBone, weightValue } = mesh;
-    out.fill(0);
-    const RT = skinMesh._RT;
-    for (let i = 0; i < weightVertex.length; i++) {
-      const v = weightVertex[i], b = weightBone[i], w = weightValue[i];
-      if (w === 0) continue;
-      const px = restVertices[v * 3] - rests[b * 3];
-      const py = restVertices[v * 3 + 1] - rests[b * 3 + 1];
-      const pz = restVertices[v * 3 + 2] - rests[b * 3 + 2];
-      const r = b * 9;
-      const rx = RT[r] * px + RT[r + 1] * py + RT[r + 2] * pz + rests[b * 3];
-      const ry = RT[r + 3] * px + RT[r + 4] * py + RT[r + 5] * pz + rests[b * 3 + 1];
-      const rz = RT[r + 6] * px + RT[r + 7] * py + RT[r + 8] * pz + rests[b * 3 + 2];
-      out[v * 3] += w * rx;
-      out[v * 3 + 1] += w * ry;
-      out[v * 3 + 2] += w * rz;
-    }
-    return out;
+  /** Skin the 21 landmarks from angles (needs `rest_landmarks`); oracle for `positions`. */
+  function skinLandmarks(parsed, angles) {
+    const mesh = parsed.mesh;
+    if (!mesh || !mesh.landmarks) throw new Error('skinLandmarks: sidecar has no landmark skinning data');
+    let out = parsed._lmScratch;
+    if (!out || out.length !== parsed.nJoints * 3) out = parsed._lmScratch = new Float32Array(parsed.nJoints * 3);
+    return skinPoints(framesFor(parsed, angles), mesh.landmarks.rest, mesh.landmarks.weights, parsed.nJoints, mesh.mirrorX, out);
   }
 
   // ---- pure: projection ---------------------------------------
@@ -590,7 +659,9 @@
     const ctx2d = canvas.getContext('2d');
 
     // Camera state persists across loads.
-    const cam = { yaw: -0.5, pitch: 0.25, zoom: 1, mode: 'auto' };
+    const DEFAULT_CAM = { yaw: -0.5, pitch: 0.25 };
+    const cam = { ...DEFAULT_CAM, zoom: 1, mode: 'auto' };
+    let home = DEFAULT_CAM;   // sidecar `camera` overrides on load
 
     // Time state: visible-window centre from syncWindow; transient
     // hover override from syncCursor with TTL fallback.
@@ -603,14 +674,11 @@
 
     closeBtn.addEventListener('click', () => hide());
 
-    // Optional header button (index.html `.header-right`): visible
-    // only once a panel exists, mirrors the `p` key.
-    const toggleBtn = doc.getElementById('pose-toggle');
-    if (toggleBtn) {
-      toggleBtn.hidden = false;
-      toggleBtn.addEventListener('click', () => toggle());
-    }
+    // Optional header button (index.html `.header-right`); wired once
+    // to the shared controller by openUrl(), never per mount(). Looked
+    // up at call time so a button added after mount still reflects.
     function reflect(visible) {
+      const toggleBtn = doc.getElementById('pose-toggle');
       if (toggleBtn) toggleBtn.setAttribute('aria-pressed', String(visible));
       // Docked (embed) layout: the panel shares the stage row with the
       // traces canvas, so its visibility changes the canvas width.
@@ -671,7 +739,7 @@
       schedule();
     }, { passive: false });
     canvas.addEventListener('dblclick', () => {
-      cam.yaw = -0.5; cam.pitch = 0.25; cam.zoom = 1;
+      cam.yaw = home.yaw; cam.pitch = home.pitch; cam.zoom = 1;
       schedule();
     });
 
@@ -680,6 +748,8 @@
         const res = await globalThis.fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         parsed = parseSidecar(await res.json());
+        home = parsed.camera || DEFAULT_CAM;
+        cam.yaw = home.yaw; cam.pitch = home.pitch; cam.zoom = 1;
         show();
         schedule();
       } catch (err) {
@@ -746,6 +816,14 @@
       _active = mount({});
       attachKeys(_active);
     }
+    // Header button (index.html `.header-right`): wired once, to whatever
+    // the shared controller is, so re-opens never stack listeners.
+    const btn = globalThis.document?.getElementById('pose-toggle');
+    if (btn && !btn.dataset.poseWired) {
+      btn.dataset.poseWired = '1';
+      btn.hidden = false;
+      btn.addEventListener('click', () => _active?.toggle());
+    }
     _active.load(url);
     return _active;
   }
@@ -774,8 +852,10 @@
 
   const api = {
     FORMAT, VERSION,
+    FK_DOF, FK_FRAMES,
     b64ToBytes, parseSidecar, parseMeshBlock, frameAt, anglesAt,
-    rotateAroundAxis, skinMesh, rotateProject, drawFrame, drawMesh, nextMode,
+    rotateAroundAxis, umetrackFrames, skinPoints, skinMesh, skinLandmarks,
+    rotateProject, drawFrame, drawMesh, nextMode,
     mount, attachKeys, openUrl, hideActive, bootFromParams, syncWindow, syncCursor,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

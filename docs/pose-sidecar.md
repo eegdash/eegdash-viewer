@@ -55,49 +55,66 @@ Notes:
 - Files may be served from any static origin; same-origin serving (the
   braindecode notebook helper) avoids CORS entirely.
 
-## v2: joint angles + skinned mesh (optional)
+## v2: joint angles + skinned hand mesh (optional)
 
-Add an `angles` block (and optionally a `mesh` block) to render the
-full skinned hand. The viewer performs linear-blend skinning itself
-(`x' = SUM_b w_b * R(axis_b, theta_b) * (x - rest_b) + rest_b`,
-Rodrigues convention matching emg2pose's UmeTrack `_skin_points`), so
-hosted deployments need zero Python:
+Add an `angles` block and a `mesh` block and the viewer renders the full
+skinned hand: it runs UmeTrack forward kinematics (5 fingers × 4 joints
+→ 17 skinning frames: root, wrist, then proximal/intermediate/distal per
+finger; each joint rotates by `angles[q]` about `joint_axes[q]` anchored
+at `joint_rest[q]`, exactly `_hand_skinning_transform` in
+emg2pose/UmeTrack/lib/common/hand_skinning.py) and linear-blend
+skinning per frame in JS — no Python, no torch at view time. The
+bundled exporter writes all of this from a BDF: `python
+scripts/export-pose-sidecar.py <recording_emg.bdf>` (needs only `mne`
+and `numpy`; `--check` cross-validates against emg2pose's torch FK when
+that package is importable, agreement ≈ 6e-5).
 
 ```jsonc
 {
   "...v1 fields as above...",
-  // REQUIRED for mesh: raw per-frame joint angles (n_frames x n_joints)
-  // in UmeTrack parameter space — positions alone cannot reconstruct
-  // bone rotations.
-  "angles": { "encoding": "base64-f32", "data": "<base64>" },
+  "n_angles": 20,                // joint-angle count per frame (UmeTrack DOF)
+  "angles": { "encoding": "base64-f32", "data": "<n_frames × n_angles>" },
+  "camera": { "yaw": -0.4, "pitch": -1.0 },   // optional default view (radians)
+  "start_s": 0.0,                // optional window offset used by the exporter
   "mesh": {
-    "mode": "umetrack-lbs",
-    // rest-pose vertex positions (n_verts x 3)
-    "rest_vertices": { "encoding": "base64-f32", "data": "<base64>" },
-    // triangle indices, n_triangles x 3 into the vertex array
-    "triangles":     { "encoding": "base64-u32", "data": "<base64>" },
-    // sparse skinning weights: three equal-length triplet arrays
-    "weight_vertex": { "encoding": "base64-u32", "data": "<base64>" },
-    "weight_bone":   { "encoding": "base64-u32", "data": "<base64>" },
-    "weight_value":  { "encoding": "base64-f32", "data": "<base64>" },
-    // per-joint rotation axis and rest anchor (n_joints x 3 each)
-    "joint_axes":    { "encoding": "base64-f32", "data": "<base64>" },
-    "joint_rest":    { "encoding": "base64-f32", "data": "<base64>" }
+    "mode": "umetrack-fk",
+    "mirror_x": true,            // left hand: negate x after skinning
+    "n_fk_frames": 17,
+    "joint_axes":    { "encoding": "base64-f32", "data": "<20 × 3, unit vectors>" },
+    "joint_rest":    { "encoding": "base64-f32", "data": "<20 × 3 anchors>" },
+    "rest_vertices": { "encoding": "base64-f32", "data": "<n_verts × 3>" },
+    "triangles":     { "encoding": "base64-u32", "data": "<n_tris × 3>" },
+    // sparse skinning weights over the 17 frames: three equal-length arrays
+    "weight_vertex": { "encoding": "base64-u32", "data": "…" },
+    "weight_bone":   { "encoding": "base64-u32", "data": "…" },
+    "weight_value":  { "encoding": "base64-f32", "data": "…" },
+    // optional: landmark skinning so the skeleton can be re-derived from
+    // angles (tests use it as an oracle against `positions`)
+    "rest_landmarks":         { "encoding": "base64-f32", "data": "<n_joints × 3>" },
+    "landmark_weight_vertex": { "encoding": "base64-u32", "data": "…" },
+    "landmark_weight_bone":   { "encoding": "base64-u32", "data": "…" },
+    "landmark_weight_value":  { "encoding": "base64-f32", "data": "…" }
   }
 }
 ```
 
 Notes:
 
+- The hand model (rest vertices, triangles, weights, axes) is ~65 KB
+  once; per-frame cost is 20 floats. A 44 s recording at 30 Hz with
+  landmarks + angles + model is ~630 KB.
 - NaN angles mark a frame invalid even without a `valid` mask; masked
   frames show the no-IK badge instead of garbage geometry.
-- Press <kbd>m</kbd> to cycle auto -> skeleton -> mesh -> both.
-- Weight triplets below ~1e-6 are dropped by the exporter to keep
-  payloads small.
+- Press <kbd>m</kbd> to cycle auto → skeleton → mesh → both. `auto`
+  shows the mesh when the block is present.
+- Weight triplets below 1e-6 are dropped by the exporter.
+- `camera` is applied on load and by double-click reset; without it the
+  panel falls back to yaw −0.5, pitch 0.25.
 
 ## Size budgeting
 
 Skeleton-only payloads are tiny (~75 floats/frame ≈ 300 B): a 60 s stage
-at 30 Hz ≈ **540 KB** before base64 (~720 KB encoded). Mesh playback is
-~3k vertices/frame — export windowed meshes or serve them lazily rather
-than embedding whole-session blobs.
+at 30 Hz ≈ **540 KB** before base64 (~720 KB encoded). The mesh block
+adds a fixed ~65 KB (the hand model) — vertices are never stored per
+frame, the viewer skins them. Use `--start/--duration` to export a
+window when a whole session is too large to embed.

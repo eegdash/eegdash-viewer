@@ -35,16 +35,19 @@ test('hideActive: hides the shared panel; openUrl shows it again', async () => {
   assert.ok(!root.hasAttribute('hidden'), 'load() shows the panel (even on load failure, for the caption)');
 });
 
-test('mount: wires #pose-toggle when the header has one', () => {
+test('openUrl: wires #pose-toggle once to the shared controller', async () => {
   const btn = globalThis.document.createElement('button');
   btn.id = 'pose-toggle'; btn.hidden = true;
   globalThis.document.body.append(btn);
-  const ctl = PosePanel.mount({});
+  globalThis.fetch = async () => ({ ok: false, status: 404 });
+  const ctl = PosePanel.openUrl(EMPTY_JSON);
+  await new Promise(r => setTimeout(r, 0));
   assert.equal(btn.hidden, false, 'button revealed');
-  ctl.show();
   assert.equal(btn.getAttribute('aria-pressed'), 'true');
   btn.click();
   assert.ok(ctl.root.hasAttribute('hidden'), 'click toggles');
   assert.equal(btn.getAttribute('aria-pressed'), 'false');
+  btn.click();
+  assert.ok(!ctl.root.hasAttribute('hidden'), 'one listener, not two');
   btn.remove();
 });
