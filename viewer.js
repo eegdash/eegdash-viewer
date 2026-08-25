@@ -1195,6 +1195,35 @@
       return physioUrl;
     }
 
+    // Shared by drag-drop and the host-page bridge: swap the local
+    // registry for `files`, open the physio file, and (un)dock the
+    // hand-pose panel. Returns the synthetic URL that was loaded, or
+    // null when no file matched a supported *_{suffix}.<ext> name.
+    function openLocalFiles(files, opts = {}) {
+      // Tear down before swap: an in-flight readWindow on a local
+      // blob slices synchronously, so a clearLocal() race would
+      // throw "Local drop missing" against a since-cleared registry.
+      if (inFlight) inFlight.abort();
+      readerInfo = null;
+      fallbackReader = null;
+      clearReadCache();
+      HttpRange.clearLocal();
+      const physioUrl = registerDrop(files);
+      if (!physioUrl) {
+        const supported = Object.keys(READERS).join(',');
+        status.replaceChildren(el('span', 'err',
+          `Drop a *_{eeg,ieeg,emg,meg,nirs}.{${supported}} file (got: ${[...files].map(f => f.name).join(', ')})`));
+        return null;
+      }
+      const PosePanel = globalThis.PosePanel;
+      if (PosePanel) {
+        if (opts.pose) PosePanel.openUrl(opts.pose);
+        else PosePanel.hideActive?.();
+      }
+      load(physioUrl);
+      return physioUrl;
+    }
+
     function attachDragDrop() {
       let depth = 0;
       let hasFiles = false;
@@ -1215,28 +1244,49 @@
         if (depth === 0) { hide(); hasFiles = false; }
       });
       window.addEventListener('dragover', (e) => { if (hasFiles) e.preventDefault(); });
-      window.addEventListener('drop', async (e) => {
+      window.addEventListener('drop', (e) => {
         e.preventDefault();
         depth = 0; hasFiles = false; hide();
         const files = e.dataTransfer && e.dataTransfer.files;
         if (!files || !files.length) return;
-        // Tear down before swap: an in-flight readWindow on a local
-        // blob slices synchronously, so a clearLocal() race would
-        // throw "Local drop missing" against a since-cleared registry.
-        if (inFlight) inFlight.abort();
-        readerInfo = null;
-        fallbackReader = null;
-        clearReadCache();
-        HttpRange.clearLocal();
-        const physioUrl = registerDrop(files);
-        if (!physioUrl) {
-          const supported = Object.keys(READERS).join(',');
-          status.replaceChildren(el('span', 'err',
-            `Drop a *_{eeg,ieeg,emg,meg,nirs}.{${supported}} file (got: ${[...files].map(f => f.name).join(', ')})`));
+        openLocalFiles(files);
+      });
+    }
+
+    // ---- host-page bridge (postMessage) ----------------------
+    // Notebooks and docs embed the viewer in an <iframe> and hand it
+    // in-memory files — no server, no CORS, no Range requests:
+    //   frame.contentWindow.postMessage(
+    //     { type: 'eegdash-viewer:open', files: [File, …], pose: url|null },
+    //     'https://eegdash.github.io');
+    // Files are structured-cloned (Blobs are zero-copy); `pose` is any
+    // URL fetch() accepts, data: URLs included. The viewer announces
+    // itself with { type: 'eegdash-viewer:ready' } once boot() ran so
+    // hosts don't race the iframe load. Any origin may post: the
+    // payload only selects what to render (same trust as a drag-drop)
+    // and the viewer holds no credentials.
+    const BRIDGE_OPEN = 'eegdash-viewer:open';
+    const BRIDGE_READY = 'eegdash-viewer:ready';
+
+    function attachHostBridge() {
+      // Same target as the drag-drop listeners above (window ===
+      // globalThis in browsers; jsdom only exposes it as `window`).
+      window.addEventListener('message', (e) => {
+        const msg = e && e.data;
+        if (!msg || msg.type !== BRIDGE_OPEN) return;
+        const files = Array.isArray(msg.files)
+          ? msg.files.filter(f => f && typeof f.name === 'string' && typeof f.slice === 'function')
+          : [];
+        if (!files.length) {
+          status.replaceChildren(el('span', 'err', `${BRIDGE_OPEN}: no files in message`));
           return;
         }
-        load(physioUrl);
+        openLocalFiles(files, { pose: typeof msg.pose === 'string' ? msg.pose : null });
       });
+      const parent = globalThis.parent;
+      if (parent && parent !== globalThis) {
+        try { parent.postMessage({ type: BRIDGE_READY }, '*'); } catch { /* sandboxed host */ }
+      }
     }
 
     function applyEmbedMode(params) {
@@ -1329,6 +1379,7 @@
     attachChListClick();
     attachFilterControls();
     attachDragDrop();
+    attachHostBridge();
     const params = new URLSearchParams(globalThis.location.search);
     applyEmbedMode(params);
     // F1: URL/BIDS target ladder lives in viewer/url-resolver.js now.
