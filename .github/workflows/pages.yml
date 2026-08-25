@@ -40,7 +40,7 @@ jobs:
           #   bids-recording/ — nemar
           #   traces/ — event-markers, scale-bar
           cp -r index.html viewer.js traces.js \
-                bids-loader.js bids-recording.js pose-panel.js \
+                bids-loader.js bids-recording.js pose-kinematics.js pose-panel.js \
                 worker.js filters.js perf.js \
                 styles.css eegdash-logo.svg \
                 formats viewer bids-recording traces \

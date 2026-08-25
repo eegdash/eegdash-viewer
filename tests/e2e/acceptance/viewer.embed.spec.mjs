@@ -35,22 +35,27 @@ test.describe('As a docs reader, the iframe embed renders correctly', () => {
     // When: navigate to the viewer with embed=1
     await page.goto('/index.html' + FX.url_query + '&embed=1');
 
-    // Then: stage-caption appears (data rendered successfully)
+    // Then: the traces canvas appears (data rendered successfully)
     await expect(
-      page.locator('#stage-caption'),
-      'embed: stage-caption must appear'
+      page.locator('#traces'),
+      'embed: traces canvas must appear'
     ).toBeVisible();
 
     // And: body carries the .embed class (CSS hook for embed layout)
     const hasEmbed = await page.evaluate(() => document.body.classList.contains('embed'));
     expect(hasEmbed, 'body must have .embed class').toBe(true);
 
-    // And: the left rail is hidden (embed collapses it)
-    await expect(page.locator('.rail.left'), 'left rail hidden in embed').toBeHidden();
+    // And: the left rail folds into a one-row toolbar (window · gain ·
+    // filters); channel/event lists stay off screen.
+    await expect(page.locator('.rail.left'), 'toolbar visible in embed').toBeVisible();
+    expect((await page.locator('.rail.left').boundingBox()).height, 'toolbar is one row').toBeLessThan(44);
+    await expect(page.locator('#ch-list'), 'channel list hidden in embed').toBeHidden();
 
-    // And: the brand title and format pill are hidden (compressed header)
+    // And: the brand title is hidden but the pills stay (they replace the
+    // engraved caption, which is off in embed mode)
     await expect(page.locator('.brand-title'), 'brand-title hidden in embed').toBeHidden();
-    await expect(page.locator('#pill-format'), 'format pill hidden in embed').toBeHidden();
+    await expect(page.locator('#pill-format'), 'format pill visible in embed').toBeVisible();
+    await expect(page.locator('#stage-caption'), 'caption off in embed').toBeHidden();
 
     // And: the eegdash brand anchor is still visible (the only chrome that stays)
     await expect(

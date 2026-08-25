@@ -32,6 +32,19 @@ import numpy as np
 N_DOF = 20        # 5 fingers × 4 joints (the 2 wrist DOFs are unused by FK)
 N_FRAMES = 17     # root, wrist, 5 fingers × (proximal, intermediate, distal)
 DEFAULT_CAMERA = {"yaw": -0.4, "pitch": -1.0}   # back of the hand, fingers spread
+# UmeTrack landmark order (emg2pose/UmeTrack/lib/common/hand.py, LANDMARK):
+# the five fingertips, the wrist, then per finger its frames base→tip, palm.
+LANDMARKS = [
+    "thumb_tip", "index_tip", "middle_tip", "ring_tip", "pinky_tip", "wrist",
+    "thumb_intermediate", "thumb_distal",
+    "index_proximal", "index_intermediate", "index_distal",
+    "middle_proximal", "middle_intermediate", "middle_distal",
+    "ring_proximal", "ring_intermediate", "ring_distal",
+    "pinky_proximal", "pinky_intermediate", "pinky_distal",
+    "palm_center",
+]
+_CHAINS = [[5, 6, 7, 0], [5, 8, 9, 10, 1], [5, 11, 12, 13, 2], [5, 14, 15, 16, 3], [5, 17, 18, 19, 4]]
+BONES = [i for chain in _CHAINS for pair in zip(chain, chain[1:]) for i in pair]
 
 
 def _rodrigues(axis, theta):
@@ -89,22 +102,84 @@ def _sparse(W, eps=1e-6):
     return {"weight_vertex": _u32(v), "weight_bone": _u32(b), "weight_value": _f32(W[v, b])}
 
 
-def mesh_block(model, mirror_x):
-    LW = dense_landmark_weights(model)
+def load_model(path):
+    """The UmeTrack hand model plus the arrays FK and the sidecar share."""
+    model = json.loads(Path(path).read_text())
+    return {
+        "model": model,
+        "axes": np.asarray(model["joint_rotation_axes"], float)[:N_DOF],
+        "rests": np.asarray(model["joint_rest_positions"], float)[:N_DOF],
+        "lm_rest": np.asarray(model["landmark_rest_positions"], float),
+        "LW": dense_landmark_weights(model),
+    }
+
+
+def mesh_block(hm, mirror_x):
+    model = hm["model"]
     block = {
         "mode": "umetrack-fk",
         "mirror_x": bool(mirror_x),
-        "n_fk_frames": N_FRAMES,
-        "joint_axes": _f32(np.asarray(model["joint_rotation_axes"])[:N_DOF]),
-        "joint_rest": _f32(np.asarray(model["joint_rest_positions"])[:N_DOF]),
+        "joint_axes": _f32(hm["axes"]),
+        "joint_rest": _f32(hm["rests"]),
         "rest_vertices": _f32(model["mesh_vertices"]),
         "triangles": _u32(model["mesh_triangles"]),
-        "rest_landmarks": _f32(model["landmark_rest_positions"]),
+        "rest_landmarks": _f32(hm["lm_rest"]),
     }
     block.update(_sparse(np.asarray(model["dense_bone_weights"], float)))
-    lm = _sparse(LW)
-    block.update({"landmark_" + k: v for k, v in lm.items()})
+    block.update({"landmark_" + k: v for k, v in _sparse(hm["LW"]).items()})
     return block
+
+
+def load_angles(recording, fs_out, start, duration):
+    """Joint angles (20, F) decimated to ~fs_out Hz from [start, start+duration] s.
+
+    Window bounds are clamped to the recording (the last window of a
+    session needs no exact length); only the joint channels are read.
+    """
+    raw = mne.io.read_raw(recording, preload=False, verbose="ERROR")
+    joint_chs = [c for c in raw.ch_names if c.lower().startswith("joint")]
+    if len(joint_chs) != N_DOF:
+        sys.exit(f"expected {N_DOF} `joint*` channels in {Path(recording).name}, found {len(joint_chs)}")
+    fs = raw.info["sfreq"]
+    n = raw.n_times
+    i0 = min(n, max(0, int(round(start * fs))))
+    i1 = n if duration is None else min(n, i0 + int(round(duration * fs)))
+    if i1 <= i0:
+        sys.exit(f"window [{start}, +{duration}] s is outside the {n / fs:.1f} s recording")
+    step = max(1, int(round(fs / fs_out)))
+    ang = raw.get_data(picks=joint_chs, start=i0, stop=i1)[:, ::step].astype(np.float32)
+    return ang, fs / step, step / fs
+
+
+def build_sidecar(ang, fs_pose, dt, start, hm, mirror, check=False, mesh=True):
+    """Assemble the eegdash-pose document for angles (20, F)."""
+    valid = np.isfinite(ang).all(axis=0)
+    ang = np.nan_to_num(ang)
+    pos_raw = np.stack([skin(fk_frames(a, hm["axes"], hm["rests"]), hm["lm_rest"], hm["LW"]) for a in ang.T])
+    if check:
+        check_against_emg2pose(ang, hm["model"], pos_raw)
+    pos = (pos_raw * ([-1, 1, 1] if mirror else 1)).astype(np.float32)
+    n_frames = int(pos.shape[0])
+    sidecar = {
+        "format": "eegdash-pose",
+        "version": 1,
+        "fs": fs_pose,
+        "n_frames": n_frames,
+        "n_joints": int(pos.shape[1]),
+        "n_angles": N_DOF,
+        "names": LANDMARKS,
+        "bones": BONES,
+        "root": LANDMARKS.index("wrist"),
+        "duration_s": n_frames * dt,
+        "start_s": float(start),
+        "camera": DEFAULT_CAMERA,
+        "positions": _f32(pos.reshape(-1)),
+        "angles": _f32(ang.T.reshape(-1)),
+        "valid": base64.b64encode(valid.astype(np.uint8).tobytes()).decode(),
+    }
+    if mesh:
+        sidecar["mesh"] = mesh_block(hm, mirror)
+    return sidecar
 
 
 def check_against_emg2pose(angles, model, positions_numpy):
@@ -133,71 +208,23 @@ def main() -> None:
                     help="hand side; default auto from `recording-<side>`")
     ap.add_argument("--fs", type=float, default=30.0, help="output pose rate (Hz)")
     ap.add_argument("--start", type=float, default=0.0, help="window start (s)")
-    ap.add_argument("--duration", type=float, default=None, help="window length (s); default: all")
+    ap.add_argument("--duration", type=float, default=None, help="window length (s); default: to the end")
     ap.add_argument("--no-mesh", action="store_true", help="skeleton-only sidecar (no hand model)")
     ap.add_argument("--model", default=str(Path(__file__).parent / "umetrack_generic_hand_model.json"))
     ap.add_argument("--out", default=None, help="output path; default <prefix>_desc-pose.json next to the recording")
     ap.add_argument("--check", action="store_true", help="compare numpy FK with emg2pose (needs torch + emg2pose)")
     args = ap.parse_args()
 
-    model = json.loads(Path(args.model).read_text())
-    axes = np.asarray(model["joint_rotation_axes"], float)[:N_DOF]
-    rests = np.asarray(model["joint_rest_positions"], float)[:N_DOF]
-    lm_rest = np.asarray(model["landmark_rest_positions"], float)
-    LW = dense_landmark_weights(model)
-
     rec = Path(args.recording)
-    raw = mne.io.read_raw(rec, preload=True, verbose="ERROR")
-    joint_chs = [c for c in raw.ch_names if c.lower().startswith("joint")]
-    if len(joint_chs) != N_DOF:
-        sys.exit(f"expected {N_DOF} `joint*` channels in {rec.name}, found {len(joint_chs)}")
-    fs = raw.info["sfreq"]
-    stop = None if args.duration is None else args.start + args.duration
-    raw.crop(tmin=args.start, tmax=stop, include_tmax=False)
-    step = max(1, int(round(fs / args.fs)))
-    ang = raw.get_data(picks=joint_chs)[:, ::step].astype(np.float32)    # (20, F)
-    valid = np.isfinite(ang).all(axis=0)
-    ang = np.nan_to_num(ang)
-
     side = args.side or next((t for t in ("left", "right") if f"recording-{t}" in rec.stem), None)
-    mirror = side == "left"
-    pos = np.stack([skin(fk_frames(a, axes, rests), lm_rest, LW) for a in ang.T]).astype(np.float32)
-    if mirror:
-        pos[..., 0] *= -1
-    if args.check:
-        unmirrored = pos.copy()
-        if mirror:
-            unmirrored[..., 0] *= -1
-        check_against_emg2pose(ang, model, unmirrored)
-
-    bones = []
-    for f in range(5):                       # landmarks: [wrist, finger0×4, …]
-        bones += [0, 1 + 4 * f]
-        for k in range(3):
-            bones += [1 + 4 * f + k, 2 + 4 * f + k]
-
-    n_frames = int(pos.shape[0])
-    sidecar = {
-        "format": "eegdash-pose",
-        "version": 1,
-        "fs": fs / step,
-        "n_frames": n_frames,
-        "n_joints": int(pos.shape[1]),
-        "n_angles": N_DOF,
-        "bones": bones,
-        "duration_s": n_frames * step / fs,
-        "start_s": float(args.start),
-        "camera": DEFAULT_CAMERA,
-        "positions": _f32(pos.reshape(-1)),
-        "angles": _f32(ang.T.reshape(-1)),
-        "valid": base64.b64encode(valid.astype(np.uint8).tobytes()).decode(),
-    }
-    if not args.no_mesh:
-        sidecar["mesh"] = mesh_block(model, mirror)
-
+    ang, fs_pose, dt = load_angles(rec, args.fs, args.start, args.duration)
+    sidecar = build_sidecar(ang, fs_pose, dt, args.start, load_model(args.model), side == "left",
+                            check=args.check, mesh=not args.no_mesh)
     out = Path(args.out) if args.out else rec.with_name(rec.stem.rsplit("_", 1)[0] + "_desc-pose.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(sidecar, separators=(",", ":")))
-    print(f"wrote {out} ({out.stat().st_size / 1024:.0f} KB): {n_frames} frames @ "
+    valid = np.frombuffer(base64.b64decode(sidecar["valid"]), np.uint8)
+    print(f"wrote {out} ({out.stat().st_size / 1024:.0f} KB): {sidecar['n_frames']} frames @ "
           f"{sidecar['fs']:.1f} Hz, side={side}, mesh={'no' if args.no_mesh else 'yes'}, "
           f"valid={valid.mean():.1%}")
 

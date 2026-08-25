@@ -362,7 +362,7 @@
       // fabricate `https://<sidecar-name>/` hostnames (DNS errors, and a
       // wasted round-trip for drag-drop / bridge files on localdrop.invalid).
       const absolute = /^[a-z][a-z0-9+.-]*:\/\//i.test(here);   // NEMAR walks manifest-relative dirs
-      if (!parent || parent === here || (absolute && !/^[a-z][a-z0-9+.-]*:\/\/[^/]+\//i.test(parent))) break;
+      if (!parent || parent === here || (absolute && !/^[a-z][a-z0-9+.-]*:\/\/[^/]*\//i.test(parent))) break;
       here = parent;
     }
   }
@@ -493,7 +493,7 @@
   // walk). Sidecars not listed stay null — the format reader still fills
   // channel labels + sfreq from the binary header downstream, exactly as
   // the walk path does when a sidecar is absent.
-  async function loadFromEegdashRecord({ eegUrl, ext, dir, prefix, rootUrl, record }) {
+  async function loadFromEegdashRecord({ eegUrl, ext, dir, prefix, suffix, rootUrl, record }) {
     const depKeys = Array.isArray(record.storage?.dep_keys) ? record.storage.dep_keys : [];
     // Resolve each sidecar from its exact dep_keys path only — no inheritance
     // walk, so the open path stays fast. Sidecars absent from dep_keys stay
@@ -670,7 +670,7 @@
   // sidecar is _eeg.json: without SamplingFrequency we can't render
   // a time axis at all, so we surface that as a hard failure.
   api.loadRecordingMetadata = async function (eegUrl) {
-    const { dir, prefix, ext } = api.parseEegUrl(eegUrl);
+    const { dir, prefix, ext, suffix } = api.parseEegUrl(eegUrl);
 
     // Fast path: the per-recording records API returns the resolved
     // SamplingFrequency and the exact sidecar paths in a single request,
@@ -685,7 +685,7 @@
       const relpath = eegUrl.split('?')[0].slice(rootUrl.length);
       const record = datasetId ? await fetchEegdashRecord(datasetId, relpath) : null;
       if (record && record.sampling_frequency != null) {
-        return loadFromEegdashRecord({ eegUrl, ext, dir, prefix, rootUrl, record });
+        return loadFromEegdashRecord({ eegUrl, ext, dir, prefix, suffix, rootUrl, record });
       }
     }
 
@@ -709,7 +709,7 @@
       console.warn(`No _eeg.json found via BIDS inheritance for ${eegUrl}; deferring to format header.`);
     }
     return assembleRecordingMetadata({
-      eeg_url: eegUrl, ext, dir, prefix,
+      eeg_url: eegUrl, ext, dir, prefix, suffix,
       hits: { eeg_json, channels, events, electrodes, coordsystem },
     });
   };
@@ -720,7 +720,7 @@
   // network walker (loadRecordingMetadata) and the NEMAR inline-map
   // walker (loadNemarRecording) — the only thing that varies between
   // them is *how* hits get materialised, not how they're parsed.
-  function assembleRecordingMetadata({ eeg_url, ext, dir, prefix, hits, recordMeta = null }) {
+  function assembleRecordingMetadata({ eeg_url, ext, dir, prefix, suffix = 'eeg', hits, recordMeta = null }) {
     const { eeg_json: eegJsonHit, channels: channelsHit, events: eventsHit,
             electrodes: electrodesHit, coordsystem: coordSysHit } = hits;
 
@@ -767,7 +767,7 @@
     }
 
     return {
-      eeg_url, ext, dir, prefix,
+      eeg_url, ext, dir, prefix, suffix,
       eeg_json: eegJson,
       channels, events, electrodes, coordsystem,
       // Provenance: which key the walker found each sidecar at —

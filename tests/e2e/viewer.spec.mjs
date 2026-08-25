@@ -101,11 +101,16 @@ test.describe('viewer end-to-end', () => {
 
   test('embed mode collapses to a thin header with eegdash brand', async ({ page }) => {
     await page.goto(`/index.html?eeg=${encodeURIComponent(EEG_URL)}&embed=1`);
-    await expect(page.locator('#stage-caption')).toBeVisible({ timeout: 60_000 });
-    // Rail is hidden; header is still there but compressed.
-    await expect(page.locator('.rail.left')).toBeHidden();
+    await expect(page.locator('#traces')).toBeVisible({ timeout: 60_000 });
+    // The rail folds into a one-row toolbar (window · gain · filters);
+    // channel/event lists stay off screen; header pills stay, the
+    // engraved caption goes (pills already carry it).
+    await expect(page.locator('.rail.left')).toBeVisible();
+    expect((await page.locator('.rail.left').boundingBox()).height).toBeLessThan(44);
+    await expect(page.locator('#ch-list')).toBeHidden();
     await expect(page.locator('.brand-title')).toBeHidden();
-    await expect(page.locator('#pill-format')).toBeHidden();
+    await expect(page.locator('#pill-format')).toBeVisible();
+    await expect(page.locator('#stage-caption')).toBeHidden();
     // The eegdash brand anchor is the only chrome that should remain
     // visible — it's the ONE link telling the user this is an eegdash
     // viewer when the iframe lives inside a docs page.

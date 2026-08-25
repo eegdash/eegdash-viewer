@@ -317,17 +317,22 @@
       // returns so pose sync is not coupled to the gain node existing.
       const PosePanel = globalThis.PosePanel;
       if (PosePanel && readerInfo && Number.isFinite(view.start_sec)) {
-        PosePanel.syncWindow(view.start_sec, view.window_sec);
+        // Centre on what is on screen: the last window of a recording
+        // (or a 2 s recording in a 10 s window) is shorter than nominal.
+        const shown = Number.isFinite(readerInfo.duration_s)
+          ? Math.max(0, Math.min(view.window_sec, readerInfo.duration_s - view.start_sec))
+          : view.window_sec;
+        PosePanel.syncWindow(view.start_sec, shown);
       }
       const tr = globalThis.TraceRenderer;
       // Channel page pill ("ch 1–25 of 36") when the 16px slot floor
       // paginates the recording (PgUp/PgDn); hidden otherwise.
       const pagePill = globalThis.document?.getElementById('pill-page');
-      const range = tr && tr.lastVisibleRange;
-      if (pagePill && range) {
-        const paged = range.total > range.count;
+      if (pagePill && tr && readerInfo) {
+        const total = tr.lastTotalChannels || 0, page = tr.lastMaxVisibleChannels || 0, offset = tr.lastChannelOffset || 0;
+        const paged = page > 0 && total > page;
         pagePill.hidden = !paged;
-        if (paged) pagePill.textContent = `ch ${range.offset + 1}–${range.offset + range.count} of ${range.total}`;
+        if (paged) pagePill.textContent = `ch ${offset + 1}–${Math.min(total, offset + page)} of ${total}`;
       }
       const node = globalThis.document?.getElementById('gain-readout');
       if (!node) return;
@@ -866,7 +871,14 @@
       // triggering during the canvas un-hide on initial load.
       // See: traces.js deviceFitCanvas, viewer.spec.mjs ResizeObserver test.
       if (typeof ResizeObserver !== 'undefined') {
-        new ResizeObserver(requestRender).observe($('stage'));
+        const ro = new ResizeObserver(requestRender);
+        ro.observe($('stage'));
+        // Embed mode docks the hand panel beside the canvas: the canvas
+        // box changes while #stage does not. Same observer batch as
+        // traces.js's cache-clearing observer, so the rAF paints at the
+        // new size (the canvas is unhidden before the first paint, so
+        // the un-hide itself is one extra render, not a stale one).
+        if (globalThis.document.body.classList.contains('embed')) ro.observe(tracesCanvas);
       }
       $('window-sec').addEventListener('change', (e) => {
         view.window_sec = parseFloat(e.target.value);
@@ -925,15 +937,22 @@
       );
     }
 
+    // Each load bumps the epoch; a load superseded while awaiting its
+    // sidecars or the worker must not ship LOAD_FILE (the worker's
+    // single load slot and blob registry belong to the newest one).
+    let loadEpoch = 0;
     async function loadFromMeta(metaFn, statusText) {
-      // New recording → previous reader's sample-keyed cache is moot.
+      const epoch = ++loadEpoch;
+      // New recording → previous reader's sample-keyed cache and the
+      // render pipeline's last-window fast path are moot.
       clearReadCache();
+      lastChannels = null;
       status.replaceChildren(globalThis.document.createTextNode(statusText));
       try {
         // BIDSRecording sidecar fetching stays on the main thread.
         const meta = await metaFn();
-        const suffix = (/_(eeg|ieeg|emg|meg|nirs)\.[^/]*$/i.exec(meta.eeg_url || '') || [null, 'eeg'])[1];
-        status.replaceChildren(el('strong', null, `${meta.prefix}_${suffix}.${meta.ext}`));
+        if (epoch !== loadEpoch) return;
+        status.replaceChildren(el('strong', null, `${meta.prefix}_${meta.suffix || 'eeg'}.${meta.ext}`));
         setPill('pill-format', meta.ext.toUpperCase());
         setPill('pill-fs', (meta.eeg_json.sampling_frequency ?? '?') + ' Hz');
         setPill('pill-channels', (meta.channels?.length ?? '?') + ' ch');
@@ -969,6 +988,7 @@
         if (worker) {
           // Wait for INIT_OK before sending LOAD_FILE.
           await workerReadyPromise;
+          if (epoch !== loadEpoch) return;
           // fetchHeader handles the pendingRequests('__LOAD__') seam,
           // sends LOAD_FILE, and counts the messages_sent stat.
           // Local (drag-drop / host-bridge) blobs live in this thread's
@@ -1214,6 +1234,14 @@
     // hand-pose panel. Returns the synthetic URL that was loaded, or
     // null when no file matched a supported *_{suffix}.<ext> name.
     function openLocalFiles(files, opts = {}) {
+      // Reject before touching anything: an unsupported payload must
+      // not tear down the recording that is on screen.
+      if (![...files].some(f => PHYSIO_FILENAME.test(f.name))) {
+        const supported = Object.keys(READERS).join(',');
+        status.replaceChildren(el('span', 'err',
+          `Drop a *_{eeg,ieeg,emg,meg,nirs}.{${supported}} file (got: ${[...files].map(f => f.name).join(', ')})`));
+        return null;
+      }
       // Tear down before swap: an in-flight readWindow on a local
       // blob slices synchronously, so a clearLocal() race would
       // throw "Local drop missing" against a since-cleared registry.
@@ -1223,12 +1251,6 @@
       clearReadCache();
       HttpRange.clearLocal();
       const physioUrl = registerDrop(files);
-      if (!physioUrl) {
-        const supported = Object.keys(READERS).join(',');
-        status.replaceChildren(el('span', 'err',
-          `Drop a *_{eeg,ieeg,emg,meg,nirs}.{${supported}} file (got: ${[...files].map(f => f.name).join(', ')})`));
-        return null;
-      }
       const PosePanel = globalThis.PosePanel;
       if (PosePanel) {
         if (opts.pose) PosePanel.openUrl(opts.pose);
@@ -1282,7 +1304,7 @@
     const BRIDGE_OPEN = 'eegdash-viewer:open';
     const BRIDGE_READY = 'eegdash-viewer:ready';
 
-    function attachHostBridge() {
+    function attachHostBridge(params) {
       // Same target as the drag-drop listeners above (window ===
       // globalThis in browsers; jsdom only exposes it as `window`).
       window.addEventListener('message', (e) => {
@@ -1302,7 +1324,10 @@
         // Framed: the host will (usually) push a recording; say so
         // instead of the drag-drop copy while we wait.
         const lead = stageHint && stageHint.querySelector('p');
-        if (lead) lead.textContent = 'Waiting for the host page to send a recording';
+        // ...but only when the URL itself carries nothing to load.
+        if (lead && !BIDSRecording.resolveTargets(params)) {
+          lead.textContent = 'Waiting for the host page to send a recording';
+        }
         try { parent.postMessage({ type: BRIDGE_READY }, '*'); } catch { /* sandboxed host */ }
       }
     }
@@ -1397,8 +1422,8 @@
     attachChListClick();
     attachFilterControls();
     attachDragDrop();
-    attachHostBridge();
     const params = new URLSearchParams(globalThis.location.search);
+    attachHostBridge(params);
     applyEmbedMode(params);
     // F1: URL/BIDS target ladder lives in viewer/url-resolver.js now.
     // Browser path: globalThis.ViewerUrlResolver (loaded via <script>).

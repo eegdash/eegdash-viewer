@@ -204,7 +204,6 @@ code {
   border-color: var(--accent);
   color: var(--bg);
 }
-#pose-toggle[hidden] { display: none; }
 .pill[data-changed="true"] {
   /* Subtle pulse when a pill's value changes — used for fs/channels/duration
      after the binary header resolves them. Driven by JS toggling the attr. */
@@ -827,14 +826,14 @@ body.embed .rail.left {
   overflow: visible;
 }
 body.embed .rail-section { margin: 0; display: flex; align-items: center; gap: 10px; }
-body.embed .rail-title { margin: 0; }
 body.embed .rail-title,
-body.embed .rail-section:has(#channel-colors),
-body.embed .rail-section:has(#ch-list),
-body.embed .rail-section:has(#ev-list),
 body.embed .view-tip,
 body.embed .provenance,
 body.embed #electrode-link { display: none; }
+/* :has() in its own rules: an engine without it only loses these. */
+body.embed .rail-section:has(#channel-colors) { display: none; }
+body.embed .rail-section:has(#ch-list) { display: none; }
+body.embed .rail-section:has(#ev-list) { display: none; }
 body.embed .status {
   max-width: 24ch;
   white-space: nowrap;
@@ -861,12 +860,13 @@ body.embed .stage-hint { padding: 16px; font-size: 11px; }
    the page pill covers pagination); the engraved caption would only
    collide with the time-axis labels in a 500px-tall cell. */
 body.embed .stage-caption { display: none; }
+body.embed { --pose-dock-w: 242px; --pose-dock-gap: 8px; }   /* 240px canvas + 1px borders */
 body.embed .pose-panel {
   position: static;
-  flex: 0 0 242px;           /* 240px canvas + 1px borders: never steals canvas width */
-  width: 242px;
+  flex: 0 0 var(--pose-dock-w);   /* never steals canvas width */
+  width: var(--pose-dock-w);
   align-self: stretch;
-  margin: 8px 8px 8px 0;
+  margin: var(--pose-dock-gap) var(--pose-dock-gap) var(--pose-dock-gap) 0;
   overflow: hidden;
   background: transparent;
   border-color: var(--line-2);
@@ -875,7 +875,7 @@ body.embed .pose-panel {
 body.embed .pose-canvas { width: 240px; height: 240px; }
 body.embed .pose-caption { white-space: normal; overflow-wrap: anywhere; }
 /* The cursor readout spans the stage; stop it at the docked panel. */
-body.embed .stage:has(.pose-panel:not([hidden])) .cursor-info-bar { right: 250px; }
+body.embed .stage:has(.pose-panel:not([hidden])) .cursor-info-bar { right: calc(var(--pose-dock-w) + var(--pose-dock-gap)); }
 
 /* ----- drag-drop overlay --------------------------------- */
 

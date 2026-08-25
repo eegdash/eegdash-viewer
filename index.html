@@ -74,6 +74,7 @@
      time cursor via PosePanel.syncWindow/syncCursor hooks in viewer.js.
      Loads before viewer.js is invoked but has no load-order dependency
      (all integration points are optional-chained globals). -->
+<script src="pose-kinematics.js?v=1"></script>
 <script src="pose-panel.js?v=1"></script>
 <script src="viewer.js?v=9"></script>
 <script src="perf.js?v=1"></script>
@@ -103,7 +104,7 @@
       <span class="pill" id="pill-page" hidden title="PgUp / PgDn page through the channels">— of — ch</span>
       <span class="pill" id="pill-duration">— s</span>
       <button id="time-mode-toggle" data-mode="relative" disabled>rel</button>
-      <button id="pose-toggle" hidden aria-pressed="true" title="Toggle hand-pose panel (p)">hand</button>
+      <button id="pose-toggle" hidden aria-pressed="false" title="Toggle hand-pose panel (p)">hand</button>
     </div>
     <!-- eegdash brand anchor. Subtle in standalone, the only chrome
          in embed mode (mirrors electrode-explorer's convention so the

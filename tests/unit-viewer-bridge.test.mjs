@@ -75,10 +75,7 @@ test('bridge: open message registers the file locally and starts load()', async 
   const url = 'https://localdrop.invalid/sub-01_task-x_emg.bdf';
   assert.equal(await HttpRange.probeLength(url), 512, 'blob registered');
   const status = globalThis.document.getElementById('status').textContent;
-  // load() reached the status line for this file. The label is
-  // `${meta.prefix}_eeg.${meta.ext}` for every modality (viewer.js
-  // `load()`, a pre-existing display quirk), so accept `_emg`/`_eeg`.
-  assert.match(status, /localdrop\.invalid\/sub-01_task-x_emg\.bdf|sub-01_task-x_(emg|eeg)\.bdf/, `status: ${status}`);
+  assert.match(status, /sub-01_task-x_emg\.bdf/, `status names the modality: ${status}`);
   // The worker owns a separate registry: LOAD_FILE must carry the blobs.
   const load = workerInstance.sent.find(m => m.type === 'LOAD_FILE');
   assert.ok(load, 'LOAD_FILE sent');

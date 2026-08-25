@@ -1,14 +1,13 @@
 # Pose sidecar format (`eegdash-pose`)
 
-Companion JSON file for BIDS electrophysiology recordings that carries
-**precomputed skeletal joint positions** for the hand-pose panel
-(`pose-panel.js`, Lane F10). The viewer intentionally contains *no*
-kinematics: forward kinematics / skinning runs once upstream (e.g.
-emg2pose's UmeTrack `HandModel` in Python), and this file stores only
-the resulting geometry. For emg2pose BDF conversions use the bundled
-exporter: `python scripts/export-pose-sidecar.py <recording_emg.bdf>`
-(auto-detects `recording-<side>` mirroring; needs `mne`, `torch` and
-facebookresearch/emg2pose). Point the panel at it with `?pose=<url>`
+Companion JSON file for BIDS electrophysiology recordings that drives
+the hand-pose panel (`pose-panel.js`, Lane F10): per-frame **landmark
+positions** (the skeleton) and, since v2, per-frame **joint angles plus
+the UmeTrack hand model** so the viewer skins the full hand itself
+(`pose-kinematics.js` ports UmeTrack's forward kinematics + linear-blend
+skinning to JS). For emg2pose BDF conversions use the bundled exporter:
+`python scripts/export-pose-sidecar.py <recording_emg.bdf>` (auto-detects
+`recording-<side>` mirroring; needs only `mne` and `numpy`). Point the panel at it with `?pose=<url>`
 (resolved against the page URL). In an iframe host, pass it as the `pose`
 field of the postMessage bridge instead (see [embedding.md](embedding.md)).
 
@@ -76,11 +75,11 @@ that package is importable, agreement ≈ 6e-5).
   "n_angles": 20,                // joint-angle count per frame (UmeTrack DOF)
   "angles": { "encoding": "base64-f32", "data": "<n_frames × n_angles>" },
   "camera": { "yaw": -0.4, "pitch": -1.0 },   // optional default view (radians)
-  "start_s": 0.0,                // optional window offset used by the exporter
+  "start_s": 0.0,                // optional: frames cover [start_s, start_s + duration_s] of the recording
+  "root": 5,                     // optional: joint drawn as the anchor (UmeTrack: landmark 5 = wrist)
   "mesh": {
     "mode": "umetrack-fk",
     "mirror_x": true,            // left hand: negate x after skinning
-    "n_fk_frames": 17,
     "joint_axes":    { "encoding": "base64-f32", "data": "<20 × 3, unit vectors>" },
     "joint_rest":    { "encoding": "base64-f32", "data": "<20 × 3 anchors>" },
     "rest_vertices": { "encoding": "base64-f32", "data": "<n_verts × 3>" },

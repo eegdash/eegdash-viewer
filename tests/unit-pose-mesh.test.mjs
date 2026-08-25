@@ -161,6 +161,40 @@ test('real data: JS landmarks from angles match the exporter positions on every 
   assert.ok(Math.max(...xs) - Math.min(...xs) > 50, 'hand spans > 50 mm in x');
 });
 
+test('start_s: windowed sidecars are sampled relative to the window start', () => {
+  const angles = new Array(FK_DOF).fill(0); angles[0] = 1;
+  const sc = makeMeshSidecar({ angles }); sc.start_s = 10;   // frames cover 10.0–10.1 s
+  const p = PosePanel.parseSidecar(sc);
+  assert.equal(p.startS, 10);
+  assert.equal(PosePanel.anglesAt(p, 10.0, false).angles[0], 0);
+  assert.equal(PosePanel.anglesAt(p, 10.15, false).angles[0], 1);   // 10.15 → frame 1 (10.1 − 10 is 0.0999… in floats)
+  near(PosePanel.frameAt(p, 10.15, false).t, 0.15, 1e-9, 't is window-relative');
+});
+
+test('a NaN in any angle (not only DOF 0) invalidates the frame', () => {
+  const angles = new Array(FK_DOF).fill(0); angles[7] = NaN;
+  const p = PosePanel.parseSidecar(makeMeshSidecar({ angles }));
+  assert.equal(p.valid[0], 1);
+  assert.equal(p.valid[1], 0);
+  assert.equal(PosePanel.anglesAt(p, 0.1, false).ok, false);
+});
+
+test('n_angles is derived for hand-authored sidecars that omit it', () => {
+  const sc = makeMeshSidecar(); delete sc.n_angles;
+  assert.equal(PosePanel.parseSidecar(sc).nAngles, FK_DOF);
+  const bad = makeMeshSidecar(); delete bad.n_angles;
+  bad.angles = { encoding: 'base64-f32', data: b64f32(new Array(2 * FK_DOF + 1).fill(0)) };
+  assert.throws(() => PosePanel.parseSidecar(bad), /whole number per frame/);
+});
+
+test('drawMesh and drawFrame do not clear: \'both\' keeps the mesh under the skeleton', () => {
+  const p = PosePanel.parseSidecar(makeMeshSidecar());
+  const ctx = stubCtx();
+  PosePanel.drawMesh(ctx, p, 0, { yaw: 0, pitch: 0, zoom: 1, w: 220, h: 220 });
+  PosePanel.drawFrame(ctx, p, 0, { yaw: 0, pitch: 0, zoom: 1, w: 220, h: 220 });
+  assert.equal(ctx.calls.filter(c => c[0] === 'clearRect').length, 0, 'the panel clears once per frame, not the painters');
+});
+
 test('parseMeshBlock rejects malformed blocks', () => {
   const noAngles = makeMeshSidecar();
   delete noAngles.angles;

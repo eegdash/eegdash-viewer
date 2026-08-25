@@ -161,11 +161,15 @@
                 }
               }
             }
-            // Also resolve __LOAD__ if it's pending.
-            const loadEntry = pendingRequests.get('__LOAD__');
-            if (loadEntry) {
-              pendingRequests.delete('__LOAD__');
-              loadEntry.reject(new Error(message));
+            // Only an error without a request id (LOAD_FILE itself)
+            // fails the pending load; a window/stream error from a
+            // superseded recording must not sink the newer one.
+            if (request_id == null) {
+              const loadEntry = pendingRequests.get('__LOAD__');
+              if (loadEntry) {
+                pendingRequests.delete('__LOAD__');
+                loadEntry.reject(new Error(message));
+              }
             }
             break;
           }

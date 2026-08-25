@@ -455,8 +455,6 @@
     const badMask  = totalCh > maxVisible ? slice(allBad)      : allBad;
 
     const nCh = channels.length;
-    // Published for the caption's page indicator (viewer.js reads it after each paint).
-    api.lastVisibleRange = { offset, count: nCh, total: totalCh };
     const nVisible = Math.min(opts.n_samples_visible, channels[0].length);
     const slotH = plotH / nCh;
     const halfSlotPx = slotH * 0.45;
