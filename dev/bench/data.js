@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787665042321,
+  "lastUpdate": 1787694249871,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -1795,6 +1795,233 @@ window.BENCHMARK_DATA = {
             "range": "±8.54%",
             "unit": "ms",
             "extra": "p99=106.034ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "74ec81a8a7f8ea667df9b730e0b84a491159062f",
+          "message": "fix(pose,embed): review pass — stale-hand/stale-load guards, canvas clear, effective window, FK module split\n\n- pose-kinematics.js: FK + LBS split out (closed-form Rodrigues, zero\n  per-frame allocations); pose-panel.js back under 800 lines.\n- Sidecar: honour start_s (windowed exports were played from t=0), any\n  NaN angle invalidates a frame, n_angles derived when omitted, root\n  index for the wrist; exporter emits the true UmeTrack landmark order\n  (fingertips, wrist, per-finger frames, palm) — the skeleton bones\n  were wired as [wrist, finger×4] and drew garbage; camera + names.\n- Panel: hidden panels stop redrawing (the canvas.width fallback\n  doubled the bitmap every frame on dpr>1), one clear per frame (mesh\n  mode ghosted, 'both' erased the mesh), hideActive() forgets the\n  sidecar and hides the header button, load() drops superseded\n  fetches, no synthetic resize (viewer.js observes the canvas box).\n- viewer.js: pose window = what is on screen (was nominal window, so a\n  2 s recording centred the hand at 5 s), load epoch keeps a superseded\n  load from shipping LOAD_FILE, unsupported payloads no longer tear\n  down the current recording, meta.suffix from the loader names the\n  modality (NEMAR/BTi/MEF safe), page pill from the existing\n  lastChannelOffset/lastTotalChannels/lastMaxVisibleChannels.\n- worker-rpc: only a LOAD_FILE error (no request_id) rejects __LOAD__.\n- walker: file:/// (empty authority) keeps its levels.\n- exporter: sample slicing instead of crop() (last sample kept,\n  windows clamped), load_model()/load_angles()/build_sidecar() split,\n  pytest in scripts/; docs no longer claim torch/emg2pose or 'no\n  kinematics'.\n- e2e: legacy embed specs assert the new toolbar/pills contract.",
+          "timestamp": "2026-08-25T23:26:13+02:00",
+          "tree_id": "1137871fdc4851b216de8ed6acb583d153b1babd",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/74ec81a8a7f8ea667df9b730e0b84a491159062f"
+        },
+        "date": 1787694248764,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.4903,
+            "range": "±1.13%",
+            "unit": "ms",
+            "extra": "p99=4.066ms, n=804samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.4995,
+            "range": "±1.14%",
+            "unit": "ms",
+            "extra": "p99=4.115ms, n=801samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.4822,
+            "range": "±1.02%",
+            "unit": "ms",
+            "extra": "p99=4.036ms, n=806samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.6815,
+            "range": "±1.21%",
+            "unit": "ms",
+            "extra": "p99=6.722ms, n=428samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 5.0129,
+            "range": "±1.14%",
+            "unit": "ms",
+            "extra": "p99=6.885ms, n=400samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.9371,
+            "range": "±1.23%",
+            "unit": "ms",
+            "extra": "p99=6.940ms, n=406samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 5.0706,
+            "range": "±1.11%",
+            "unit": "ms",
+            "extra": "p99=6.954ms, n=395samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 9.1439,
+            "range": "±1.22%",
+            "unit": "ms",
+            "extra": "p99=11.202ms, n=219samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 9.8727,
+            "range": "±1.25%",
+            "unit": "ms",
+            "extra": "p99=11.573ms, n=203samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 9.9158,
+            "range": "±1.35%",
+            "unit": "ms",
+            "extra": "p99=11.722ms, n=202samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 9.9012,
+            "range": "±1.33%",
+            "unit": "ms",
+            "extra": "p99=11.722ms, n=203samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 17.9245,
+            "range": "±1.07%",
+            "unit": "ms",
+            "extra": "p99=19.846ms, n=112samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0089,
+            "range": "±0.21%",
+            "unit": "ms",
+            "extra": "p99=0.018ms, n=224321samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0092,
+            "range": "±0.61%",
+            "unit": "ms",
+            "extra": "p99=0.019ms, n=216865samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.009,
+            "range": "±0.56%",
+            "unit": "ms",
+            "extra": "p99=0.019ms, n=222113samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 13.1967,
+            "range": "±1.51%",
+            "unit": "ms",
+            "extra": "p99=16.014ms, n=152samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0027,
+            "range": "±0.08%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=746867samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0026,
+            "range": "±0.12%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=777731samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0026,
+            "range": "±0.08%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=776400samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.972,
+            "range": "±0.06%",
+            "unit": "ms",
+            "extra": "p99=243.409ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 272.1069,
+            "range": "±0.04%",
+            "unit": "ms",
+            "extra": "p99=273.132ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.2807,
+            "range": "±0.12%",
+            "unit": "ms",
+            "extra": "p99=30.874ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.2723,
+            "range": "±0.12%",
+            "unit": "ms",
+            "extra": "p99=30.669ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 35.2878,
+            "range": "±6.02%",
+            "unit": "ms",
+            "extra": "p99=55.566ms, n=64samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 39.3852,
+            "range": "±6.20%",
+            "unit": "ms",
+            "extra": "p99=65.212ms, n=64samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 47.332,
+            "range": "±8.76%",
+            "unit": "ms",
+            "extra": "p99=117.718ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
