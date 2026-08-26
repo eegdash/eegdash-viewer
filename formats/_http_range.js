@@ -97,7 +97,7 @@
   async function probeLength(url) {
     if (isLocal(url)) {
       const blob = _localBlobs.get(url);
-      if (!blob) throw new Error(`Local drop missing: ${url}`);
+      if (!blob) throw new Error(`HTTP 404 Local drop missing: ${url}`);
       return blob.size;
     }
     let r = await fetchWithRetry(url, { method: 'HEAD' });
@@ -215,7 +215,7 @@
     const signal = opts && opts.signal;
     if (signal && signal.aborted) throw new DOMException('aborted', 'AbortError');
     const blob = _localBlobs.get(url);
-    if (!blob) throw new Error(`Local drop missing: ${url}`);
+    if (!blob) throw new Error(`HTTP 404 Local drop missing: ${url}`);
     const buf = await blob.slice(byteStart, byteEndInclusive + 1).arrayBuffer();
     if (expectedBytes != null && buf.byteLength !== expectedBytes) {
       throw new Error(`Local slice returned ${buf.byteLength}B, expected ${expectedBytes}B.`);
@@ -349,7 +349,7 @@
       const blob = _localBlobs.get(url);
       if (blob) return blob.text();
       if (allowMissing) return null;
-      throw new Error(`Local drop missing: ${url}`);
+      throw new Error(`HTTP 404 Local drop missing: ${url}`);
     }
     // force-cache: OpenNeuro / static BIDS buckets serve immutable
     // content, so the browser cache is a free win across pans.

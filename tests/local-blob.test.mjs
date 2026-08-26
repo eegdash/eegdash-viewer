@@ -90,3 +90,10 @@ test('local-Blob: localEntries lists registered files by original name', () => {
   assert.deepEqual(entries.map(e => e.name), ['sub-01_ses-02_task-a_emg.bdf', 'sub-01_ses-02_task-a_channels.tsv']);
   assert.equal(entries[0].blob.size, 8);
 });
+
+test('local-Blob: a missing entry reads as an HTTP 404 so optional siblings fall back', async () => {
+  // eeglab.js probes `<prefix>_eeg.fdt` and only tolerates /HTTP 404/; an
+  // inline-data .set handed over the bridge has no .fdt to register.
+  await assert.rejects(HttpRange.probeLength('https://localdrop.invalid/x_eeg.fdt'), /HTTP 404.*Local drop missing/);
+  await assert.rejects(HttpRange.rangeFetch('https://localdrop.invalid/x_eeg.fdt', 0, 1, 2), /HTTP 404/);
+});
