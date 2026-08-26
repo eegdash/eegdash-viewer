@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787698241359,
+  "lastUpdate": 1787740765500,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -2476,6 +2476,233 @@ window.BENCHMARK_DATA = {
             "range": "±4.90%",
             "unit": "ms",
             "extra": "p99=53.200ms, n=68samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "33c121cd5b3619632d91f8415b6fc0ef31a139bc",
+          "message": "fix(local): a missing local blob reads as HTTP 404 so optional siblings fall back\n\neeglab.js only tolerates /HTTP 404/ when probing <prefix>_eeg.fdt; an\ninline-data .set handed over the bridge (or dropped alone) has no .fdt\nto register, so the probe threw 'Local drop missing' and the load died\ninstead of reading the embedded data.",
+          "timestamp": "2026-08-26T12:31:19+02:00",
+          "tree_id": "bd06c9cc5d62827ed800938c1cd44ecccf4e77f2",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/33c121cd5b3619632d91f8415b6fc0ef31a139bc"
+        },
+        "date": 1787740764388,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.4827,
+            "range": "±1.97%",
+            "unit": "ms",
+            "extra": "p99=4.466ms, n=806samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.4736,
+            "range": "±1.88%",
+            "unit": "ms",
+            "extra": "p99=3.921ms, n=809samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.5102,
+            "range": "±1.97%",
+            "unit": "ms",
+            "extra": "p99=3.944ms, n=798samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.2501,
+            "range": "±1.96%",
+            "unit": "ms",
+            "extra": "p99=6.982ms, n=471samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.7352,
+            "range": "±2.09%",
+            "unit": "ms",
+            "extra": "p99=7.738ms, n=423samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.7718,
+            "range": "±2.09%",
+            "unit": "ms",
+            "extra": "p99=7.764ms, n=420samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.725,
+            "range": "±2.07%",
+            "unit": "ms",
+            "extra": "p99=7.705ms, n=424samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 9.0169,
+            "range": "±2.48%",
+            "unit": "ms",
+            "extra": "p99=13.574ms, n=222samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 10.4828,
+            "range": "±2.64%",
+            "unit": "ms",
+            "extra": "p99=14.425ms, n=191samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 10.8165,
+            "range": "±2.61%",
+            "unit": "ms",
+            "extra": "p99=14.439ms, n=185samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 10.5737,
+            "range": "±2.60%",
+            "unit": "ms",
+            "extra": "p99=14.458ms, n=190samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 16.8975,
+            "range": "±2.47%",
+            "unit": "ms",
+            "extra": "p99=21.522ms, n=119samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0096,
+            "range": "±0.19%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=208865samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0095,
+            "range": "±0.20%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=210024samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0095,
+            "range": "±0.20%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=210605samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 7.9477,
+            "range": "±0.75%",
+            "unit": "ms",
+            "extra": "p99=9.490ms, n=252samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0026,
+            "range": "±0.22%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=769642samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0026,
+            "range": "±1.73%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=757841samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0026,
+            "range": "±1.33%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=762914samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.5975,
+            "range": "±0.03%",
+            "unit": "ms",
+            "extra": "p99=242.455ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.68,
+            "range": "±0.03%",
+            "unit": "ms",
+            "extra": "p99=272.615ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.1608,
+            "range": "±0.06%",
+            "unit": "ms",
+            "extra": "p99=30.211ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.1898,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=30.399ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 13.8974,
+            "range": "±14.07%",
+            "unit": "ms",
+            "extra": "p99=23.094ms, n=144samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 18.2571,
+            "range": "±3.02%",
+            "unit": "ms",
+            "extra": "p99=28.261ms, n=110samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 27.2148,
+            "range": "±4.05%",
+            "unit": "ms",
+            "extra": "p99=48.536ms, n=74samples"
           },
           {
             "name": "readwindow_bv_large_2s",
