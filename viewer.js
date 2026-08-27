@@ -1155,7 +1155,15 @@
                 // enough pixels for the audit's "non-bg-pixels > 50"
                 // gate to flip. 5 % of the window is comfortably above
                 // the pixel threshold for any realistic channel count.
-                if (!_stageCaptionRendered && totalSamples > windowSamples * 0.05) {
+                // ...but only once a draw has actually produced an axis.
+                // TraceRenderer.draw() returns early when the canvas has no
+                // layout yet (plotW <= 4), which is exactly the state right
+                // after `tracesCanvas.hidden = false` on a cold load. Revealing
+                // the caption then breaks the contract documented above -- the
+                // gate resolves while lastDrawnXLabels is still empty, so a
+                // reader synchronising on it sees an unpainted instrument.
+                if (!_stageCaptionRendered && totalSamples > windowSamples * 0.05
+                    && (TraceRenderer.lastDrawnXLabels?.length || 0) > 0) {
                   renderStageCaption(meta, readerInfo, $('stage-caption'));
                   _stageCaptionRendered = true;
                 }
