@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787834276958,
+  "lastUpdate": 1787834995815,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -3157,6 +3157,233 @@ window.BENCHMARK_DATA = {
             "range": "±4.13%",
             "unit": "ms",
             "extra": "p99=49.184ms, n=70samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "c14dc7bb1e2f78d014ddf1ac96f5b653befd1bc5",
+          "message": "fix(viewer): reveal the stage caption only after a draw produced an axis\n\nThe code above this line documents the contract:\n\n    Perform initial render before revealing stage-caption so that\n    TraceRenderer.lastDrawnXLabels is populated when the test reads it.\n    The stage-caption toBeVisible() gate in tests serves as the\n    synchronisation point: by the time it resolves the labels are ready.\n\nK3 later moved the reveal to ~5% of the streamed window so slow MEG fetches\nconfirm the recording sooner. That is worth keeping, but it silently broke\nthe contract: TraceRenderer.draw() returns early when the canvas has no\nlayout yet (`plotW <= 4 || plotH <= 4`), which is exactly the state\nimmediately after `tracesCanvas.hidden = false` on a cold load. The first\nchunk therefore paints nothing, the axis is never drawn, and the caption\nwas revealed anyway -- so anything synchronising on it observed an\nunpainted instrument with lastDrawnXLabels still empty.\n\nThat is not only a test concern: the audit suite's \"recording loaded\" gate\nwatches the same element.\n\nThe reveal now additionally requires that a draw has produced an axis,\nwhich keeps K3's early feedback (it fires on the first *effective* paint)\nwhile making the gate honest again.\n\ne2e F06 was failing on `expect(labelsRel.length).toBeGreaterThan(0)` in 2\nof 2 runs; it now gets past that assertion consistently.",
+          "timestamp": "2026-08-27T14:45:44+02:00",
+          "tree_id": "88a2b58eb5e3e3b1f7a3e804bbe2cd9c492b99ac",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/c14dc7bb1e2f78d014ddf1ac96f5b653befd1bc5"
+        },
+        "date": 1787834994876,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.111,
+            "range": "±0.80%",
+            "unit": "ms",
+            "extra": "p99=3.373ms, n=948samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.1184,
+            "range": "±0.82%",
+            "unit": "ms",
+            "extra": "p99=3.646ms, n=945samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.1218,
+            "range": "±0.75%",
+            "unit": "ms",
+            "extra": "p99=3.374ms, n=943samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 3.9101,
+            "range": "±0.73%",
+            "unit": "ms",
+            "extra": "p99=5.340ms, n=512samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.2058,
+            "range": "±0.44%",
+            "unit": "ms",
+            "extra": "p99=5.063ms, n=476samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.2257,
+            "range": "±0.48%",
+            "unit": "ms",
+            "extra": "p99=5.396ms, n=474samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.23,
+            "range": "±0.51%",
+            "unit": "ms",
+            "extra": "p99=5.268ms, n=473samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 7.6867,
+            "range": "±0.19%",
+            "unit": "ms",
+            "extra": "p99=8.236ms, n=261samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 8.4588,
+            "range": "±1.88%",
+            "unit": "ms",
+            "extra": "p99=14.644ms, n=237samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 8.5763,
+            "range": "±2.22%",
+            "unit": "ms",
+            "extra": "p99=14.551ms, n=234samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 8.2213,
+            "range": "±0.94%",
+            "unit": "ms",
+            "extra": "p99=12.103ms, n=244samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 14.9668,
+            "range": "±0.19%",
+            "unit": "ms",
+            "extra": "p99=15.692ms, n=134samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0097,
+            "range": "±0.18%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=206548samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0096,
+            "range": "±0.18%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=207352samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0097,
+            "range": "±0.60%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=207064samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 8.2335,
+            "range": "±0.78%",
+            "unit": "ms",
+            "extra": "p99=9.894ms, n=243samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0027,
+            "range": "±0.20%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=751874samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0027,
+            "range": "±0.23%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=749721samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0027,
+            "range": "±1.60%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=747910samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.4815,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=242.773ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.4223,
+            "range": "±0.02%",
+            "unit": "ms",
+            "extra": "p99=272.408ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.1598,
+            "range": "±0.04%",
+            "unit": "ms",
+            "extra": "p99=30.188ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.195,
+            "range": "±0.12%",
+            "unit": "ms",
+            "extra": "p99=30.685ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 23.1826,
+            "range": "±4.40%",
+            "unit": "ms",
+            "extra": "p99=35.006ms, n=87samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 28.1395,
+            "range": "±7.92%",
+            "unit": "ms",
+            "extra": "p99=61.945ms, n=72samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 37.1479,
+            "range": "±10.93%",
+            "unit": "ms",
+            "extra": "p99=103.167ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
