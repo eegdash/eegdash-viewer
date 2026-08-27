@@ -44,6 +44,23 @@
   // Mesh base colour, matching the EEGDash waveform purple (#BB53E5).
   // Lambert shading scales it per face; see drawMesh.
   const MESH_RGB = [187, 83, 229];
+  // Quantised shading palette. Lambert |n·l| ∈ [0,1] indexes it directly, so
+  // the hot loop looks a colour up instead of building one `rgb()` string per
+  // triangle (1544 short-lived strings per frame at hover rate). The band the
+  // palette spans is ~39 RGB units wide, so 32 bins sit ~1 unit apart — below
+  // anything the eye resolves.
+  const MESH_SHADES = 32;
+  const MESH_PALETTE = (() => {
+    const out = new Array(MESH_SHADES);
+    for (let i = 0; i < MESH_SHADES; i++) {
+      // Mirrors the old inline maths: shade = 0.45 + 0.55·|n·l|, then the
+      // narrow 0.79–1.0 luminance band that keeps facets readable without
+      // banding the hue into a different colour.
+      const lum = 0.62 + 0.38 * (0.45 + 0.55 * (i / (MESH_SHADES - 1)));
+      out[i] = `rgb(${Math.round(MESH_RGB[0] * lum)},${Math.round(MESH_RGB[1] * lum)},${Math.round(MESH_RGB[2] * lum)})`;
+    }
+    return out;
+  })();
 
   // ---- pure: base64 / parsing --------------------------------
 
@@ -497,13 +514,17 @@
     const order = drawMesh._order && drawMesh._order.length >= T
       ? drawMesh._order : (drawMesh._order = new Uint32Array(T));
     const shade = drawMesh._shade && drawMesh._shade.length >= T
-      ? drawMesh._shade : (drawMesh._shade = new Float32Array(T));
+      ? drawMesh._shade : (drawMesh._shade = new Uint8Array(T));
+    // Per-triangle sort key, filled in the same pass. Without it the depth
+    // comparator re-read 6 triangle indices and summed 3 depths on *every*
+    // one of the ~T·log T comparisons.
+    const depth = drawMesh._depth && drawMesh._depth.length >= T
+      ? drawMesh._depth : (drawMesh._depth = new Float32Array(T));
     // Fixed headlight direction (view-independent approximation).
     const LX = -0.35, LY = -0.6, LZ = 0.72;
     for (let t = 0; t < T; t++) {
-      const i0 = mesh.triangles[t * 3] * 3;
-      const i1 = mesh.triangles[t * 3 + 1] * 3;
-      const i2 = mesh.triangles[t * 3 + 2] * 3;
+      const a = mesh.triangles[t * 3], b = mesh.triangles[t * 3 + 1], c = mesh.triangles[t * 3 + 2];
+      const i0 = a * 3, i1 = b * 3, i2 = c * 3;
       // Geometric 3D normal via cross of two edges.
       const ux = verts[i1] - verts[i0], uy = verts[i1 + 1] - verts[i0 + 1], uz = verts[i1 + 2] - verts[i0 + 2];
       const vx = verts[i2] - verts[i0], vy = verts[i2 + 1] - verts[i0 + 1], vz = verts[i2 + 2] - verts[i0 + 2];
@@ -512,24 +533,27 @@
       let nz = ux * vy - uy * vx;
       const len = Math.hypot(nx, ny, nz) || 1;
       nx /= len; ny /= len; nz /= len;
-      let lam = nx * LX + ny * LY + nz * LZ;
-      shade[t] = 0.45 + 0.55 * Math.abs(lam); // double-sided: abs keeps backfaces visible
+      const lam = nx * LX + ny * LY + nz * LZ;
+      // double-sided: abs keeps backfaces visible. The light vector is only
+      // unit-length to ~4e-4, so clamp rather than trust |lam| ≤ 1.
+      const bin = (Math.abs(lam) * (MESH_SHADES - 1) + 0.5) | 0;
+      shade[t] = bin < MESH_SHADES ? bin : MESH_SHADES - 1;
+      depth[t] = proj.depth[a] + proj.depth[b] + proj.depth[c];
       order[t] = t;
     }
-    order.sort((a, b) => {
-      const da = proj.depth[mesh.triangles[a * 3]] +
-        proj.depth[mesh.triangles[a * 3 + 1]] + proj.depth[mesh.triangles[a * 3 + 2]];
-      const db = proj.depth[mesh.triangles[b * 3]] +
-        proj.depth[mesh.triangles[b * 3 + 1]] + proj.depth[mesh.triangles[b * 3 + 2]];
-      return db - da;
-    });
+    // Sort only the live window: these buffers are reused whenever they are
+    // merely long enough, so a smaller mesh leaves a previous mesh's larger
+    // indices past T — sorting the whole array shuffled them into the painted
+    // range. subarray is a view, so this still sorts in place.
+    order.subarray(0, T).sort((x, y) => depth[y] - depth[x]);
     ctx.lineJoin = 'round';
+    let lastBin = -1;
     for (let k = 0; k < T; k++) {
       const t = order[k];
-      // shade is 0.45–1.0; the narrow 0.79–1.0 luminance band keeps the
-      // facets readable without banding the hue into a different colour.
-      const lum = 0.62 + 0.38 * shade[t];
-      ctx.fillStyle = `rgb(${Math.round(MESH_RGB[0] * lum)},${Math.round(MESH_RGB[1] * lum)},${Math.round(MESH_RGB[2] * lum)})`;
+      // Assigning fillStyle re-parses the CSS string, so skip it when the
+      // depth-sorted run happens to stay in the same shading bin.
+      const bin = shade[t];
+      if (bin !== lastBin) { ctx.fillStyle = MESH_PALETTE[bin]; lastBin = bin; }
       ctx.beginPath();
       const a = mesh.triangles[t * 3], b = mesh.triangles[t * 3 + 1], c = mesh.triangles[t * 3 + 2];
       ctx.moveTo(proj.sx[a], proj.sy[a]);

@@ -246,3 +246,27 @@ test('nextMode cycles only when a mesh exists', () => {
   assert.equal(PosePanel.nextMode('both', true), 'auto');
   assert.equal(PosePanel.nextMode('auto', false), 'auto');
 });
+
+test('drawMesh: a smaller mesh after a larger one paints only its own triangles', () => {
+  // The scratch buffers are reused whenever they are merely long enough, so
+  // the 1544-triangle fixture leaves indices far past the synthetic mesh's
+  // single triangle behind. Sorting the whole array shuffled those stale
+  // indices into the painted range, and mesh.triangles[stale] is undefined —
+  // NaN coordinates.
+  const pts = [];
+  const ctx = new Proxy({
+    beginPath() {}, closePath() {}, fill() {}, stroke() {}, arc() {},
+    moveTo(x, y) { pts.push(x, y); }, lineTo(x, y) { pts.push(x, y); },
+  }, { get: (t, p) => (p in t ? t[p] : () => {}), set: (t, p, v) => { t[p] = v; return true; } });
+
+  const big = PosePanel.parseSidecar(JSON.parse(fs.readFileSync(
+    new URL('./fixtures/pose/sub-01_run-17_2s_desc-pose.json', import.meta.url), 'utf8')));
+  const opts = { yaw: 0, pitch: 0, zoom: 1, w: 220, h: 220 };
+  assert.equal(PosePanel.drawMesh(ctx, big, big.startS, opts), true);
+  assert.ok(big.mesh.nTris > 100, 'fixture must be the larger mesh');
+
+  pts.length = 0;
+  assert.equal(PosePanel.drawMesh(ctx, PosePanel.parseSidecar(makeMeshSidecar()), 0, opts), true);
+  assert.equal(pts.length, 6, 'one triangle → three points');
+  for (const v of pts) assert.ok(Number.isFinite(v), `painted a non-finite coordinate: ${v}`);
+});
