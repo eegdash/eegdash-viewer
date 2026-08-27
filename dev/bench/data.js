@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787829338375,
+  "lastUpdate": 1787834276958,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -2930,6 +2930,233 @@ window.BENCHMARK_DATA = {
             "range": "±14.52%",
             "unit": "ms",
             "extra": "p99=115.617ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "5587f9832eeeaaaab5c7bddbe778dd2ff0ce8684",
+          "message": "fix(traces): never widen the tick step into a one- or zero-label axis\n\nThe width-aware widening added earlier walks up the nice-step table until\nthe labels fit the plot. Nothing bounded that walk, so a narrow plot could\nland on a step larger than the visible window: with t0=10 and step=60 the\nfirst multiple is 60, past the window end, and the axis drew NO labels at\nall. A 270-combination sweep found 11 such cases. The old count-based rule\ncould not produce this, because its step never exceeded span/7.\n\nThe first guard counted multiples inside [t0, t1], which fixed the empty\naxis but made the bound depend on the pan offset -- at one width and window\nsize, t0=0 allowed a step that t0=5 rejected, so label density flipped back\nand forth while panning. The bound is now span/2: a window of length span\nalways contains floor(span/s) or floor(span/s)+1 multiples of s, so\ns <= span/2 guarantees two labels at any offset, with no t0 term. It\ncarries a 1e-9 epsilon because t0+window drifts by an ulp for some offsets\n(t0=1.3, win=2 gives span 1.9999999999999998, which rejected step 1).\n\n400-combination sweep: 0 zero-label, 0 one-label, 0 pan-unstable. Desktop\noutput stays byte-identical to the historical path.",
+          "timestamp": "2026-08-27T14:35:28+02:00",
+          "tree_id": "417460bbce437ed321a29a262debc6c6ed1f23f3",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/5587f9832eeeaaaab5c7bddbe778dd2ff0ce8684"
+        },
+        "date": 1787834275760,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.2454,
+            "range": "±1.07%",
+            "unit": "ms",
+            "extra": "p99=3.903ms, n=891samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.2016,
+            "range": "±0.94%",
+            "unit": "ms",
+            "extra": "p99=3.869ms, n=909samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.2195,
+            "range": "±1.00%",
+            "unit": "ms",
+            "extra": "p99=3.933ms, n=902samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.0605,
+            "range": "±1.09%",
+            "unit": "ms",
+            "extra": "p99=7.117ms, n=493samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.4376,
+            "range": "±1.10%",
+            "unit": "ms",
+            "extra": "p99=7.550ms, n=451samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.4293,
+            "range": "±1.02%",
+            "unit": "ms",
+            "extra": "p99=7.373ms, n=452samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.4636,
+            "range": "±1.09%",
+            "unit": "ms",
+            "extra": "p99=7.784ms, n=449samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 8.1723,
+            "range": "±1.09%",
+            "unit": "ms",
+            "extra": "p99=12.552ms, n=245samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 8.8545,
+            "range": "±1.87%",
+            "unit": "ms",
+            "extra": "p99=14.233ms, n=226samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 8.8353,
+            "range": "±1.72%",
+            "unit": "ms",
+            "extra": "p99=14.069ms, n=227samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 8.8732,
+            "range": "±1.90%",
+            "unit": "ms",
+            "extra": "p99=14.161ms, n=226samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 15.6824,
+            "range": "±0.65%",
+            "unit": "ms",
+            "extra": "p99=16.874ms, n=128samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0099,
+            "range": "±0.30%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=201587samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0099,
+            "range": "±0.31%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=202339samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0099,
+            "range": "±0.29%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=202331samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 8.0253,
+            "range": "±0.70%",
+            "unit": "ms",
+            "extra": "p99=9.620ms, n=250samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0027,
+            "range": "±0.31%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=744087samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0027,
+            "range": "±0.40%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=734962samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0027,
+            "range": "±0.35%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=739120samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 242.3965,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=243.562ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 272.5641,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=273.402ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.3393,
+            "range": "±0.18%",
+            "unit": "ms",
+            "extra": "p99=31.342ms, n=66samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.2991,
+            "range": "±0.06%",
+            "unit": "ms",
+            "extra": "p99=30.538ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 15.1569,
+            "range": "±2.61%",
+            "unit": "ms",
+            "extra": "p99=21.246ms, n=132samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 19.9881,
+            "range": "±3.01%",
+            "unit": "ms",
+            "extra": "p99=28.272ms, n=101samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 28.7352,
+            "range": "±4.13%",
+            "unit": "ms",
+            "extra": "p99=49.184ms, n=70samples"
           },
           {
             "name": "readwindow_bv_large_2s",
