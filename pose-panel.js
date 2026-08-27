@@ -41,6 +41,9 @@
   const CURSOR_TTL_MS = 200;
   // Default camera distance-ish padding fraction for auto-fit.
   const DEFAULT_PAD = 24; // px inside the canvas edge
+  // Mesh base colour, matching the EEGDash waveform purple (#BB53E5).
+  // Lambert shading scales it per face; see drawMesh.
+  const MESH_RGB = [187, 83, 229];
 
   // ---- pure: base64 / parsing --------------------------------
 
@@ -523,8 +526,10 @@
     ctx.lineJoin = 'round';
     for (let k = 0; k < T; k++) {
       const t = order[k];
-      const s = Math.round(150 + 70 * shade[t]);
-      ctx.fillStyle = `rgb(${s + 60},${s},${s + 8})`;
+      // shade is 0.45–1.0; the narrow 0.79–1.0 luminance band keeps the
+      // facets readable without banding the hue into a different colour.
+      const lum = 0.62 + 0.38 * shade[t];
+      ctx.fillStyle = `rgb(${Math.round(MESH_RGB[0] * lum)},${Math.round(MESH_RGB[1] * lum)},${Math.round(MESH_RGB[2] * lum)})`;
       ctx.beginPath();
       const a = mesh.triangles[t * 3], b = mesh.triangles[t * 3 + 1], c = mesh.triangles[t * 3 + 2];
       ctx.moveTo(proj.sx[a], proj.sy[a]);
@@ -541,6 +546,85 @@
     if (!hasMesh) return mode === 'auto' ? 'auto' : 'auto'; // only auto exists
     const cycle = { auto: 'skeleton', skeleton: 'mesh', mesh: 'both', both: 'auto' };
     return cycle[mode] || 'auto';
+  }
+
+  function resolveMode(mode, parsed) {
+    if (!['auto', 'skeleton', 'mesh', 'both'].includes(mode)) {
+      throw new Error(`pose renderer: unsupported mode ${JSON.stringify(mode)}`);
+    }
+    if (!parsed.mesh) return 'skeleton';
+    return mode === 'auto' ? 'mesh' : mode;
+  }
+
+  function paintPose(ctx, parsed, t, opts) {
+    const mode = resolveMode(opts.mode || 'auto', parsed);
+    if (mode !== 'skeleton') drawMesh(ctx, parsed, t, opts);
+    if (mode !== 'mesh') drawFrame(ctx, parsed, t, opts);
+    return mode;
+  }
+
+  function positiveNumber(value, fallback, name, maximum) {
+    const resolved = value == null ? fallback : Number(value);
+    if (!Number.isFinite(resolved) || resolved <= 0 || resolved > maximum) {
+      throw new Error(`pose renderer: ${name} must be a finite number in (0, ${maximum}]`);
+    }
+    return resolved;
+  }
+
+  /**
+   * Render a caller-supplied pose-sidecar frame into a standalone PNG data URL.
+   *
+   * This is the programmatic artifact API: it does not mount a panel, fetch a
+   * URL, or retain state. `time` uses the recording timebase (and defaults to
+   * the sidecar-window centre); `width` and `height` are CSS pixels, while
+   * `scale` controls the exported pixel density. It works for skeleton-only
+   * sidecars and for any compatible mesh supplied by the caller.
+   */
+  function renderPNG(sidecar, options = {}) {
+    if (!options || typeof options !== 'object' || Array.isArray(options)) {
+      throw new Error('pose renderer: options must be an object');
+    }
+    const doc = globalThis.document;
+    if (!doc || typeof doc.createElement !== 'function') {
+      throw new Error('pose renderer: a browser canvas document is required');
+    }
+    const parsed = parseSidecar(sidecar);
+    const width = positiveNumber(options.width, 480, 'width', 4096);
+    const height = positiveNumber(options.height, 480, 'height', 4096);
+    const scale = positiveNumber(options.scale, 2, 'scale', 8);
+    const pixelWidth = Math.round(width * scale);
+    const pixelHeight = Math.round(height * scale);
+    if (pixelWidth * pixelHeight > 16_777_216) {
+      throw new Error('pose renderer: requested image exceeds 16 megapixels');
+    }
+    const time = options.time == null
+      ? parsed.startS + parsed.durationS / 2
+      : Number(options.time);
+    if (!Number.isFinite(time)) {
+      throw new Error('pose renderer: time must be finite');
+    }
+    const baseCamera = parsed.camera || { yaw: -0.5, pitch: 0.25 };
+    const camera = options.camera || {};
+    if (!camera || typeof camera !== 'object' || Array.isArray(camera)) {
+      throw new Error('pose renderer: camera must be an object');
+    }
+    const yaw = camera.yaw == null ? baseCamera.yaw : Number(camera.yaw);
+    const pitch = camera.pitch == null ? baseCamera.pitch : Number(camera.pitch);
+    const zoom = camera.zoom == null ? 1 : Number(camera.zoom);
+    if (![yaw, pitch, zoom].every(Number.isFinite) || zoom <= 0) {
+      throw new Error('pose renderer: camera yaw, pitch, and zoom must be finite; zoom must be positive');
+    }
+    const canvas = doc.createElement('canvas');
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('pose renderer: 2D canvas is unavailable');
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    paintPose(ctx, parsed, time, {
+      yaw, pitch, zoom, w: width, h: height, mode: options.mode || 'auto',
+    });
+    return canvas.toDataURL('image/png');
   }
 
   // ---- DOM glue ------------------------------------------------
@@ -570,10 +654,14 @@
     root.setAttribute('hidden', '');
     const header = el('div', 'pose-header');
     header.append(el('span', 'pose-title', 'Hand pose'));
+    const saveBtn = el('button', 'pose-close');
+    saveBtn.textContent = '⤓';
+    saveBtn.setAttribute('aria-label', 'Download hand pose as PNG');
+    saveBtn.title = 'Download PNG (e)';
     const closeBtn = el('button', 'pose-close');
     closeBtn.textContent = '×';
     closeBtn.setAttribute('aria-label', 'Close hand-pose panel');
-    header.append(closeBtn);
+    header.append(saveBtn, closeBtn);
     const canvas = doc.createElement('canvas');
     canvas.className = 'pose-canvas';
     canvas.width = 260; canvas.height = 260;
@@ -599,6 +687,7 @@
     let drag = null;
 
     closeBtn.addEventListener('click', () => hide());
+    saveBtn.addEventListener('click', () => savePNG());
 
     // Docked (embed) layout: showing/hiding changes the traces canvas
     // width; viewer.js watches the canvas box with a ResizeObserver.
@@ -614,12 +703,58 @@
       });
     }
 
+    /** Frame time to paint: a fresh hover cursor, else the window centre. */
+    function currentT() {
+      const fresh = cursorT != null && (Date.now() - cursorAt) < CURSOR_TTL_MS;
+      return fresh ? cursorT : centerT;
+    }
+
+    /**
+     * Paint one frame at logical size w×h into a context scaled by
+     * `pxScale` — devicePixelRatio on screen, the export multiplier
+     * off-screen — so stroke widths and dot radii grow with the
+     * geometry instead of staying hairline. Returns the resolved mode.
+     */
+    function paint(ctx, t, w, h, pxScale) {
+      ctx.setTransform(pxScale, 0, 0, pxScale, 0, 0);
+      ctx.clearRect(0, 0, w, h);   // one clear per frame: drawMesh/drawFrame paint additively
+      return paintPose(ctx, parsed, t, { ...cam, w, h });
+    }
+
+    /**
+     * Re-render the on-screen frame standalone at `scale`× the panel
+     * size on a transparent background, as a PNG data URL (null when
+     * there is nothing to draw). Photoshop: File ▸ Place Embedded.
+     */
+    function exportPNG(scale = 8) {
+      const t = parsed ? currentT() : null;
+      if (t == null) return null;
+      const w = canvas.clientWidth || canvas.width;
+      const h = canvas.clientHeight || canvas.height;
+      const off = doc.createElement('canvas');
+      off.width = Math.round(w * scale);
+      off.height = Math.round(h * scale);
+      paint(off.getContext('2d'), t, w, h, scale);
+      return off.toDataURL('image/png');
+    }
+
+    /** exportPNG + browser download; the filename pins the frame time. */
+    function savePNG(scale = 8) {
+      const t = parsed ? currentT() : null;
+      const url = exportPNG(scale);
+      if (!url) return null;
+      const a = doc.createElement('a');
+      a.href = url;
+      a.download = `hand-pose_t${t.toFixed(3)}s.png`;
+      a.click();
+      return url;
+    }
+
     function redraw() {
       // A hidden panel has clientWidth 0: skinning for nothing, and the
       // `canvas.width` fallback below would grow the bitmap every frame.
       if (!parsed || root.hasAttribute('hidden')) return;
-      const fresh = cursorT != null && (Date.now() - cursorAt) < CURSOR_TTL_MS;
-      const t = fresh ? cursorT : centerT;
+      const t = currentT();
       if (t == null) return;
       // Backing-store size tracks CSS size × dpr like traces.js.
       const dpr = globalThis.devicePixelRatio || 1;
@@ -629,17 +764,9 @@
         canvas.width = Math.round(cssW * dpr);
         canvas.height = Math.round(cssH * dpr);
       }
-      ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx2d.clearRect(0, 0, cssW, cssH);   // one clear per frame: drawMesh/drawFrame paint additively
-      // View mode: 'auto' shows the mesh when the sidecar carries one,
-      // otherwise the skeleton; explicit modes honour the choice.
-      const hasMesh = !!parsed.mesh;
-      const mode = cam.mode === 'auto' ? (hasMesh ? 'mesh' : 'skeleton') : cam.mode;
-      const opts = { ...cam, w: cssW, h: cssH };
-      if (mode !== 'skeleton') drawMesh(ctx2d, parsed, t, opts);
-      if (mode !== 'mesh') drawFrame(ctx2d, parsed, t, opts);
+      const mode = paint(ctx2d, t, cssW, cssH, dpr);
       caption.textContent =
-        `t = ${t.toFixed(3)} s${hasMesh ? ` · ${mode}` : ''}`;
+        `t = ${t.toFixed(3)} s${parsed.mesh ? ` · ${mode}` : ''}`;
     }
 
     // Orbit + zoom (pointer events cover mouse/touch/pen uniformly).
@@ -720,7 +847,7 @@
 
     return {
       root, canvas, load, clear, show, hide, toggle, cycleMode,
-      syncWindow, syncCursor, redraw,
+      syncWindow, syncCursor, redraw, exportPNG, savePNG,
     };
   }
 
@@ -734,6 +861,7 @@
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
       if (e.key === 'p' || e.key === 'P') controller.toggle();
       if (e.key === 'm' || e.key === 'M') controller.cycleMode();
+      if (e.key === 'e' || e.key === 'E') controller.savePNG();
     });
   }
 
@@ -789,7 +917,7 @@
     FK_DOF, FK_FRAMES,
     b64ToBytes, parseSidecar, parseMeshBlock, frameAt, anglesAt,
     umetrackFrames, skinPoints, skinMesh, skinLandmarks,
-    rotateProject, drawFrame, drawMesh, nextMode,
+    rotateProject, drawFrame, drawMesh, nextMode, renderPNG,
     mount, attachKeys, openUrl, hideActive, bootFromParams, syncWindow, syncCursor,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

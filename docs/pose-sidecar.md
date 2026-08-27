@@ -69,6 +69,20 @@ scripts/export-pose-sidecar.py <recording_emg.bdf>` (needs only `mne`
 and `numpy`; `--check` cross-validates against emg2pose's torch FK when
 that package is importable, agreement ≈ 6e-5).
 
+For a model prediction, save the 20 output angles in radians as a numeric
+NumPy `(20, frames)` array, then produce the same sidecar without re-reading
+a BDF:
+
+```bash
+python scripts/export-pose-sidecar.py \
+  --angles-npy candidate_angles.npy --side left --fs 50 \
+  --out candidate_desc-pose.json
+```
+
+The side is explicit in this form because a tensor has no BIDS filename from
+which to infer left/right mirroring. This sidecar can be rendered with
+`scripts/render-hand-png.mjs` or opened by the viewer like any BIDS sidecar.
+
 ```jsonc
 {
   "...v1 fields as above...",

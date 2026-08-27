@@ -7,6 +7,11 @@ recording with joint-angle channels (emg2pose BDF conversions:
         [--side left|right] [--fs 30] [--start 0] [--duration N] [--no-mesh] \
         [--model scripts/umetrack_generic_hand_model.json] [--check]
 
+Or render model output already sampled as `(20, frames)` radians:
+
+    python scripts/export-pose-sidecar.py --angles-npy candidate_angles.npy \
+        --side left --fs 50 --out candidate_desc-pose.json
+
 Writes `<prefix>_desc-pose.json` next to the recording (format spec:
 docs/pose-sidecar.md). The sidecar carries, per frame, the 21 UmeTrack
 landmarks (`positions`, drawn as the skeleton) and the 20 raw joint
@@ -166,6 +171,18 @@ def load_angles(recording, fs_out, start, duration):
     return ang, fs / step
 
 
+def load_angle_array(path):
+    """Load one model output as finite-or-NaN `(20, frames)` joint angles."""
+    values = np.load(Path(path), allow_pickle=False)
+    if not isinstance(values, np.ndarray) or values.ndim != 2 or values.shape[0] != N_DOF:
+        raise ValueError(
+            f"angle array must have shape ({N_DOF}, frames); got {getattr(values, 'shape', None)}"
+        )
+    if values.shape[1] < 1 or not np.issubdtype(values.dtype, np.number):
+        raise ValueError("angle array must contain at least one numeric frame")
+    return np.asarray(values, dtype=np.float32)
+
+
 def build_sidecar(ang, fs_pose, start, hm, mirror, check=False, mesh=True):
     """Assemble the eegdash-pose document for angles (20, F) at fs_pose Hz."""
     valid = np.isfinite(ang).all(axis=0)
@@ -218,7 +235,11 @@ def check_against_emg2pose(angles, model, positions_numpy):
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("recording", help="mne-readable recording with joint* channels")
+    ap.add_argument("recording", nargs="?", help="mne-readable recording with joint* channels")
+    ap.add_argument(
+        "--angles-npy",
+        help="model output saved as a numeric (20, frames) radians .npy array",
+    )
     ap.add_argument("--side", choices=["left", "right"], default=None,
                     help="hand side; default auto from `recording-<side>`")
     ap.add_argument("--fs", type=float, default=30.0, help="output pose rate (Hz)")
@@ -230,12 +251,27 @@ def main() -> None:
     ap.add_argument("--check", action="store_true", help="compare numpy FK with emg2pose (needs torch + emg2pose)")
     args = ap.parse_args()
 
-    rec = Path(args.recording)
-    side = args.side or next((t for t in ("left", "right") if f"recording-{t}" in rec.stem), None)
-    ang, fs_pose = load_angles(rec, args.fs, args.start, args.duration)
+    if bool(args.recording) == bool(args.angles_npy):
+        ap.error("provide exactly one recording or --angles-npy input")
+    if args.angles_npy:
+        if args.side is None:
+            ap.error("--side is required with --angles-npy")
+        if args.out is None:
+            ap.error("--out is required with --angles-npy")
+        ang, fs_pose, side = load_angle_array(args.angles_npy), args.fs, args.side
+    else:
+        rec = Path(args.recording)
+        side = args.side or next(
+            (t for t in ("left", "right") if f"recording-{t}" in rec.stem), None
+        )
+        ang, fs_pose = load_angles(rec, args.fs, args.start, args.duration)
     sidecar = build_sidecar(ang, fs_pose, args.start, load_model(args.model), side == "left",
                             check=args.check, mesh=not args.no_mesh)
-    out = Path(args.out) if args.out else rec.with_name(rec.stem.rsplit("_", 1)[0] + "_desc-pose.json")
+    out = (
+        Path(args.out)
+        if args.out
+        else rec.with_name(rec.stem.rsplit("_", 1)[0] + "_desc-pose.json")
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(sidecar, separators=(",", ":")))
     valid = np.frombuffer(base64.b64decode(sidecar["valid"]), np.uint8)

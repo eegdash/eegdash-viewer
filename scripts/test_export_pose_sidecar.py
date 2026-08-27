@@ -55,6 +55,22 @@ def test_build_sidecar_shape_and_mirror(hm):
     assert len(_f32(sc["mesh"]["joint_axes"])) == exp.N_DOF * 3
 
 
+def test_load_angle_array_requires_channels_by_frames_float_data(tmp_path):
+    path = tmp_path / "candidate_angles.npy"
+    values = np.arange(exp.N_DOF * 4, dtype=np.float64).reshape(exp.N_DOF, 4)
+    np.save(path, values)
+
+    loaded = exp.load_angle_array(path)
+
+    assert loaded.dtype == np.float32
+    assert loaded.shape == (exp.N_DOF, 4)
+    assert np.array_equal(loaded, values)
+
+    np.save(path, values.T)
+    with pytest.raises(ValueError, match="shape"):
+        exp.load_angle_array(path)
+
+
 def test_load_angles_clamps_the_window(tmp_path):
     mne = pytest.importorskip("mne")
     fs = 200.0

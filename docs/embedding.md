@@ -62,3 +62,37 @@ sidecar with the skinned-hand model is ~15 KB/s of recording
 (`scripts/export-pose-sidecar.py --start/--duration` exports a window).
 
 Browser e2e for this path: `npx playwright test tests/e2e/host-bridge.spec.mjs`.
+
+## Reusable pose-image renderer
+
+`pose-panel.js` also exposes a small browser API for experiment artifacts. It
+does not mount the viewer UI or fetch data: pass a complete `eegdash-pose`
+object and it returns a standalone PNG data URL.
+
+```js
+const image = globalThis.PosePanel.renderPNG(sidecar, {
+  time: 12.5,                 // recording time; defaults to sidecar midpoint
+  width: 720,
+  height: 720,
+  scale: 2,                   // final image is 1440 × 1440 px
+  mode: 'auto',               // auto | skeleton | mesh | both
+  camera: { yaw: -0.4, pitch: -1.0, zoom: 1 },
+});
+```
+
+The sidecar owns all geometry. In particular, the renderer does not bundle a
+hand model, choose a participant, or invent a pose; a skeleton-only sidecar
+works just as well as a sidecar with a compatible mesh block.
+
+For a reproducible headless artifact (for example, one logged by MLflow), use
+the same public API through the included CLI:
+
+```bash
+node scripts/render-hand-png.mjs \
+  --sidecar artifacts/candidate-pose.json \
+  --output artifacts/candidate-pose.png \
+  --time 12.5 --width 720 --height 720 --scale 2 --mode auto
+```
+
+The CLI uses Playwright's Chromium. Provision it with `npx playwright install
+chromium`, or pass a managed browser explicitly with `--executable-path`.
