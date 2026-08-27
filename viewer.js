@@ -148,7 +148,9 @@
   // onSwatchClick: (type, newColor) → void
   function renderChannelColors(channels, containerEl, typeColors, onSwatchClick) {
     if (!channels || !channels.length) {
-      containerEl.replaceChildren();
+      // Without this the "Channel Colors" heading renders with nothing
+      // under it, which reads as a broken panel rather than an empty one.
+      setChildren(containerEl, el('div', 'muted', 'no channel types yet'));
       return;
     }
     // Compute distinct types in encounter order.
@@ -399,7 +401,7 @@
     // `workerFetchWindow(Streaming)` aliases the rest of boot() reaches.
     const _RpcMod = (typeof globalThis !== 'undefined' && globalThis.ViewerWorkerRpc)
       || (typeof require !== 'undefined' ? require('./viewer/worker-rpc.js') : null);
-    const rpc = _RpcMod.createWorkerRpc({ workerUrl: 'worker.js?v=2' });
+    const rpc = _RpcMod.createWorkerRpc({ workerUrl: 'worker.js?v=3' });
     const worker = rpc.worker;
     const workerReadyPromise = rpc.ready;
     const workerFetchWindow = rpc.fetchWindow;

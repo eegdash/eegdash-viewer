@@ -246,7 +246,11 @@ function awaitInflight(cacheKey, fetchFn) {
       rawCachePut(cacheKey, fresh);
       return rawCacheGet(cacheKey);
     } finally {
-      inflightRawFetches.delete(cacheKey);
+      // Identity-checked: the streaming path registers its own promise
+      // in this same map, so an unconditional delete can strand it.
+      if (inflightRawFetches.get(cacheKey) === p) {
+        inflightRawFetches.delete(cacheKey);
+      }
     }
   })();
   inflightRawFetches.set(cacheKey, p);
@@ -482,8 +486,18 @@ self.onmessage = async function (evt) {
         const inflight = inflightRawFetches.get(cacheKey);
         if (inflight) {
           const rawChannels = await inflight;
-          sendFinalFromRaw(rawChannels);
-          return;
+          const gotData = rawChannels && rawChannels.length
+            && rawChannels[0] && rawChannels[0].length;
+          if (gotData) { sendFinalFromRaw(rawChannels); return; }
+          // The owner resolves [] when IT was cancelled or superseded,
+          // which says nothing about this request. Inheriting that as
+          // "no data" is wrong twice over: it raises a spurious error
+          // for a request that was merely cancelled, and it strands a
+          // still-live request that should just read the window itself.
+          // (Cold load cancels the first window twice as layout settles,
+          // so requests 2 and 3 both dedup onto a doomed stream.)
+          if (!isStillCurrent() || isRequestCancelled(request_id)) return;
+          // Otherwise fall through and do our own read below.
         }
 
         const hasFilter = filterSnapshot.length > 0;
@@ -599,7 +613,13 @@ self.onmessage = async function (evt) {
           rejectInflight(e);
           throw e;
         } finally {
-          inflightRawFetches.delete(cacheKey);
+          // Clear only our own entry. A request that fell through from a
+          // cancelled upstream can register a newer promise under the
+          // same key while we are unwinding; deleting unconditionally
+          // would strand it and break dedup for everyone after it.
+          if (inflightRawFetches.get(cacheKey) === inflightP) {
+            inflightRawFetches.delete(cacheKey);
+          }
         }
         break;
       }

@@ -63,7 +63,13 @@
   const TRACE_COLOR   = '#0072B2';   // Okabe-Ito blue
   const BAD_COLOR     = '#D55E00';   // Okabe-Ito vermillion
   const BAD_SLOT_COLOR = '#c8c8c8';  // muted grey fill for bad-channel slot background (R=200, delta ≥ 50 vs BG)
-  const AXIS_COLOR    = '#b5b8bd';   // --ink-3
+  // Hairline for the axis rule and tick marks. Deliberately light — this
+  // is decorative scaffolding, not text.
+  const AXIS_COLOR    = '#b5b8bd';
+  // Tick LABEL text. Was drawn in AXIS_COLOR, which gives 1.90:1 on the
+  // cream canvas and fails WCAG AA for text. This is --muted, 4.91:1 on
+  // the cream paper and 5.13:1 on white (embed draws over the host page).
+  const AXIS_LABEL_COLOR = '#6a6e74';
   const SLOT_COLOR  = '#e8e5dc';   // --line-2 — hairlines between channels
   const LABEL_COLOR = '#3a3d42';   // --ink-2
   const LABEL_FONT  = "10.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
@@ -72,7 +78,9 @@
   // Channel-type suffix in the row label. Suppressed for EEG (the
   // dominant type — would just clutter every row) and shown for
   // EOG/ECG/EMG/RESP/MISC/etc. so non-EEG rows are scannable.
-  const TYPE_LABEL_COLOR = '#8b8e94';   // --muted in styles.css
+  // --muted. The old #8b8e94 was a stale copy of --muted from before it
+  // was darkened for AA; it rendered at 3.14:1 on the cream canvas.
+  const TYPE_LABEL_COLOR = '#6a6e74';
   const TYPE_LABEL_FONT  = "8.5px 'IBM Plex Mono', ui-monospace, Menlo, monospace";
 
   // Event onset markers moved to traces/event-markers.js (Lane E1) —
@@ -238,12 +246,29 @@
   // Compute tick positions and labels; returns { ticks: [{t, label}], step }.
   // When time_mode === 'clock' AND recording_start_iso is set, labels are
   // HH:MM:SS; otherwise labels are relative numeric strings.
-  function computeTimeTicks(t0Sec, t1Sec, time_mode, recording_start_iso) {
+  // Horizontal room one axis label needs, including its gap. Labels are
+  // 9.5px mono; the widest ("0.00 s") measures ~34px.
+  const MIN_LABEL_PX = 44;
+
+  function computeTimeTicks(t0Sec, t1Sec, time_mode, recording_start_iso, plotWidthPx = Infinity) {
     const span = t1Sec - t0Sec;
     const niceSteps = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 30, 60];
     const target = span / 7;
     let step = niceSteps[0];
     for (const s of niceSteps) if (s <= target) step = s;
+
+    // The rule above targets a tick *count*, so snapping to a nice step
+    // can still produce labels too close to read (a 390px phone leaves
+    // the plot ~220px wide and was drawing 9 labels 24px apart). Widen
+    // the step until the labels actually fit the pixels available.
+    // plotWidthPx defaults to Infinity, so any caller that does not pass
+    // a width keeps the historical spacing exactly.
+    if (isFinite(plotWidthPx) && plotWidthPx > 0) {
+      let i = niceSteps.indexOf(step);
+      while (i < niceSteps.length - 1 && (span / step + 1) * MIN_LABEL_PX > plotWidthPx) {
+        step = niceSteps[++i];
+      }
+    }
     const first = Math.ceil(t0Sec / step) * step;
 
     const useClock = time_mode === 'clock' && !!recording_start_iso;
@@ -264,7 +289,7 @@
 
   function drawTimeAxis(ctx, x0, x1, y, t0Sec, t1Sec, time_mode, recording_start_iso) {
     ctx.strokeStyle = AXIS_COLOR;
-    ctx.fillStyle = AXIS_COLOR;
+    ctx.fillStyle = AXIS_LABEL_COLOR;   // text needs AA; the rule above does not
     ctx.font = AXIS_FONT;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -275,7 +300,7 @@
     ctx.stroke();
 
     const span = t1Sec - t0Sec;
-    const { ticks, useClock, step } = computeTimeTicks(t0Sec, t1Sec, time_mode, recording_start_iso);
+    const { ticks, useClock, step } = computeTimeTicks(t0Sec, t1Sec, time_mode, recording_start_iso, x1 - x0);
 
     // Minor ticks: 4 between each major (5 sub-divisions), no labels,
     // shorter (2 px vs 4 px). Visual scaffolding for fine time
@@ -615,7 +640,7 @@
       // produce. The minor-skip-at-major rule (Math.abs(r-Math.round(r))<1e-6)
       // matches the implementation exactly so the layout shim is the
       // ground truth for tests.
-      const { ticks, step, useClock } = computeTimeTicks(t0Sec, t1Sec, time_mode, recording_start_iso);
+      const { ticks, step, useClock } = computeTimeTicks(t0Sec, t1Sec, time_mode, recording_start_iso, x1 - x0);
       const span = t1Sec - t0Sec;
       if (span <= 0) return { major: [], minor: [], useClock, step };
       const major = ticks.map(({ t, label }) => ({
