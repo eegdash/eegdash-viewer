@@ -352,19 +352,27 @@
   function* eachInheritanceLevel(dir, prefix, suffix) {
     const variants = entityVariants(prefix);
     const bare = suffix.startsWith('_') ? suffix.substring(1) : suffix;
+    // The dataset root is the top of BIDS inheritance. Knowing it lets the
+    // walk stop there instead of relying on the 4-level cap landing on it,
+    // which only happens when the path carries a `ses-`; without one the
+    // last level used to probe the *bucket* root (~20 guaranteed 404s).
+    const root = openNeuroRootUrl(dir);
     let here = dir;
     for (let level = 0; level < 4; level++) {
       const paths = variants.map(v => `${here}${v}${suffix}`);
       paths.push(`${here}${bare}`);
       yield { here, paths, variants, bare };
+      if (root && here === root) break;
       // Absolute URLs climb with the platform resolver, which stops at
       // the origin (`https://host/` is its own parent) — never
       // fabricating `https://<sidecar-name>/` hosts for drag-drop /
       // bridge files on localdrop.invalid. NEMAR walks manifest-relative
       // dirs, where `new URL` has no base: strip one segment instead.
+      // Their root level is the empty prefix, so only a fixed point ends
+      // the walk — bailing on falsy would skip that root.
       let parent;
       try { parent = new URL('..', here).href; } catch { parent = here.replace(/[^/]+\/$/, ''); }
-      if (!parent || parent === here) break;
+      if (parent === here) break;
       here = parent;
     }
   }

@@ -32,3 +32,21 @@ test('fetchTextOrNull: a thrown network error is "missing", not fatal', async ()
     assert.equal(await HttpRange.fetchTextOrNull('https://nope.invalid/x_eeg.json'), null);
   } finally { globalThis.fetch = orig; }
 });
+
+test('walk: a session-less OpenNeuro path stops at the dataset root, not the bucket', () => {
+  const ls = levels('https://s3.amazonaws.com/openneuro.org/ds1/sub-01/eeg/');
+  assert.deepEqual(ls.map(l => l.here), [
+    'https://s3.amazonaws.com/openneuro.org/ds1/sub-01/eeg/',
+    'https://s3.amazonaws.com/openneuro.org/ds1/sub-01/',
+    'https://s3.amazonaws.com/openneuro.org/ds1/',
+  ]);
+});
+
+test('walk: a NEMAR manifest-relative dir reaches the dataset root ("")', () => {
+  const ls = levels('sub-01/ses-02/eeg/');
+  assert.deepEqual(ls.map(l => l.here), ['sub-01/ses-02/eeg/', 'sub-01/ses-02/', 'sub-01/', '']);
+  // The root level is what hosts the dataset-wide task sidecar. (Note the
+  // sub-stripped variants keep `ses-`, so a bare `task-x_eeg.json` is only
+  // generated for session-less prefixes — a separate entityVariants gap.)
+  assert.ok(ls[3].paths.includes('ses-02_task-x_eeg.json'));
+});
