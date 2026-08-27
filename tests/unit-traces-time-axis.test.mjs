@@ -283,3 +283,71 @@ test('formatScale(5500) → "5.5 mV"', () => {
   // (e.g. toFixed(1) → toFixed(0) would produce "6" or "5").
   assert.strictEqual(T._formatScale(5500), '5.5 mV');
 });
+
+// D. plotWidthPx-aware step widening (narrow-viewport axis density).
+// computeTimeTicks targets a tick COUNT (span/7) and then snaps to a nice
+// step, so a narrow plot could end up with labels a couple of dozen pixels
+// apart. Passing the plot width lets it widen the step until the labels
+// fit. Two invariants matter:
+//   1. Omitting the width must reproduce the historical spacing exactly.
+//   2. Widening must never strand the axis with fewer than two labels --
+//      a failure mode the old rule could not produce, because its step
+//      never exceeded span/7.
+
+test('computeTimeTicks without a width matches the historical spacing', () => {
+
+  for (const [t0, t1] of [[0, 4], [0, 10], [5.5, 10.5], [0, 100], [10, 40]]) {
+    const bare = T._computeTimeTicks(t0, t1, 'relative', null);
+    const wide = T._computeTimeTicks(t0, t1, 'relative', null, Infinity);
+    assert.equal(bare.step, wide.step, `step drifted for [${t0},${t1}]`);
+    assert.deepEqual(
+      bare.ticks.map(t => t.label),
+      wide.ticks.map(t => t.label),
+      `labels drifted for [${t0},${t1}]`,
+    );
+  }
+});
+
+test('computeTimeTicks widens the step on a narrow plot', () => {
+
+  const wide   = T._computeTimeTicks(0, 4, 'relative', null, 954);   // desktop
+  const narrow = T._computeTimeTicks(0, 4, 'relative', null, 224);   // phone
+  assert.equal(wide.step, T._computeTimeTicks(0, 4, 'relative', null).step,
+    'a wide plot must keep the historical step');
+  assert.ok(narrow.step > wide.step,
+    `narrow plot should widen the step (got ${narrow.step} vs ${wide.step})`);
+  assert.ok(narrow.ticks.length < wide.ticks.length,
+    'narrow plot should draw fewer labels');
+});
+
+test('computeTimeTicks never widens into fewer than two labels', () => {
+
+  const offsets = [0, 3.7, 10, 55.5, 120, 723];
+  for (const w of [1114, 954, 646, 466, 334, 224, 150, 80, 60, 20]) {
+    for (const win of [2, 5, 10, 20, 30]) {
+      for (const t0 of offsets) {
+        const r = T._computeTimeTicks(t0, t0 + win, 'relative', null, w);
+        assert.ok(r.ticks.length >= 2,
+          `plotWidth=${w} window=${win}s t0=${t0} produced ${r.ticks.length} label(s)`);
+      }
+    }
+  }
+});
+
+test('computeTimeTicks step does not change as the window pans', () => {
+  // The widening bound must be independent of t0. A t0-dependent test (e.g.
+  // counting multiples that land inside [t0,t1]) lets the label density flip
+  // between two steps as the user pans a fixed-width window, which reads as
+  // the axis flickering. Note t0+win drifts by an ulp for some offsets, so
+  // the bound carries an epsilon.
+  for (const w of [1114, 954, 646, 466, 334, 224, 150, 80, 60, 20]) {
+    for (const win of [2, 5, 10, 20, 30]) {
+      const steps = new Set();
+      for (const t0 of [0, 1.3, 3.7, 5, 10, 55.5, 120, 723]) {
+        steps.add(T._computeTimeTicks(t0, t0 + win, 'relative', null, w).step);
+      }
+      assert.equal(steps.size, 1,
+        `plotWidth=${w} window=${win}s picked steps ${[...steps].join(', ')} depending on pan offset`);
+    }
+  }
+});

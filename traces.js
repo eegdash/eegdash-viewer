@@ -263,9 +263,19 @@
     // the step until the labels actually fit the pixels available.
     // plotWidthPx defaults to Infinity, so any caller that does not pass
     // a width keeps the historical spacing exactly.
+    // Never widen past span/2. A window of length `span` always contains
+    // either floor(span/s) or floor(span/s)+1 multiples of s, so s <= span/2
+    // guarantees at least two labels at ANY pan offset. Widening further
+    // could leave the axis with one label or none -- something the old
+    // count-based rule could not produce, since its step never exceeded
+    // span/7. The bound is deliberately independent of t0: a t0-dependent
+    // test would let the label density flip back and forth as the user
+    // pans a fixed-width window.
     if (isFinite(plotWidthPx) && plotWidthPx > 0) {
       let i = niceSteps.indexOf(step);
-      while (i < niceSteps.length - 1 && (span / step + 1) * MIN_LABEL_PX > plotWidthPx) {
+      while (i < niceSteps.length - 1
+             && (span / step + 1) * MIN_LABEL_PX > plotWidthPx
+             && niceSteps[i + 1] <= span / 2 + 1e-9) {   // epsilon: span drifts by an ulp
         step = niceSteps[++i];
       }
     }
