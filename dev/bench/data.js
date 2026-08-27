@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787834995815,
+  "lastUpdate": 1787836126559,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -3384,6 +3384,233 @@ window.BENCHMARK_DATA = {
             "range": "±10.93%",
             "unit": "ms",
             "extra": "p99=103.167ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "880315397435a48af95bf31fd95cfddef5007df4",
+          "message": "feat(bridge): accept a Blob pose over the host-page bridge\n\nThe bridge took `pose` only as a URL, so a host holding the sidecar in\nmemory had to base64 it into a data: URL — a third more bytes for JSON\nthe viewer immediately parses back. That cost lands in every notebook\ncell braindecode's BIDSDataset.plot() renders.\n\n`pose` may now be a Blob or File as well. The panel reads it with\n.text() instead of fetch(), which also means no object URL to revoke.\nURL strings, data: URLs included, keep working unchanged.",
+          "timestamp": "2026-08-27T15:02:35+02:00",
+          "tree_id": "165a5fbcbc7e908a665a415d9a1f12f6a58d4584",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/880315397435a48af95bf31fd95cfddef5007df4"
+        },
+        "date": 1787836125375,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.6418,
+            "range": "±0.63%",
+            "unit": "ms",
+            "extra": "p99=3.817ms, n=758samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.6564,
+            "range": "±0.73%",
+            "unit": "ms",
+            "extra": "p99=3.968ms, n=753samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.6453,
+            "range": "±0.64%",
+            "unit": "ms",
+            "extra": "p99=3.748ms, n=757samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.9142,
+            "range": "±0.49%",
+            "unit": "ms",
+            "extra": "p99=5.947ms, n=407samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 5.3061,
+            "range": "±0.52%",
+            "unit": "ms",
+            "extra": "p99=6.417ms, n=377samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 5.2535,
+            "range": "±0.35%",
+            "unit": "ms",
+            "extra": "p99=6.052ms, n=381samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 5.2678,
+            "range": "±0.35%",
+            "unit": "ms",
+            "extra": "p99=5.956ms, n=380samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 9.9376,
+            "range": "±0.70%",
+            "unit": "ms",
+            "extra": "p99=11.173ms, n=202samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 10.7898,
+            "range": "±1.78%",
+            "unit": "ms",
+            "extra": "p99=15.114ms, n=186samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 11.043,
+            "range": "±1.95%",
+            "unit": "ms",
+            "extra": "p99=15.263ms, n=182samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 10.9226,
+            "range": "±1.85%",
+            "unit": "ms",
+            "extra": "p99=15.794ms, n=184samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 19.0238,
+            "range": "±0.17%",
+            "unit": "ms",
+            "extra": "p99=19.615ms, n=106samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0102,
+            "range": "±0.24%",
+            "unit": "ms",
+            "extra": "p99=0.019ms, n=196411samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0102,
+            "range": "±0.23%",
+            "unit": "ms",
+            "extra": "p99=0.018ms, n=196862samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0101,
+            "range": "±0.25%",
+            "unit": "ms",
+            "extra": "p99=0.018ms, n=197392samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 11.8872,
+            "range": "±1.10%",
+            "unit": "ms",
+            "extra": "p99=14.446ms, n=169samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0029,
+            "range": "±0.27%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=689548samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0029,
+            "range": "±0.29%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=689303samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0029,
+            "range": "±0.28%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=689337samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.6897,
+            "range": "±0.04%",
+            "unit": "ms",
+            "extra": "p99=242.619ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.6489,
+            "range": "±0.02%",
+            "unit": "ms",
+            "extra": "p99=272.125ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.2297,
+            "range": "±0.06%",
+            "unit": "ms",
+            "extra": "p99=30.545ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.2348,
+            "range": "±0.16%",
+            "unit": "ms",
+            "extra": "p99=30.613ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 53.6936,
+            "range": "±43.00%",
+            "unit": "ms",
+            "extra": "p99=343.932ms, n=64samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 53.3592,
+            "range": "±11.48%",
+            "unit": "ms",
+            "extra": "p99=146.579ms, n=64samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 54.5715,
+            "range": "±9.16%",
+            "unit": "ms",
+            "extra": "p99=117.181ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
