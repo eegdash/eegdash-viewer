@@ -1300,10 +1300,10 @@
     // Notebooks and docs embed the viewer in an <iframe> and hand it
     // in-memory files — no server, no CORS, no Range requests:
     //   frame.contentWindow.postMessage(
-    //     { type: 'eegdash-viewer:open', files: [File, …], pose: url|null },
+    //     { type: 'eegdash-viewer:open', files: [File, …], pose: url|Blob|null },
     //     'https://eegdash.github.io');
-    // Files are structured-cloned (Blobs are zero-copy); `pose` is any
-    // URL fetch() accepts, data: URLs included. The viewer announces
+    // Files are structured-cloned (Blobs are zero-copy); `pose` is a Blob
+    // or any URL fetch() accepts, data: URLs included. The viewer announces
     // itself with { type: 'eegdash-viewer:ready' } once boot() ran so
     // hosts don't race the iframe load. Any origin may post: the
     // payload only selects what to render (same trust as a drag-drop)
@@ -1324,7 +1324,11 @@
           status.replaceChildren(el('span', 'err', `${BRIDGE_OPEN}: no files in message`));
           return;
         }
-        openLocalFiles(files, { pose: typeof msg.pose === 'string' ? msg.pose : null });
+        // `pose` is a URL string, or a Blob/File — hosts that already hold
+        // the sidecar in memory post it directly instead of paying base64.
+        const pose = typeof msg.pose === 'string' ? msg.pose
+          : (msg.pose && typeof msg.pose.text === 'function' ? msg.pose : null);
+        openLocalFiles(files, { pose });
       });
       const parent = globalThis.parent;
       if (parent && parent !== globalThis) {

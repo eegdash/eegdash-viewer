@@ -76,3 +76,18 @@ test('load: a stale fetch that resolves after clear() is dropped', async () => {
   assert.ok(ctl.root.hasAttribute('hidden'), 'panel stays hidden');
   assert.equal(toggleBtn.hidden, true);
 });
+
+test('openUrl: a Blob sidecar is parsed without fetch()', async () => {
+  let fetches = 0;
+  globalThis.fetch = async () => { fetches++; return { ok: false, status: 404 }; };
+  const sidecar = {
+    format: 'eegdash-pose', version: 1, fs: 10, n_frames: 1, n_joints: 2, bones: [0, 1],
+    positions: { encoding: 'base64-f32', data: Buffer.from(new Float32Array(6).buffer).toString('base64') },
+  };
+  const blob = new globalThis.window.Blob([JSON.stringify(sidecar)], { type: 'application/json' });
+  PosePanel.openUrl(blob);
+  await new Promise(r => setTimeout(r, 5));
+  assert.equal(fetches, 0, 'a Blob is read directly, never fetched');
+  const caption = globalThis.document.querySelector('.pose-caption');
+  assert.ok(!/pose load failed/.test(caption.textContent), caption.textContent);
+});

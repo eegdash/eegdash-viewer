@@ -101,6 +101,35 @@ test('bridge: pose url opens the shared pose panel; a later open without pose hi
   }
 });
 
+test('bridge: a Blob pose is forwarded as-is (no base64 data: URL)', async () => {
+  const opened = [];
+  const origOpen = PosePanel.openUrl;
+  PosePanel.openUrl = (u) => { opened.push(u); return {}; };
+  try {
+    const file = new globalThis.window.File([new Uint8Array(64)], 'sub-03_emg.bdf');
+    const blob = new globalThis.window.Blob(['{}'], { type: 'application/json' });
+    post({ type: 'eegdash-viewer:open', files: [file], pose: blob });
+    await new Promise(r => setTimeout(r, 20));
+    assert.equal(opened.length, 1);
+    assert.equal(opened[0], blob, 'the Blob reaches PosePanel untouched');
+  } finally { PosePanel.openUrl = origOpen; }
+});
+
+test('bridge: a non-string, non-Blob pose is dropped rather than forwarded', async () => {
+  const opened = [];
+  const origOpen = PosePanel.openUrl, origHide = PosePanel.hideActive;
+  let hidden = 0;
+  PosePanel.openUrl = (u) => { opened.push(u); return {}; };
+  PosePanel.hideActive = () => { hidden++; };
+  try {
+    const file = new globalThis.window.File([new Uint8Array(64)], 'sub-04_emg.bdf');
+    post({ type: 'eegdash-viewer:open', files: [file], pose: { nope: 1 } });
+    await new Promise(r => setTimeout(r, 20));
+    assert.deepEqual(opened, []);
+    assert.equal(hidden, 1);
+  } finally { PosePanel.openUrl = origOpen; PosePanel.hideActive = origHide; }
+});
+
 test('bridge: ignores foreign / malformed messages', async () => {
   const before = globalThis.document.getElementById('status').textContent;
   post({ type: 'something-else', files: [] });

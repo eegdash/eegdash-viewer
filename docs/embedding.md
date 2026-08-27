@@ -21,7 +21,7 @@ docked to the right of the canvas (`p` or the **hand** pill toggles it).
 | direction | message | notes |
 |---|---|---|
 | viewer → `window.parent` | `{ type: 'eegdash-viewer:ready' }` | posted once `Viewer.boot()` ran (target origin `*`); while framed and idle the stage reads "Waiting for the host page to send a recording" |
-| host → viewer | `{ type: 'eegdash-viewer:open', files: File[], pose?: string \| null }` | `files` are structured-cloned; the first `*_{eeg,ieeg,emg,meg,nirs}.<ext>` is the recording, siblings (`.eeg/.vmrk`, `.fdt`, `_channels.tsv`, `_events.tsv`) are registered next to it. `pose` is any URL `fetch()` accepts, `data:` URLs included; omitting it hides a previously shown hand panel. |
+| host → viewer | `{ type: 'eegdash-viewer:open', files: File[], pose?: Blob \| string \| null }` | `files` are structured-cloned; the first `*_{eeg,ieeg,emg,meg,nirs}.<ext>` is the recording, siblings (`.eeg/.vmrk`, `.fdt`, `_channels.tsv`, `_events.tsv`) are registered next to it. `pose` is a `Blob`/`File` holding the sidecar JSON, or any URL `fetch()` accepts (`data:` included); omitting it hides a previously shown hand panel. Prefer the `Blob`: a `data:` URL costs the host 33 % in base64 for bytes it already has. |
 
 The bridge takes exactly the drag-and-drop path (`HttpRange.registerLocal`
 → `load()`), so every format the viewer reads from a drop works here.

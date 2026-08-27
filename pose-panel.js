@@ -817,13 +817,22 @@
     // Only the newest load() may touch `parsed`: a slow sidecar fetch
     // that resolves after clear() or a newer load() is dropped.
     let loadSeq = 0;
-    async function load(url) {
+    async function load(src) {
       const seq = ++loadSeq;
       if (toggleBtn) toggleBtn.hidden = false;
       try {
-        const res = await globalThis.fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const next = parseSidecar(await res.json());
+        // `src` is a URL string, or a Blob/File handed over by the host
+        // bridge. Taking the Blob directly spares the host the +33 % a
+        // `data:` URL costs, and spares us an object-URL to revoke.
+        let json;
+        if (src && typeof src !== 'string' && typeof src.text === 'function') {
+          json = JSON.parse(await src.text());
+        } else {
+          const res = await globalThis.fetch(src);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          json = await res.json();
+        }
+        const next = parseSidecar(json);
         if (seq !== loadSeq) return;
         parsed = next;
         home = parsed.camera || DEFAULT_CAM;
@@ -899,18 +908,19 @@
   let _active = null;
 
   /**
-   * Open a sidecar URL on the shared controller: mounts (and wires
-   * keys) on first use, then just reloads — hosts that push a new
-   * recording (postMessage bridge, drag-drop) never stack panels.
+   * Open a sidecar on the shared controller: mounts (and wires keys) on
+   * first use, then just reloads — hosts that push a new recording
+   * (postMessage bridge, drag-drop) never stack panels. `src` is a URL
+   * string or a Blob/File.
    */
-  function openUrl(url) {
+  function openUrl(src) {
     if (!_active) {
       const toggleButton = globalThis.document?.getElementById('pose-toggle') || null;
       _active = mount({ toggleButton });
       attachKeys(_active);
       if (toggleButton) toggleButton.addEventListener('click', () => _active.toggle());
     }
-    _active.load(url);
+    _active.load(src);
     return _active;
   }
 

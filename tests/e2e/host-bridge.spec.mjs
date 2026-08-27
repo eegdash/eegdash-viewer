@@ -106,3 +106,33 @@ test('host bridge: a second open without a sidecar hides the hand and swaps the 
   await expect(frame.locator('.pose-panel')).toBeHidden();
   await expect(frame.locator('#traces')).toBeVisible({ timeout: 30_000 });
 });
+
+test('host bridge: a Blob pose renders the same hand as the data: URL', async ({ page }) => {
+  // What braindecode's cell now posts: the sidecar as JSON text wrapped in a
+  // Blob, instead of paying base64 for a data: URL the viewer only parses.
+  const errors = [];
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('pageerror', e => errors.push(String(e)));
+
+  await page.setContent(HOST_HTML);
+  await page.evaluate(() => window.__ready);
+  const frame = page.frameLocator('#v');
+
+  const b64 = fs.readFileSync(EMG).toString('base64');
+  const poseText = fs.readFileSync(POSE, 'utf8');
+  await page.evaluate(async ([b64, poseText]) => {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const file = new File([bytes], 'sub-01_ses-02_task-emg2pose_run-17_recording-left_emg.edf');
+    document.getElementById('v').contentWindow.postMessage({
+      type: 'eegdash-viewer:open',
+      files: [file],
+      pose: new Blob([poseText], { type: 'application/json' }),
+    }, '*');
+  }, [b64, poseText]);
+
+  await expect(frame.locator('#traces')).toBeVisible({ timeout: 30_000 });
+  const panel = frame.locator('.pose-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('.pose-caption')).toHaveText(/t = \d+\.\d{3} s · mesh/);
+  expect(errors, `console errors: ${errors.join('\n')}`).toEqual([]);
+});
