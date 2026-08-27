@@ -21,6 +21,11 @@
   --accent:    oklch(0.55 0.15 240);
   --accent-soft: oklch(0.92 0.04 240);
   --bad:       #D55E00;       /* Okabe-Ito vermillion, also used by traces.js */
+  /* Text-only vermillion. --bad is 3.87:1 on white, which fails WCAG AA
+     for text; this is 4.95:1 and stays in the same Okabe-Ito family.
+     Do NOT use it on the canvas — traces.js must keep --bad so bad
+     channels stay the exact Okabe-Ito hue. */
+  --bad-text:  #B85200;
   --good:      oklch(0.62 0.14 150);
 
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -31,6 +36,10 @@
      `font: var(--label-font); letter-spacing: var(--label-tracking);
      text-transform: uppercase;` to match every other label. */
   --label-tracking: 0.12em;
+
+  /* One focus ring for the whole app. See DESIGN.md §8. */
+  --focus-ring: 2px solid var(--accent);
+  --focus-offset: 2px;
 }
 
 * { box-sizing: border-box; }
@@ -62,11 +71,35 @@ code {
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 ::-webkit-scrollbar-track { background: transparent; }
 
+/* ----- focus ---------------------------------------------- */
+
+/* This viewer is driven from the keyboard (←/→, PgUp/PgDn, +/−, [/],
+   b, i, ?). Every focusable control gets one ring, defined once.
+   :focus-visible, so pointer users never see it. The three
+   `outline: none` suppressions that used to sit on the filter inputs
+   and the window select were removed in favour of this. */
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  border-radius: 3px;
+}
+
+/* The canvas and the rail scroll inside overflow-clipped parents, so a
+   positive offset would be shaved off. Ring them on the inside. */
+.traces:focus-visible,
+.ch-row:focus-visible,
+.ev-row:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: -2px;
+}
+.ch-row:focus-visible,
+.ev-row:focus-visible { background: var(--bg-2); }
+
 .app {
   display: grid;
   grid-template-columns: 320px 1fr;
   grid-template-rows: 52px 1fr;
-  height: 100vh;
+  height: 100dvh;          /* dvh, not vh — vh is clipped under mobile toolbars */
 }
 
 /* ----- header --------------------------------------------- */
@@ -254,7 +287,7 @@ code {
 }
 .status strong { font-weight: 500; }
 .status .err {
-  color: var(--bad);
+  color: var(--bad-text);   /* --bad is 3.87:1 on white — fails AA for text */
   font-weight: 500;
   letter-spacing: 0.04em;
 }
@@ -308,11 +341,16 @@ code {
 .ch-row:hover, .ev-row:hover { background: var(--bg-2); }
 .ch-row.is-bad { background: color-mix(in oklab, var(--bad) 6%, transparent); }
 .ch-name { font-weight: 500; color: var(--ink); }
+/* Channel type, units, and event labels are DATA read from the
+   recording — never text-transform them. `mV` uppercased reads as
+   megavolt, and an event named `stim_on/2` must render verbatim.
+   They keep the muted/small treatment; only the casing is theirs.
+   See DESIGN.md §4. */
 .ch-type, .ch-units, .ev-label {
   color: var(--muted);
   font-size: 10px;
   letter-spacing: 0.04em;
-  text-transform: uppercase;
+  text-transform: none;
 }
 .ev-onset {
   color: var(--accent);
@@ -460,7 +498,6 @@ code {
   padding: 3px 6px;
   width: 100%;
   min-width: 0;
-  outline: none;
   -moz-appearance: textfield;
 }
 .filter-row input[type="number"]::-webkit-outer-spin-button,
@@ -481,19 +518,20 @@ code {
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 3px 6px;
-  outline: none;
   cursor: pointer;
   grid-column: 2 / -1;
 }
 .filter-row select:hover { border-color: var(--ink-2); }
 .filter-row select:focus { border-color: var(--accent); }
 
+/* Renders the unit "Hz". Uppercasing it gives "HZ", which is not a
+   unit. Overrides the uppercase inherited from .filter-row. */
 .filter-unit {
   font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.08em;
   color: var(--muted);
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 /* ----- view controls -------------------------------------- */
@@ -515,16 +553,19 @@ code {
   gap: 10px;
 }
 
+/* The options read "2 s", "10 s", "30 s". Uppercasing gives "10 S" —
+   siemens, not seconds. The container's uppercase is for the bare
+   "Window"/"Gain" label text nodes only; every descendant that
+   carries a value opts out. */
 .view-controls select {
   font: inherit;
-  text-transform: uppercase;
+  text-transform: none;
   letter-spacing: 0.04em;
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 5px 8px;
-  outline: none;
   cursor: pointer;
 }
 .view-controls select:hover { border-color: var(--ink-2); }
@@ -566,19 +607,42 @@ code {
   background: var(--ink);
   border: 2px solid var(--bg);
 }
+/* Reads "1.00× (~47 µV/slot)" — the µ/m prefix is significant, so this
+   must not inherit .view-controls' uppercase. mV vs MV is six orders
+   of magnitude. */
+/* Reads "1.00× (~47 µV/slot)" — the µ/m prefix is significant, so this
+   must not inherit .view-controls' uppercase. mV vs MV is six orders
+   of magnitude.
+   min-width stays 38px: reserving the full ~116px of the readout pushes
+   the grid track past the rail's content box and clips the text (73px
+   of it at a 268px rail). Wrapping onto a second line is the correct
+   graceful degradation here. */
+/* The readout is ~130px of effectively unbreakable text. A range input
+   has a ~129px intrinsic min-width, so the 1fr slider track refuses to
+   yield and the readout gets squeezed until its text spills past the
+   rail. minmax(0,1fr) + min-width:0 releases the slider; nowrap then
+   keeps the readout on one line. */
+.view-controls label { grid-template-columns: 56px minmax(0, 1fr) auto; }
+.view-controls input[type="range"] { min-width: 0; }
+
 #gain-readout {
   color: var(--ink);
-  min-width: 38px;
+  min-width: 0;
+  white-space: nowrap;
   text-align: right;
+  text-transform: none;
   font-variant-numeric: tabular-nums;
 }
 
+/* Prose, not a label. Tracked uppercase is legible for two words and
+   hostile for a sentence — sentence case and near-zero tracking here.
+   See DESIGN.md §4. */
 .view-tip {
   margin-top: 12px;
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  text-transform: none;
   color: var(--muted);
   line-height: 1.6;
 }
@@ -695,7 +759,10 @@ code {
    from the loaded recording's metadata. */
 .stage-caption {
   position: absolute;
-  bottom: 14px;
+  /* traces.js reserves the bottom PAD_BOTTOM (28px) of the canvas for
+     the time axis. At 14px the caption sat inside that band and
+     collided with the "0.00 s" tick label. 40px clears it. */
+  bottom: 40px;
   left: 18px;
   pointer-events: none;
   font-family: var(--mono);
@@ -709,7 +776,15 @@ code {
   z-index: 2;
 }
 .stage-caption[hidden] { display: none; }
-.stage-caption .val { color: var(--ink-2); font-weight: 500; }
+/* The .val spans read "100 Hz" and "4.0 s" — units, so they opt out of
+   the caption's uppercase. The bare format name is already uppercased
+   in viewer.js (renderStageCaption), which is a naming convention, not
+   a unit. */
+.stage-caption .val {
+  color: var(--ink-2);
+  font-weight: 500;
+  text-transform: none;
+}
 .stage-caption .sep { color: var(--ink-3); }
 
 /* ----- cursor readout ------------------------------------ */
@@ -844,6 +919,11 @@ body.embed .status .err { white-space: normal; }
 body.embed .view-controls { flex-direction: row; gap: 14px; }
 body.embed .view-controls label { grid-template-columns: auto auto auto; gap: 6px; }
 body.embed .view-controls input[type="range"] { width: 72px; }
+/* The embed toolbar is one flex row that wraps. The standalone readout
+   is nowrap so it stays on a single line in the rail; here it must be
+   allowed to wrap internally, or the whole toolbar wraps to a second
+   row and doubles its height (the test gate is < 44px). */
+body.embed #gain-readout { white-space: normal; text-align: left; }
 body.embed #filter-controls { flex-direction: row; gap: 10px; }
 body.embed .filter-row { padding: 0; gap: 6px; }
 
@@ -1180,6 +1260,7 @@ body.drag-active::after {
   border-bottom: 1px solid var(--line-2);
 }
 .pose-title {
+  flex: 1;                 /* title left, save + close buttons right */
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: var(--label-tracking);
@@ -1208,4 +1289,58 @@ body.drag-active::after {
   font-size: 10px;
   color: var(--muted);
   padding: 4px 10px 6px;
+}
+
+/* ----- responsive ----------------------------------------- */
+
+/* Two steps only. At laptop widths the rail just narrows. Below 760px
+   the two-column grid cannot hold both a readable rail and a usable
+   canvas, so it reflows to a single column: the rail becomes a capped
+   scrolling strip and the stage takes the rest.
+   viewer.js runs a ResizeObserver on #traces, so the canvas redraws
+   itself on reflow — this is CSS-only. See DESIGN.md §6. */
+
+@media (max-width: 1080px) {
+  .app { grid-template-columns: 268px 1fr; }
+  .brand-sub { display: none; }          /* the tagline is the first thing to go */
+  /* 268px cannot hold label + slider + a 130px readout on one row, so
+     the readout drops to its own row under the slider. */
+  .view-controls label { grid-template-columns: 56px minmax(0, 1fr); }
+  #gain-readout { grid-column: 2; }
+}
+
+@media (max-width: 760px) {
+  .app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 38dvh) minmax(0, 1fr);
+  }
+  .header {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding: 8px 14px;
+  }
+  .header-right {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;               /* the pills scroll, they do not wrap */
+  }
+  .header-right::-webkit-scrollbar { display: none; }
+  .brand-eegdash { margin-left: auto; }
+
+  .rail.left {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    padding: 14px 14px 18px;
+  }
+  /* The stage must never be squeezed out by the rail's content. */
+  .stage { min-height: 0; }
+  .ch-list, .ev-list { max-height: 160px; }
+}
+
+/* On a phone the rail's entry stagger reads as jank on an already
+   cramped screen, and the drag/arrow-key tip is desktop-only advice. */
+@media (max-width: 480px) {
+  .rail.left .rail-section { animation: none; }
+  .view-tip { display: none; }
 }

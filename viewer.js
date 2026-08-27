@@ -148,7 +148,9 @@
   // onSwatchClick: (type, newColor) → void
   function renderChannelColors(channels, containerEl, typeColors, onSwatchClick) {
     if (!channels || !channels.length) {
-      containerEl.replaceChildren();
+      // Without this the "Channel Colors" heading renders with nothing
+      // under it, which reads as a broken panel rather than an empty one.
+      setChildren(containerEl, el('div', 'muted', 'no channel types yet'));
       return;
     }
     // Compute distinct types in encounter order.

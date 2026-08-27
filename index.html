@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
-<link rel="stylesheet" href="styles.css?v=3" />
+<link rel="stylesheet" href="styles.css?v=4" />
 <script src="bids-loader.js?v=1"></script>
 <script src="formats/_buffers.js?v=1"></script>
 <script src="formats/_labels.js?v=1"></script>
@@ -76,7 +76,7 @@
      (all integration points are optional-chained globals). -->
 <script src="pose-kinematics.js?v=1"></script>
 <script src="pose-panel.js?v=1"></script>
-<script src="viewer.js?v=9"></script>
+<script src="viewer.js?v=10"></script>
 <script src="perf.js?v=1"></script>
 </head>
 <body>
@@ -188,12 +188,12 @@
 
     <section class="rail-section" data-embed="hide">
       <h3 class="rail-title"><span>Channels</span><span id="channel-count" class="count">0</span></h3>
-      <div class="ch-list" id="ch-list"></div>
+      <div class="ch-list" id="ch-list" tabindex="0" role="group" aria-label="Channel list"></div>
     </section>
 
     <section class="rail-section" data-embed="hide">
       <h3 class="rail-title"><span>Events</span><span id="event-count" class="count">0</span></h3>
-      <div class="ev-list" id="ev-list"></div>
+      <div class="ev-list" id="ev-list" tabindex="0" role="group" aria-label="Event list"></div>
     </section>
   </aside>
 
