@@ -49,7 +49,7 @@
 
   function createWorkerRpc(opts) {
     opts = opts || {};
-    const workerUrl = opts.workerUrl || 'worker.js?v=2';
+    const workerUrl = opts.workerUrl || 'worker.js?v=3';
 
     let worker = null;
     let workerReadyResolve = null;

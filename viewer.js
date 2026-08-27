@@ -401,7 +401,7 @@
     // `workerFetchWindow(Streaming)` aliases the rest of boot() reaches.
     const _RpcMod = (typeof globalThis !== 'undefined' && globalThis.ViewerWorkerRpc)
       || (typeof require !== 'undefined' ? require('./viewer/worker-rpc.js') : null);
-    const rpc = _RpcMod.createWorkerRpc({ workerUrl: 'worker.js?v=2' });
+    const rpc = _RpcMod.createWorkerRpc({ workerUrl: 'worker.js?v=3' });
     const worker = rpc.worker;
     const workerReadyPromise = rpc.ready;
     const workerFetchWindow = rpc.fetchWindow;
