@@ -115,12 +115,28 @@
                 totalSamples = 0;
               }
               const chunkLen = chunkChannels[0].length;
-              // Guard against buffer overflow (can happen on rapid abort+restart)
-              if (totalSamples + chunkLen > windowSamples) break;
-              for (let c = 0; c < assembledChannels.length; c++) {
-                assembledChannels[c].set(chunkChannels[c], totalSamples);
+              // The final (partial: false) chunk carries the COMPLETE assembled
+              // window, not the next increment -- see the "Send final chunk
+              // (assembled full window)" post in worker.js. Appending it would
+              // push totalSamples past windowSamples, trip the overflow guard
+              // below, and `break` before the `if (!partial)` block that caches
+              // lastChannels. That left the cursor readout permanently dead for
+              // any recording that streamed, and forced a full worker
+              // round-trip for renders that should have hit the fast path.
+              // Adopt it wholesale instead.
+              if (!partial) {
+                for (let c = 0; c < assembledChannels.length; c++) {
+                  assembledChannels[c].set(chunkChannels[c].subarray(0, windowSamples), 0);
+                }
+                totalSamples = Math.min(chunkLen, windowSamples);
+              } else {
+                // Guard against buffer overflow (can happen on rapid abort+restart)
+                if (totalSamples + chunkLen > windowSamples) break;
+                for (let c = 0; c < assembledChannels.length; c++) {
+                  assembledChannels[c].set(chunkChannels[c], totalSamples);
+                }
+                totalSamples += chunkLen;
               }
-              totalSamples += chunkLen;
 
               // Determine which samples to paint in this partial step
               const visibleChannels = assembledChannels.map(ch => ch.subarray(0, totalSamples));
