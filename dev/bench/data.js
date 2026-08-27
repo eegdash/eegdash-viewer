@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787740765500,
+  "lastUpdate": 1787829338375,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -2703,6 +2703,233 @@ window.BENCHMARK_DATA = {
             "range": "±4.05%",
             "unit": "ms",
             "extra": "p99=48.536ms, n=74samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "73fdf240d6a1ecf9643e9cb6d607d9bf50bfaedf",
+          "message": "Merge branch 'fix/frontend-defect-pass'\n\nFrontend defect pass: units and event labels no longer destroyed by\ntext-transform, responsive layout so the canvas survives narrow\nviewports, a single focus-visible ring, WCAG AA fixes on error text and\ncanvas labels, time-axis tick density scaled to plot width, and a worker\ndedup fix where a cancelled stream stranded the live request that had\ndeduped onto it. Adds DESIGN.md.\n\ne2e 32/32, unit 1038/1038, typecheck clean.",
+          "timestamp": "2026-08-27T13:11:55+02:00",
+          "tree_id": "d9d290f9e93c4248f4f7faecd826f4a91e5ff72f",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/73fdf240d6a1ecf9643e9cb6d607d9bf50bfaedf"
+        },
+        "date": 1787829337677,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.5194,
+            "range": "±2.00%",
+            "unit": "ms",
+            "extra": "p99=4.483ms, n=794samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.5096,
+            "range": "±2.02%",
+            "unit": "ms",
+            "extra": "p99=4.437ms, n=798samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.5055,
+            "range": "±2.00%",
+            "unit": "ms",
+            "extra": "p99=4.448ms, n=799samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.5592,
+            "range": "±2.49%",
+            "unit": "ms",
+            "extra": "p99=7.976ms, n=440samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.9099,
+            "range": "±2.39%",
+            "unit": "ms",
+            "extra": "p99=9.683ms, n=408samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.9389,
+            "range": "±2.27%",
+            "unit": "ms",
+            "extra": "p99=8.610ms, n=406samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.9157,
+            "range": "±2.22%",
+            "unit": "ms",
+            "extra": "p99=8.461ms, n=407samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 9.2094,
+            "range": "±2.43%",
+            "unit": "ms",
+            "extra": "p99=13.329ms, n=218samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 10.2134,
+            "range": "±2.45%",
+            "unit": "ms",
+            "extra": "p99=13.511ms, n=196samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 10.1039,
+            "range": "±2.46%",
+            "unit": "ms",
+            "extra": "p99=13.703ms, n=198samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 10.1784,
+            "range": "±2.47%",
+            "unit": "ms",
+            "extra": "p99=13.649ms, n=197samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 17.5515,
+            "range": "±2.23%",
+            "unit": "ms",
+            "extra": "p99=24.359ms, n=114samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0103,
+            "range": "±0.26%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=194856samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0107,
+            "range": "±0.35%",
+            "unit": "ms",
+            "extra": "p99=0.023ms, n=187345samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0103,
+            "range": "±0.50%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=194978samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 8.2133,
+            "range": "±1.11%",
+            "unit": "ms",
+            "extra": "p99=10.345ms, n=244samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0028,
+            "range": "±0.26%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=711704samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0028,
+            "range": "±0.33%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=705698samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0028,
+            "range": "±0.27%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=708889samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.8136,
+            "range": "±0.03%",
+            "unit": "ms",
+            "extra": "p99=242.909ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 272.0388,
+            "range": "±0.03%",
+            "unit": "ms",
+            "extra": "p99=273.017ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.2643,
+            "range": "±0.12%",
+            "unit": "ms",
+            "extra": "p99=30.893ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.2873,
+            "range": "±0.12%",
+            "unit": "ms",
+            "extra": "p99=30.943ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 17.9785,
+            "range": "±2.10%",
+            "unit": "ms",
+            "extra": "p99=23.306ms, n=112samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 28.2958,
+            "range": "±12.80%",
+            "unit": "ms",
+            "extra": "p99=79.054ms, n=71samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 38.2294,
+            "range": "±14.52%",
+            "unit": "ms",
+            "extra": "p99=115.617ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
