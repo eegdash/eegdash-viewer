@@ -155,6 +155,26 @@ test('stimulus cursor selection survives a window repaint', () => {
   }
 });
 
+test('sparse stimulus assets hide when the nearest event is missing', () => {
+  const StimulusPanel = globalThis.StimulusPanel;
+  const events = [
+    { onset: 1, stimulus_id: 'missing', label: 'nearest' },
+    { onset: 2, stimulus_id: 'present', label: 'farther' },
+  ];
+  try {
+    StimulusPanel.setAssets({ present: 'data:image/svg+xml,present' });
+    StimulusPanel.syncWindow(events, 1);
+    assert.equal(globalThis.document.querySelector('#stimulus-panel').hidden, true);
+    StimulusPanel.syncCursor(events, 1);
+    assert.equal(globalThis.document.querySelector('#stimulus-panel').hidden, true);
+
+    StimulusPanel.syncCursor(events, 2);
+    assert.equal(globalThis.document.querySelector('#stimulus-image').dataset.stimulusId, 'present');
+  } finally {
+    StimulusPanel.clear();
+  }
+});
+
 test('pointerleave restores the current window-centre stimulus', () => {
   const StimulusPanel = globalThis.StimulusPanel;
   const events = [

@@ -68,7 +68,7 @@
     let distance = Infinity;
     for (const event of events) {
       const id = event?.stimulus_id;
-      if (typeof id !== 'string' || !id || !Object.prototype.hasOwnProperty.call(assets, id)) continue;
+      if (typeof id !== 'string' || !id) continue;
       const onset = Number(event.onset);
       if (!Number.isFinite(onset)) continue;
       const nextDistance = Math.abs(onset - tSec);
