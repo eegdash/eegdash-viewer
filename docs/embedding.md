@@ -4,7 +4,9 @@ The deployed viewer (`https://eegdash.github.io/eegdash-viewer/`) can be
 framed by any page. `?embed=1` switches to the compact layout: header
 pills, a one-row toolbar (recording · window · gain · HP/LP/notch), the
 traces canvas, and — when a pose sidecar is loaded — the hand panel
-docked to the right of the canvas (`p` or the **hand** pill toggles it).
+docked to the right of the canvas (`p` or the **hand** pill toggles it). When
+the host also supplies BIDS image assets, an event-aligned stimulus dock sits
+beside the same traces.
 
 ## Two ways to hand the viewer a recording
 
@@ -21,7 +23,7 @@ docked to the right of the canvas (`p` or the **hand** pill toggles it).
 | direction | message | notes |
 |---|---|---|
 | viewer → `window.parent` | `{ type: 'eegdash-viewer:ready' }` | posted once `Viewer.boot()` ran (target origin `*`); while framed and idle the stage reads "Waiting for the host page to send a recording" |
-| host → viewer | `{ type: 'eegdash-viewer:open', files: File[], pose?: Blob \| string \| null }` | `files` are structured-cloned; the first `*_{eeg,ieeg,emg,meg,nirs}.<ext>` is the recording, siblings (`.eeg/.vmrk`, `.fdt`, `_channels.tsv`, `_events.tsv`) are registered next to it. `pose` is a `Blob`/`File` holding the sidecar JSON, or any URL `fetch()` accepts (`data:` included); omitting it hides a previously shown hand panel. Prefer the `Blob`: a `data:` URL costs the host 33 % in base64 for bytes it already has. |
+| host → viewer | `{ type: 'eegdash-viewer:open', files: File[], pose?: Blob \| string \| null, stimuli?: Record<string, Blob \| string> }` | `files` are structured-cloned; the first `*_{eeg,ieeg,emg,meg,nirs}.<ext>` is the recording, siblings (`.eeg/.vmrk`, `.fdt`, `_channels.tsv`, `_events.tsv`) are registered next to it. `pose` is a `Blob`/`File` holding the sidecar JSON, or any URL `fetch()` accepts (`data:` included); omitting it hides a previously shown hand panel. `stimuli` maps numeric BIDS image IDs to image Blobs or URLs; it remains outside `files`, so image bytes never enter the EEG worker. |
 
 The bridge takes exactly the drag-and-drop path (`HttpRange.registerLocal`
 → `load()`), so every format the viewer reads from a drop works here.
@@ -37,10 +39,12 @@ viewer holds no credentials.
   async function send() {
     if (sent) return; sent = true;
     const buf = await (await fetch('data:application/octet-stream;base64,…')).arrayBuffer();
+    const imageBytes = await (await fetch('data:image/jpeg;base64,…')).arrayBuffer();
     frame.contentWindow.postMessage({
       type: 'eegdash-viewer:open',
       files: [new File([buf], 'sub-01_task-x_emg.bdf')],
       pose: 'data:application/json;base64,…',   // or null
+      stimuli: { '16595': new Blob([imageBytes], { type: 'image/jpeg' }) },
     }, 'https://eegdash.github.io');
   }
   addEventListener('message', e => {

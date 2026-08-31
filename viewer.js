@@ -320,13 +320,15 @@
       // (pose-panel.js) if one is attached. Runs before the early
       // returns so pose sync is not coupled to the gain node existing.
       const PosePanel = globalThis.PosePanel;
-      if (PosePanel && readerInfo && Number.isFinite(view.start_sec)) {
+      const StimulusPanel = globalThis.StimulusPanel;
+      if ((PosePanel || StimulusPanel) && readerInfo && Number.isFinite(view.start_sec)) {
         // Centre on what is on screen: the last window of a recording
         // (or a 2 s recording in a 10 s window) is shorter than nominal.
         const shown = Number.isFinite(readerInfo.duration_s)
           ? Math.max(0, Math.min(view.window_sec, readerInfo.duration_s - view.start_sec))
           : view.window_sec;
-        PosePanel.syncWindow(view.start_sec, shown);
+        PosePanel?.syncWindow(view.start_sec, shown);
+        StimulusPanel?.syncWindow(metaEvents || [], view.start_sec + shown / 2);
       }
       const tr = globalThis.TraceRenderer;
       // Channel page pill ("ch 1–25 of 36") when the 16px slot floor
@@ -601,6 +603,7 @@
       // F10: hover-time override for the hand-pose panel (falls back to
       // the window centre via its own TTL when the pointer leaves).
       if (globalThis.PosePanel) globalThis.PosePanel.syncCursor(tSec);
+      if (globalThis.StimulusPanel) globalThis.StimulusPanel.syncCursor(metaEvents || [], tSec);
 
       // Channel index: which vertical band does Y fall in?
       const yInPlot  = Math.max(0, Math.min(plotH, cssY - PAD_TOP));
@@ -1292,6 +1295,7 @@
         depth = 0; hasFiles = false; hide();
         const files = e.dataTransfer && e.dataTransfer.files;
         if (!files || !files.length) return;
+        globalThis.StimulusPanel?.clear();
         openLocalFiles(files);
       });
     }
@@ -1300,7 +1304,8 @@
     // Notebooks and docs embed the viewer in an <iframe> and hand it
     // in-memory files — no server, no CORS, no Range requests:
     //   frame.contentWindow.postMessage(
-    //     { type: 'eegdash-viewer:open', files: [File, …], pose: url|Blob|null },
+    //     { type: 'eegdash-viewer:open', files: [File, …], pose: url|Blob|null,
+    //       stimuli: { imageId: Blob|url } },
     //     'https://eegdash.github.io');
     // Files are structured-cloned (Blobs are zero-copy); `pose` is a Blob
     // or any URL fetch() accepts, data: URLs included. The viewer announces
@@ -1310,6 +1315,17 @@
     // and the viewer holds no credentials.
     const BRIDGE_OPEN = 'eegdash-viewer:open';
     const BRIDGE_READY = 'eegdash-viewer:ready';
+
+    function validStimuli(stimuli) {
+      if (!stimuli || typeof stimuli !== 'object' || Array.isArray(stimuli)) return {};
+      const valid = {};
+      for (const [id, asset] of Object.entries(stimuli)) {
+        if (/^\d+$/.test(id) && (typeof asset === 'string' || typeof asset?.slice === 'function')) {
+          valid[id] = asset;
+        }
+      }
+      return valid;
+    }
 
     function attachHostBridge(params) {
       // Same target as the drag-drop listeners above (window ===
@@ -1328,6 +1344,7 @@
         // the sidecar in memory post it directly instead of paying base64.
         const pose = typeof msg.pose === 'string' ? msg.pose
           : (msg.pose && typeof msg.pose.text === 'function' ? msg.pose : null);
+        globalThis.StimulusPanel?.setAssets(validStimuli(msg.stimuli));
         openLocalFiles(files, { pose });
       });
       const parent = globalThis.parent;

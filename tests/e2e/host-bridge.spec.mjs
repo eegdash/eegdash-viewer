@@ -24,6 +24,11 @@ const HOST_HTML = `<!doctype html><body style="margin:0;background:#fff">
   }));
 </script></body>`;
 
+const TINY_JPEG = Buffer.from(
+  '/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAH/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAEFAqf/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAEDAQE/AR//xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oACAECAQE/AR//2Q==',
+  'base64',
+);
+
 test('host bridge: File + pose data URL over postMessage renders traces and the hand', async ({ page }) => {
   const errors = [];
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -135,4 +140,60 @@ test('host bridge: a Blob pose renders the same hand as the data: URL', async ({
   await expect(panel).toBeVisible();
   await expect(panel.locator('.pose-caption')).toHaveText(/t = \d+\.\d{3} s · mesh/);
   expect(errors, `console errors: ${errors.join('\n')}`).toEqual([]);
+});
+
+test('host bridge: BIDS image assets follow the hovered event', async ({ page }) => {
+  await page.setContent(HOST_HTML);
+  await page.evaluate(() => window.__ready);
+  const frame = page.frameLocator('#v');
+  const b64 = fs.readFileSync(EMG).toString('base64');
+  const jpegB64 = TINY_JPEG.toString('base64');
+
+  await page.evaluate(async ([b64, jpegB64]) => {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const jpeg = Uint8Array.from(atob(jpegB64), c => c.charCodeAt(0));
+    const name = 'sub-01_ses-02_task-emg2pose_run-17_recording-left';
+    const recording = new File([bytes], `${name}_emg.edf`);
+    const events = new File([
+      'onset\tduration\ttrial_type\n' +
+      '0.250\t0\tstim_test,16595,-1,1\n' +
+      '1.500\t0\tstim_test,16596,-1,2\n',
+    ], `${name}_events.tsv`, { type: 'text/tab-separated-values' });
+    document.getElementById('v').contentWindow.postMessage({
+      type: 'eegdash-viewer:open',
+      files: [recording, events],
+      stimuli: {
+        '16595': new Blob([jpeg], { type: 'image/jpeg' }),
+        '16596': new Blob([jpeg], { type: 'image/jpeg' }),
+      },
+    }, '*');
+  }, [b64, jpegB64]);
+
+  await expect(frame.locator('#traces')).toBeVisible({ timeout: 30_000 });
+  await expect(frame.locator('#event-count')).toHaveText('2');
+  await expect(frame.locator('#stimulus-panel')).toBeVisible();
+
+  const trace = frame.locator('#traces');
+  const box = await trace.boundingBox();
+  const dock = await frame.locator('#stimulus-panel').boundingBox();
+  expect(dock.x).toBeGreaterThanOrEqual(box.x + box.width - 1);
+  const position = await trace.evaluate((canvas) => {
+    const renderer = window.TraceRenderer;
+    const plotWidth = canvas.clientWidth - renderer.PAD_LEFT - renderer.PAD_RIGHT;
+    return renderer.PAD_LEFT + (1.5 / 2) * plotWidth;
+  });
+  await page.mouse.move(box.x + position, box.y + box.height / 2);
+
+  const image = frame.locator('#stimulus-image');
+  await expect(image).toHaveAttribute('data-stimulus-id', '16596');
+  await expect(frame.locator('#stimulus-caption')).toContainText('16596');
+
+  await page.evaluate(async (b64) => {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const recording = new File([bytes], 'sub-01_ses-02_task-emg2pose_run-17_recording-left_emg.edf');
+    document.getElementById('v').contentWindow.postMessage({
+      type: 'eegdash-viewer:open', files: [recording],
+    }, '*');
+  }, b64);
+  await expect(frame.locator('#stimulus-panel')).toBeHidden();
 });

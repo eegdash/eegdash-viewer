@@ -49,6 +49,23 @@ const VALID_EEG_JSON = JSON.stringify({ SamplingFrequency: 256 });
 const VALID_CHANNELS_TSV = 'name\ttype\tunits\nFp1\tEEG\tuV\nFp2\tEEG\tuV\n';
 const VALID_EVENTS_TSV   = 'onset\tduration\ttrial_type\n1.0\t0.5\tStimulus\n';
 
+test('NM image labels expose the BIDS stimulus id', () => {
+  const [event] = BIDSRecording.parseEventsTsv(
+    'onset\tduration\ttrial_type\n1.5\t0\tstim_test,16595,-1,1\n'
+  );
+
+  assert.equal(event.stimulus_id, '16595');
+  assert.equal(event.label, 'stim_test,16595,-1,1');
+});
+
+test('BIDS stim_file values expose the normalized stimulus id', () => {
+  const [event] = BIDSRecording.parseEventsTsv(
+    'onset\tduration\ttrial_type\tstim_file\n1.5\t0\timage\tstimuli/16595.jpg\n'
+  );
+
+  assert.equal(event.stimulus_id, '16595');
+});
+
 // ----- test 1: all 5 hits null → stub with sampling_frequency=null --
 
 test('assembleRecordingMetadata: all sidecars null → sampling_frequency=null stub, no throw', async () => {

@@ -10,6 +10,9 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 globalThis.location = globalThis.window.location;
+const stage = globalThis.document.createElement('main');
+stage.id = 'stage';
+globalThis.document.body.appendChild(stage);
 for (const id of ['shortcuts-overlay', 'metadata-overlay']) {
   const el = globalThis.document.getElementById(id);
   if (el && !el.querySelector('.overlay-backdrop')) {
@@ -49,6 +52,7 @@ require('../formats/fiff.js');
 require('../traces.js');
 require('../filters.js');
 require('../pose-panel.js');
+require('../stimulus-panel.js');
 require('../viewer.js');
 
 const Viewer = globalThis.window.Viewer;
@@ -81,6 +85,28 @@ test('bridge: open message registers the file locally and starts load()', async 
   assert.ok(load, 'LOAD_FILE sent');
   assert.deepEqual(load.local_files.map(f => f.name), ['sub-01_task-x_emg.bdf']);
   assert.equal(load.local_files[0].blob.size, 512);
+});
+
+test('bridge keeps image blobs out of the EEG worker', async () => {
+  const edf = new globalThis.window.File([new Uint8Array(512)], 'sub-05_task-images_eeg.edf');
+  const jpegBlob = new Blob(['real-image-bytes'], { type: 'image/jpeg' });
+  post({
+    type: 'eegdash-viewer:open',
+    files: [edf],
+    stimuli: { '16595': jpegBlob },
+  });
+  await new Promise(r => setTimeout(r, 20));
+
+  const workerLoad = workerInstance.sent.filter(m => m.type === 'LOAD_FILE').at(-1);
+  assert.ok(workerLoad, 'LOAD_FILE sent');
+  assert.equal(workerLoad.local_files.some(file => file.name.endsWith('.jpg')), false);
+
+  const caption = globalThis.document.querySelector('#stimulus-caption');
+  assert.ok(caption, 'stimulus dock is mounted');
+  globalThis.StimulusPanel.syncWindow([
+    { onset: 1.5, stimulus_id: '16595', label: 'stim_test,16595,-1,1' },
+  ], 1.5);
+  assert.match(caption.textContent, /16595/);
 });
 
 test('bridge: pose url opens the shared pose panel; a later open without pose hides it', async () => {
