@@ -598,7 +598,14 @@
       // Clamp x to the plot area.
       const xInPlot = Math.max(0, Math.min(plotW, cssX - PAD_LEFT));
       const xFrac   = xInPlot / plotW;
-      const tSec    = lastStartSec + xFrac * lastWindowSec;
+      // The final trace window can be shorter than the selected duration at
+      // a recording boundary. Derive cursor time from the samples actually
+      // rendered so synchronized panels never select an off-trace event.
+      const renderedWindowSec = lastChannels[0].length / readerInfo.sampling_frequency;
+      const cursorWindowSec = Number.isFinite(renderedWindowSec)
+        ? renderedWindowSec
+        : lastWindowSec;
+      const tSec = lastStartSec + xFrac * cursorWindowSec;
 
       // F10: hover-time override for the hand-pose panel (falls back to
       // the window centre via its own TTL when the pointer leaves).

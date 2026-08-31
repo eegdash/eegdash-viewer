@@ -5,6 +5,7 @@
 (function () {
   let assets = {};
   let generatedUrl = null;
+  let activeSource = null;
 
   function isAsset(value) {
     return typeof value === 'string' || !!(value && typeof value.slice === 'function');
@@ -45,11 +46,13 @@
   }
 
   function hide() {
+    activeSource = null;
+    revokeGeneratedUrl();
     const parts = panelParts();
     if (!parts) return;
-    revokeGeneratedUrl();
     parts.image?.removeAttribute('src');
     if (parts.image) {
+      parts.image.onerror = null;
       delete parts.image.dataset.stimulusId;
       parts.image.alt = '';
     }
@@ -86,14 +89,26 @@
     if (!parts?.image || !parts.caption) return;
     if (parts.image.dataset.stimulusId !== id) {
       revokeGeneratedUrl();
-      const src = typeof asset === 'string'
-        ? asset
-        : globalThis.URL?.createObjectURL?.(asset);
+      activeSource = null;
+      parts.image.onerror = null;
+      let src;
+      try {
+        src = typeof asset === 'string'
+          ? asset
+          : globalThis.URL?.createObjectURL?.(asset);
+      } catch (_) {
+        hide();
+        return;
+      }
       if (!src) {
         hide();
         return;
       }
       if (typeof asset !== 'string') generatedUrl = src;
+      activeSource = src;
+      parts.image.onerror = () => {
+        if (activeSource === src && parts.image.dataset.stimulusId === id) hide();
+      };
       parts.image.src = src;
       parts.image.dataset.stimulusId = id;
       parts.image.alt = `Stimulus ${id}`;

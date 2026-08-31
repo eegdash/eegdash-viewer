@@ -109,6 +109,69 @@ test('bridge keeps image blobs out of the EEG worker', async () => {
   assert.match(caption.textContent, /16595/);
 });
 
+test('an invalid image Blob hides only the active stimulus source', () => {
+  const StimulusPanel = globalThis.StimulusPanel;
+  StimulusPanel.clear();
+  const originalRevoke = globalThis.URL.revokeObjectURL;
+  const revoked = [];
+  globalThis.URL.revokeObjectURL = (url) => {
+    revoked.push(url);
+    originalRevoke.call(globalThis.URL, url);
+  };
+  try {
+    const events = [
+      { onset: 0.25, stimulus_id: '16595', label: 'stim_test,16595,-1,1' },
+      { onset: 1.50, stimulus_id: '16596', label: 'stim_test,16596,-1,2' },
+    ];
+    StimulusPanel.setAssets({
+      '16595': new Blob(['not a JPEG'], { type: 'image/jpeg' }),
+      '16596': new Blob(['still not a JPEG'], { type: 'image/jpeg' }),
+    });
+    StimulusPanel.syncCursor(events, 0.25);
+
+    const panel = globalThis.document.querySelector('#stimulus-panel');
+    const image = globalThis.document.querySelector('#stimulus-image');
+    const staleError = image.onerror;
+    assert.equal(typeof staleError, 'function', 'images install an error handler');
+    const firstSource = image.src;
+
+    StimulusPanel.syncCursor(events, 1.50);
+    const secondSource = image.src;
+    assert.notEqual(secondSource, firstSource, 'second stimulus has its own object URL');
+    staleError.call(image, new globalThis.window.Event('error'));
+    assert.equal(panel.hidden, false, 'an error from the replaced source must not hide the active image');
+    assert.equal(image.dataset.stimulusId, '16596');
+    assert.deepEqual(revoked, [firstSource]);
+
+    image.dispatchEvent(new globalThis.window.Event('error'));
+    assert.equal(panel.hidden, true, 'the active invalid image hides the dock');
+    assert.deepEqual(revoked, [firstSource, secondSource]);
+  } finally {
+    globalThis.URL.revokeObjectURL = originalRevoke;
+    StimulusPanel.clear();
+  }
+});
+
+test('a rejected stimulus object URL does not break cursor synchronization', () => {
+  const StimulusPanel = globalThis.StimulusPanel;
+  StimulusPanel.clear();
+  const originalCreate = globalThis.URL.createObjectURL;
+  globalThis.URL.createObjectURL = () => { throw new TypeError('invalid image Blob'); };
+  try {
+    StimulusPanel.setAssets({
+      '16595': new Blob(['not a JPEG'], { type: 'image/jpeg' }),
+    });
+    assert.doesNotThrow(() => StimulusPanel.syncCursor([
+      { onset: 1.5, stimulus_id: '16595', label: 'stim_test,16595,-1,1' },
+    ], 1.5));
+    const panel = globalThis.document.querySelector('#stimulus-panel');
+    assert.equal(panel.hidden, true, 'an unrenderable Blob leaves the dock hidden');
+  } finally {
+    globalThis.URL.createObjectURL = originalCreate;
+    StimulusPanel.clear();
+  }
+});
+
 test('bridge: pose url opens the shared pose panel; a later open without pose hides it', async () => {
   const opened = [];
   const origOpen = PosePanel.openUrl, origHide = PosePanel.hideActive;
