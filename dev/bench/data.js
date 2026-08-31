@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788202784754,
+  "lastUpdate": 1788209025241,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -4065,6 +4065,233 @@ window.BENCHMARK_DATA = {
             "range": "±7.91%",
             "unit": "ms",
             "extra": "p99=93.007ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "3058498453eb552f19a8a80e0fe15485c7655433",
+          "message": "fix: align sparse stimulus events",
+          "timestamp": "2026-08-31T22:39:45+02:00",
+          "tree_id": "f49423c9c5b0e1ef24c00e7ee13b3c3c79bbb213",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/3058498453eb552f19a8a80e0fe15485c7655433"
+        },
+        "date": 1788209024592,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.22,
+            "range": "±1.22%",
+            "unit": "ms",
+            "extra": "p99=3.843ms, n=901samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.145,
+            "range": "±1.10%",
+            "unit": "ms",
+            "extra": "p99=3.825ms, n=934samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.1304,
+            "range": "±0.97%",
+            "unit": "ms",
+            "extra": "p99=3.811ms, n=939samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.0449,
+            "range": "±1.43%",
+            "unit": "ms",
+            "extra": "p99=6.945ms, n=495samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.4312,
+            "range": "±1.45%",
+            "unit": "ms",
+            "extra": "p99=7.678ms, n=452samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.453,
+            "range": "±1.52%",
+            "unit": "ms",
+            "extra": "p99=7.706ms, n=450samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.3544,
+            "range": "±1.41%",
+            "unit": "ms",
+            "extra": "p99=7.620ms, n=460samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 7.9033,
+            "range": "±1.25%",
+            "unit": "ms",
+            "extra": "p99=12.352ms, n=254samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 8.5718,
+            "range": "±2.01%",
+            "unit": "ms",
+            "extra": "p99=14.734ms, n=234samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 8.2796,
+            "range": "±1.19%",
+            "unit": "ms",
+            "extra": "p99=13.414ms, n=242samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 8.2736,
+            "range": "±1.25%",
+            "unit": "ms",
+            "extra": "p99=13.059ms, n=242samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 14.9368,
+            "range": "±0.62%",
+            "unit": "ms",
+            "extra": "p99=17.150ms, n=134samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0094,
+            "range": "±0.18%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=213475samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0094,
+            "range": "±0.53%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=212985samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0094,
+            "range": "±0.19%",
+            "unit": "ms",
+            "extra": "p99=0.020ms, n=213084samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 8.0286,
+            "range": "±0.63%",
+            "unit": "ms",
+            "extra": "p99=9.986ms, n=250samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0026,
+            "range": "±0.20%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=769360samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0026,
+            "range": "±1.43%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=756270samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0026,
+            "range": "±1.69%",
+            "unit": "ms",
+            "extra": "p99=0.003ms, n=759914samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.5359,
+            "range": "±0.04%",
+            "unit": "ms",
+            "extra": "p99=242.422ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.4242,
+            "range": "±0.02%",
+            "unit": "ms",
+            "extra": "p99=272.415ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.1563,
+            "range": "±0.06%",
+            "unit": "ms",
+            "extra": "p99=30.242ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.192,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=30.422ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 17.1838,
+            "range": "±13.03%",
+            "unit": "ms",
+            "extra": "p99=45.172ms, n=117samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 108.1123,
+            "range": "±1.20%",
+            "unit": "ms",
+            "extra": "p99=128.284ms, n=64samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 120.3071,
+            "range": "±13.43%",
+            "unit": "ms",
+            "extra": "p99=317.648ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
