@@ -66,6 +66,31 @@ test('BIDS stim_file values expose the normalized stimulus id', () => {
   assert.equal(event.stimulus_id, '16595');
 });
 
+test('BIDS image_id values expose nonnumeric stimulus ids', () => {
+  const [event] = BIDSRecording.parseEventsTsv(
+    'onset\tduration\ttrial_type\timage_id\n1.5\t0\timage\tscene-A\n'
+  );
+
+  assert.equal(event.stimulus_id, 'scene-A');
+  assert.equal(event.label, 'image');
+});
+
+test('BIDS nonnumeric stim_file values use their filename as the stimulus id', () => {
+  const [event] = BIDSRecording.parseEventsTsv(
+    'onset\tduration\ttrial_type\tstim_file\n1.5\t0\timage\tstimuli/scene-A.jpg\n'
+  );
+
+  assert.equal(event.stimulus_id, 'scene-A');
+});
+
+test('BIDS image_id takes precedence when a stim_file is also present', () => {
+  const [event] = BIDSRecording.parseEventsTsv(
+    'onset\tduration\timage_id\tstim_file\n1.5\t0\tscene-A\tstimuli/other-image.jpg\n'
+  );
+
+  assert.equal(event.stimulus_id, 'scene-A');
+});
+
 // ----- test 1: all 5 hits null → stub with sampling_frequency=null --
 
 test('assembleRecordingMetadata: all sidecars null → sampling_frequency=null stub, no throw', async () => {

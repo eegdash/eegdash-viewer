@@ -618,6 +618,7 @@
     const iLabel = idx('trial_type') >= 0 ? idx('trial_type') : idx('value');
     const iSample = idx('sample');
     const iStim = idx('stim_file');
+    const iImageId = idx('image_id');
 
     const events = [];
     for (let i = 1; i < rows.length; i++) {
@@ -626,15 +627,19 @@
       if (!isFinite(onset)) continue;
       const label = iLabel >= 0 ? bidsCell(c[iLabel]) : null;
       const asset = bidsCell(iStim >= 0 ? c[iStim] : null);
-      const directId = /(?:^|\/)(\d+)(?:\.[A-Za-z0-9]+)?$/.exec(asset || '')?.[1] || asset;
-      const stimulusId = directId || /^stim_(?:train|test),(\d+),/.exec(label || '')?.[1] || null;
-      events.push({
+      const imageId = bidsCell(iImageId >= 0 ? c[iImageId] : null);
+      const stimulusId = imageId
+        || stimulusIdFromFile(asset)
+        || /^stim_(?:train|test),(\d+),/.exec(label || '')?.[1]
+        || null;
+      const event = {
         onset,
         duration: iDur >= 0 ? (parseFloatOrNull(c[iDur]) || 0) : 0,
         label,
         sample:   iSample >= 0 ? parseFloatOrNull(c[iSample]) : null,
-        stimulus_id: stimulusId,
-      });
+      };
+      if (stimulusId) event.stimulus_id = stimulusId;
+      events.push(event);
     }
     return events;
   };
@@ -669,6 +674,12 @@
     const s = String(v).trim();
     if (!s || s.toLowerCase() === 'n/a') return null;
     return s;
+  }
+
+  function stimulusIdFromFile(asset) {
+    if (!asset) return null;
+    const filename = asset.split(/[\\/]/).at(-1) || asset;
+    return filename.replace(/\.[A-Za-z0-9]+$/, '') || asset;
   }
 
   function parseFloatOrNull(v) {

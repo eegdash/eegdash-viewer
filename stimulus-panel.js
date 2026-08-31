@@ -3,9 +3,11 @@
    ============================================================ */
 'use strict';
 (function () {
-  let assets = {};
+  let assets = Object.create(null);
   let generatedUrl = null;
   let activeSource = null;
+  let windowEvent = null;
+  let cursorActive = false;
 
   function isAsset(value) {
     return typeof value === 'string' || !!(value && typeof value.slice === 'function');
@@ -66,7 +68,7 @@
     let distance = Infinity;
     for (const event of events) {
       const id = event?.stimulus_id;
-      if (!id || !Object.prototype.hasOwnProperty.call(assets, id)) continue;
+      if (typeof id !== 'string' || !id || !Object.prototype.hasOwnProperty.call(assets, id)) continue;
       const onset = Number(event.onset);
       if (!Number.isFinite(onset)) continue;
       const nextDistance = Math.abs(onset - tSec);
@@ -118,10 +120,13 @@
   }
 
   function setAssets(nextAssets) {
-    assets = {};
+    assets = Object.create(null);
+    windowEvent = null;
+    cursorActive = false;
     if (nextAssets && typeof nextAssets === 'object' && !Array.isArray(nextAssets)) {
       for (const [id, asset] of Object.entries(nextAssets)) {
-        if (/^\d+$/.test(id) && isAsset(asset)) assets[id] = asset;
+        const stimulusId = id.trim();
+        if (stimulusId && isAsset(asset)) assets[stimulusId] = asset;
       }
     }
     hide();
@@ -129,19 +134,28 @@
   }
 
   function syncWindow(events, tSec) {
-    showEvent(nearestEvent(events, tSec));
+    windowEvent = nearestEvent(events, tSec);
+    if (!cursorActive) showEvent(windowEvent);
   }
 
   function syncCursor(events, tSec) {
+    cursorActive = true;
     showEvent(nearestEvent(events, tSec));
   }
 
+  function clearCursor() {
+    cursorActive = false;
+    showEvent(windowEvent);
+  }
+
   function clear() {
-    assets = {};
+    assets = Object.create(null);
+    windowEvent = null;
+    cursorActive = false;
     hide();
   }
 
-  const api = { setAssets, syncWindow, syncCursor, clear };
+  const api = { setAssets, syncWindow, syncCursor, clearCursor, clear };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.StimulusPanel = api;
 })();

@@ -109,6 +109,75 @@ test('bridge keeps image blobs out of the EEG worker', async () => {
   assert.match(caption.textContent, /16595/);
 });
 
+test('bridge accepts a nonnumeric BIDS stimulus id', async () => {
+  const edf = new globalThis.window.File([new Uint8Array(512)], 'sub-05_task-scenes_eeg.edf');
+  const imageBlob = new Blob(['scene-A image bytes'], { type: 'image/jpeg' });
+  try {
+    post({
+      type: 'eegdash-viewer:open',
+      files: [edf],
+      stimuli: { 'scene-A': imageBlob },
+    });
+    await new Promise(r => setTimeout(r, 20));
+
+    globalThis.StimulusPanel.syncWindow([
+      { onset: 1.5, stimulus_id: 'scene-A', label: 'image' },
+    ], 1.5);
+    const image = globalThis.document.querySelector('#stimulus-image');
+    assert.equal(image.dataset.stimulusId, 'scene-A');
+    assert.match(globalThis.document.querySelector('#stimulus-caption').textContent, /scene-A/);
+
+    const workerLoad = workerInstance.sent.filter(m => m.type === 'LOAD_FILE').at(-1);
+    assert.equal(workerLoad.local_files.some(file => file.name.endsWith('.jpg')), false);
+  } finally {
+    globalThis.StimulusPanel.clear();
+  }
+});
+
+test('stimulus cursor selection survives a window repaint', () => {
+  const StimulusPanel = globalThis.StimulusPanel;
+  const events = [
+    { onset: 0.25, stimulus_id: '16595', label: 'first image' },
+    { onset: 1.50, stimulus_id: '16596', label: 'second image' },
+  ];
+  try {
+    StimulusPanel.setAssets({
+      '16595': 'data:image/svg+xml,first',
+      '16596': 'data:image/svg+xml,second',
+    });
+    StimulusPanel.syncWindow(events, 0.25);
+    StimulusPanel.syncCursor(events, 1.50);
+    StimulusPanel.syncWindow(events, 0.25);
+
+    assert.equal(globalThis.document.querySelector('#stimulus-image').dataset.stimulusId, '16596');
+  } finally {
+    StimulusPanel.clear();
+  }
+});
+
+test('pointerleave restores the current window-centre stimulus', () => {
+  const StimulusPanel = globalThis.StimulusPanel;
+  const events = [
+    { onset: 0.25, stimulus_id: '16595', label: 'first image' },
+    { onset: 1.50, stimulus_id: '16596', label: 'second image' },
+  ];
+  try {
+    StimulusPanel.setAssets({
+      '16595': 'data:image/svg+xml,first',
+      '16596': 'data:image/svg+xml,second',
+    });
+    StimulusPanel.syncWindow(events, 0.25);
+    StimulusPanel.syncCursor(events, 1.50);
+    globalThis.document.getElementById('traces').dispatchEvent(
+      new globalThis.window.Event('pointerleave')
+    );
+
+    assert.equal(globalThis.document.querySelector('#stimulus-image').dataset.stimulusId, '16595');
+  } finally {
+    StimulusPanel.clear();
+  }
+});
+
 test('an invalid image Blob hides only the active stimulus source', () => {
   const StimulusPanel = globalThis.StimulusPanel;
   StimulusPanel.clear();

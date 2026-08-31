@@ -828,6 +828,10 @@
         view.start_sec = clampStart(t0 + dt, readerInfo && readerInfo.duration_s, view.window_sec);
         requestRender();
       });
+      tracesCanvas.addEventListener('pointerleave', () => {
+        lastPointerEvent = null;
+        globalThis.StimulusPanel?.clearCursor();
+      });
       tracesCanvas.addEventListener('wheel', (e) => {
         e.preventDefault();
         view.start_sec = clampStart(view.start_sec + e.deltaX * (view.window_sec / 800),
@@ -1324,11 +1328,12 @@
     const BRIDGE_READY = 'eegdash-viewer:ready';
 
     function validStimuli(stimuli) {
-      if (!stimuli || typeof stimuli !== 'object' || Array.isArray(stimuli)) return {};
-      const valid = {};
+      const valid = Object.create(null);
+      if (!stimuli || typeof stimuli !== 'object' || Array.isArray(stimuli)) return valid;
       for (const [id, asset] of Object.entries(stimuli)) {
-        if (/^\d+$/.test(id) && (typeof asset === 'string' || typeof asset?.slice === 'function')) {
-          valid[id] = asset;
+        const stimulusId = id.trim();
+        if (stimulusId && (typeof asset === 'string' || typeof asset?.slice === 'function')) {
+          valid[stimulusId] = asset;
         }
       }
       return valid;

@@ -23,7 +23,7 @@ beside the same traces.
 | direction | message | notes |
 |---|---|---|
 | viewer → `window.parent` | `{ type: 'eegdash-viewer:ready' }` | posted once `Viewer.boot()` ran (target origin `*`); while framed and idle the stage reads "Waiting for the host page to send a recording" |
-| host → viewer | `{ type: 'eegdash-viewer:open', files: File[], pose?: Blob \| string \| null, stimuli?: Record<string, Blob \| string> }` | `files` are structured-cloned; the first `*_{eeg,ieeg,emg,meg,nirs}.<ext>` is the recording, siblings (`.eeg/.vmrk`, `.fdt`, `_channels.tsv`, `_events.tsv`) are registered next to it. `pose` is a `Blob`/`File` holding the sidecar JSON, or any URL `fetch()` accepts (`data:` included); omitting it hides a previously shown hand panel. `stimuli` maps numeric BIDS image IDs to image Blobs or URLs; it remains outside `files`, so image bytes never enter the EEG worker. |
+| host → viewer | `{ type: 'eegdash-viewer:open', files: File[], pose?: Blob \| string \| null, stimuli?: Record<string, Blob \| string> }` | `files` are structured-cloned; the first `*_{eeg,ieeg,emg,meg,nirs}.<ext>` is the recording, siblings (`.eeg/.vmrk`, `.fdt`, `_channels.tsv`, `_events.tsv`) are registered next to it. `pose` is a `Blob`/`File` holding the sidecar JSON, or any URL `fetch()` accepts (`data:` included); omitting it hides a previously shown hand panel. `stimuli` maps BIDS stimulus IDs to image Blobs or URLs; it remains outside `files`, so image bytes never enter the EEG worker. |
 
 The bridge takes exactly the drag-and-drop path (`HttpRange.registerLocal`
 → `load()`), so every format the viewer reads from a drop works here.

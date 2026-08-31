@@ -163,7 +163,7 @@ test('host bridge: BIDS image assets follow the hovered event', async ({ page })
     const recording = new File([bytes], `${name}_emg.edf`);
     const events = new File([
       'onset\tduration\ttrial_type\n' +
-      '0.000\t0\tstim_test,16595,-1,1\n' +
+      '0.750\t0\tstim_test,16595,-1,1\n' +
       '1.500\t0\tstim_test,16596,-1,2\n' +
       '9.500\t0\tstim_test,16597,-1,3\n',
     ], `${name}_events.tsv`, { type: 'text/tab-separated-values' });
@@ -203,7 +203,7 @@ test('host bridge: BIDS image assets follow the hovered event', async ({ page })
     context.drawImage(element, 0, 0);
     return Array.from(context.getImageData(0, 0, canvas.width, canvas.height).data);
   });
-  await page.mouse.move(box.x + positionAt(0), box.y + box.height / 2);
+  await page.mouse.move(box.x + positionAt(0.75), box.y + box.height / 2);
   await expect(image).toHaveAttribute('data-stimulus-id', '16595');
   const firstSource = await image.getAttribute('src');
   expect(firstSource).toMatch(/^blob:/);
@@ -218,6 +218,19 @@ test('host bridge: BIDS image assets follow the hovered event', async ({ page })
   expect(secondSource).toMatch(/^blob:/);
   expect(secondSource).not.toBe(firstSource);
   expect(await pixels()).not.toEqual(firstPixels);
+
+  // A redraw while the pointer is still over the trace must not replace the
+  // cursor-selected image with the visible window centre (16595 at 0.75 s).
+  await frame.locator('#gain').evaluate((input) => {
+    input.value = '1.25';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(image).toHaveAttribute('data-stimulus-id', '16596');
+
+  // Leaving the trace clears the cursor override and restores that current
+  // window-centre selection.
+  await page.mouse.move(box.x - 10, box.y + box.height / 2);
+  await expect(image).toHaveAttribute('data-stimulus-id', '16595');
 
   await page.evaluate(async (b64) => {
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
