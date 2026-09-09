@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788209025241,
+  "lastUpdate": 1788983751808,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -4292,6 +4292,233 @@ window.BENCHMARK_DATA = {
             "range": "±13.43%",
             "unit": "ms",
             "extra": "p99=317.648ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "distinct": true,
+          "id": "6f7f0b97fe55453cabfe0b5fdcd5344c9536dbdf",
+          "message": "feat: add validated 3D sensor geometry and reference head\n\nKeep trace controls and companion panels available alongside the second geometry view. Correct FIFF device-to-head positions, distinguish MEG reference coils, and match BIDS coordinate sidecars across local and indexed inputs. Support electrode-only files and links with a bundled MNE scalp reference.\n\nStage geometry assets, the MNE license and a measured-electrode example for GitHub Pages.\n\nValidation: 1081 unit tests passed, 8 skipped; type checking passed; 26 browser checks passed. Audited 260 coordinate files from pinned official BIDS examples and compared all 303 FIFF coil positions against MNE-Python.",
+          "timestamp": "2026-09-09T21:53:00+02:00",
+          "tree_id": "6933f298a63dc1860b8f958aba1feff754a47242",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/6f7f0b97fe55453cabfe0b5fdcd5344c9536dbdf"
+        },
+        "date": 1788983750580,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.3417,
+            "range": "±1.27%",
+            "unit": "ms",
+            "extra": "p99=3.955ms, n=855samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.3227,
+            "range": "±1.21%",
+            "unit": "ms",
+            "extra": "p99=3.908ms, n=862samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.3467,
+            "range": "±1.27%",
+            "unit": "ms",
+            "extra": "p99=4.046ms, n=853samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.3121,
+            "range": "±1.34%",
+            "unit": "ms",
+            "extra": "p99=6.398ms, n=464samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.7469,
+            "range": "±1.29%",
+            "unit": "ms",
+            "extra": "p99=6.854ms, n=422samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.681,
+            "range": "±1.28%",
+            "unit": "ms",
+            "extra": "p99=6.768ms, n=428samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.6423,
+            "range": "±1.28%",
+            "unit": "ms",
+            "extra": "p99=6.759ms, n=431samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 8.7639,
+            "range": "±1.33%",
+            "unit": "ms",
+            "extra": "p99=10.816ms, n=229samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 9.4284,
+            "range": "±1.39%",
+            "unit": "ms",
+            "extra": "p99=11.367ms, n=213samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 9.5639,
+            "range": "±1.55%",
+            "unit": "ms",
+            "extra": "p99=11.716ms, n=210samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 9.5037,
+            "range": "±1.67%",
+            "unit": "ms",
+            "extra": "p99=13.313ms, n=211samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 17.0571,
+            "range": "±0.98%",
+            "unit": "ms",
+            "extra": "p99=18.765ms, n=118samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0097,
+            "range": "±0.27%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=207021samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0097,
+            "range": "±0.31%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=206195samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0097,
+            "range": "±0.30%",
+            "unit": "ms",
+            "extra": "p99=0.021ms, n=206754samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 8.262,
+            "range": "±0.75%",
+            "unit": "ms",
+            "extra": "p99=9.662ms, n=243samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0027,
+            "range": "±0.36%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=735818samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0027,
+            "range": "±0.44%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=729367samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0027,
+            "range": "±1.56%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=730220samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 242.2623,
+            "range": "±0.04%",
+            "unit": "ms",
+            "extra": "p99=243.302ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.9834,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=272.497ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.2423,
+            "range": "±0.14%",
+            "unit": "ms",
+            "extra": "p99=30.347ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.2789,
+            "range": "±0.12%",
+            "unit": "ms",
+            "extra": "p99=30.539ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 90.0789,
+            "range": "±2.71%",
+            "unit": "ms",
+            "extra": "p99=103.909ms, n=64samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 150.5497,
+            "range": "±16.74%",
+            "unit": "ms",
+            "extra": "p99=582.878ms, n=64samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 214.581,
+            "range": "±13.88%",
+            "unit": "ms",
+            "extra": "p99=525.336ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
