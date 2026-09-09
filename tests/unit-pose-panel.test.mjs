@@ -170,6 +170,14 @@ test('rotateProject yaw flips depth ordering', () => {
   assert.ok(flipD[1] < flipD[0]);
 });
 
+test('fixed-radius projection keeps zoom stable as a sensor layout rotates', () => {
+  const points = Float32Array.from([-30, 0, 0, 30, 0, 0]);
+  const front = PosePanel.rotateProject(points, 2, 0, 0, 200, 200, 20, 1, 100);
+  const width = front.sx[1] - front.sx[0];
+  const turned = PosePanel.rotateProject(points, 2, Math.PI / 3, 0, 200, 200, 20, 1, 100);
+  assert.ok(Math.abs((turned.sx[1] - turned.sx[0]) / width - 0.5) < 1e-6);
+});
+
 // ── paint smoke ──────────────────────────────────────────────────────────────
 
 /** Recording 2D-context stub (same shape idea as unit-traces-draw). */

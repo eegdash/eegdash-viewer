@@ -200,6 +200,7 @@
       ['events',      '_events.tsv'],
       ['electrodes',  '_electrodes.tsv'],
       ['coordsystem', '_coordsystem.json'],
+      ...(params.suffix === 'nirs' ? [['optodes', '_optodes.tsv']] : []),
     ];
     const results = await Promise.all(sidecarPlan.map(
       ([, suffix]) => fetchManifestSidecar(byPath, dir, prefix, suffix, ds)
@@ -208,7 +209,10 @@
 
     const meta = BR._assembleRecordingMetadata({ eeg_url: eegUrl, ext, dir, prefix, suffix: params.suffix, hits });
     meta.sibling_urls = sibling_urls;
-    return meta;
+    return BR._attachCoordinateSets(meta, manifest.filter(e => e && typeof e.path === 'string').map(e => ({
+      name: e.path, source: transformManifestUrl(e.url, ds),
+      text: () => globalThis.HttpRange.fetchText(transformManifestUrl(e.url, ds)),
+    })), { prefix, suffix: params.suffix, dir });
   }
 
   async function fetchNemarManifest(ds, version) {

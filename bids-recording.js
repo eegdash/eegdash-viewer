@@ -517,19 +517,22 @@
       const text = await fetchTextOrNull(url);
       return text == null ? null : { text, url };
     };
-    const [channels, events, electrodes, coordsystem] = await Promise.all([
+    const [channels, events, electrodes, coordsystem, optodes] = await Promise.all([
       fetchDep('_channels.tsv'),
       fetchDep('_events.tsv'),
       fetchDep('_electrodes.tsv'),
       fetchDep('_coordsystem.json'),
+      suffix === 'nirs' ? fetchDep('_optodes.tsv') : null,
     ]);
     const sfreq = record.sampling_frequency;
     const duration = (record.ntimes != null && sfreq) ? record.ntimes / sfreq : null;
-    return assembleRecordingMetadata({
+    const meta = assembleRecordingMetadata({
       eeg_url: eegUrl, ext, dir, prefix, suffix,
-      hits: { eeg_json: null, channels, events, electrodes, coordsystem },
+      hits: { eeg_json: null, channels, events, electrodes, coordsystem, optodes },
       recordMeta: { sampling_frequency: sfreq, recording_duration: duration, ch_names: record.ch_names },
     });
+    return api._attachCoordinateSets(meta, depKeys.map(name => ({ name, source: `${rootUrl}${name}`,
+      text: () => fetchTextOrNull(`${rootUrl}${name}`) })), { prefix, suffix, dir: dir.slice(rootUrl.length) });
   }
 
   // ---- _eeg.json ----------------------------------------------
@@ -690,6 +693,100 @@
     return isFinite(n) ? n : null;
   }
 
+  // File objects and indexed remote entries share name/text(), so every
+  // inventory path uses the same BIDS entity and coordinate-frame matching.
+  api.loadCoordinateSets = async function (files, { prefix, suffix, dir } = {}) {
+    const entities = name => Object.fromEntries([...name.matchAll(/(?:^|_)([a-z]+)-([^_.]+)/gi)].map(m => [m[1].toLowerCase(), m[2]]));
+    const record = entities(prefix || '');
+    const entries = [...files].map(file => {
+      const path = file.name.split('?')[0];
+      const name = decodeURIComponent(path.split('/').at(-1));
+      return { file, name, dir: path.slice(0, path.lastIndexOf('/') + 1), entities: entities(name) };
+    });
+    const matches = (candidate, context) => Object.entries(candidate).every(([k, v]) => k === 'space' || context[k] === v);
+    const score = e => e.dir.split('/').length * 100 + Object.keys(e.entities).length;
+    let tables = entries.filter(e => /(?:^|_)(electrodes|optodes)\.tsv$/i.test(e.name));
+    if (prefix) tables = tables.filter(e => matches(e.entities, record) && (!dir || !e.dir || dir.startsWith(e.dir)));
+    if (suffix === 'nirs') tables = tables.filter(e => /optodes\.tsv$/i.test(e.name));
+    else if (suffix) tables = tables.filter(e => /electrodes\.tsv$/i.test(e.name));
+    if (prefix) {
+      const chosen = new Map();
+      for (const table of tables.sort((a, b) => score(b) - score(a))) {
+        const key = `${table.entities.space || ''}/${/optodes/i.test(table.name)}`;
+        if (!chosen.has(key)) chosen.set(key, table);
+        else if (score(table) === score(chosen.get(key))) throw new Error(`Ambiguous coordinate tables: ${chosen.get(key).name}, ${table.name}`);
+      }
+      tables = [...chosen.values()];
+    }
+    const jsonFiles = entries.filter(e => /(?:^|_)coordsystem\.json$/i.test(e.name));
+    const texts = new Map();
+    const read = e => {
+      if (!texts.has(e)) texts.set(e, (async () => {
+        if (e.file.size > 10 * 1024 * 1024) throw new Error('Coordinate files must each be smaller than 10 MB');
+        const text = await e.file.text();
+        if (typeof text !== 'string' || text.length > 10 * 1024 * 1024) throw new Error('Coordinate file is unavailable or exceeds 10 MB');
+        return text;
+      })());
+      return texts.get(e);
+    };
+    const results = await Promise.all(tables.map(async table => {
+      const sets = [], errors = [];
+      try {
+        const warnings = [];
+        const points = BIDSLoader.parseElectrodesTSV(await read(table), warnings);
+        errors.push(...warnings.map(w => `${table.name}: ${w}`));
+        const frames = new Map();
+        for (const point of points) {
+          const frame = point.coordinate_system || table.entities.space || '';
+          if (!frames.has(frame)) frames.set(frame, []);
+          frames.get(frame).push(point);
+        }
+        for (const [frame, framePoints] of frames) {
+          const context = { ...record, ...table.entities };
+          const candidates = jsonFiles.filter(e => matches(e.entities, context) && (e.entities.space || '') === frame
+            && (!e.dir || table.dir.startsWith(e.dir) || (dir && dir.startsWith(e.dir)))).sort((a, b) => score(b) - score(a));
+          let coordsystem = null;
+          try {
+            if (candidates.length > 1 && score(candidates[0]) === score(candidates[1])) throw new Error(`Ambiguous coordinate JSON for ${frame || table.name}`);
+            if (candidates[0]) {
+              const json = JSON.parse(await read(candidates[0]));
+              // Simultaneous EEG electrodes in MEG use the EEG keys;
+              // MEGCoordinateSystem describes the MEG sensors instead.
+              const modality = suffix === 'meg' ? 'eeg' : suffix;
+              coordsystem = { ...BIDSLoader.parseCoordsystem(json, modality), id: frame || undefined };
+            } else errors.push(`${table.name}: no matching coordsystem.json${frame ? ` for ${frame}` : ''}; coordinates are shown as supplied.`);
+          } catch (error) { errors.push(`${table.name}: ${error.message}`); }
+          sets.push({ points: framePoints, coordsystem, source: table.file.source || table.file.name,
+            coordinate_source: candidates[0]?.file.source || candidates[0]?.file.name || null,
+            kind: /optodes\.tsv$/i.test(table.name) ? 'optodes' : 'electrodes' });
+        }
+      } catch (error) { errors.push(`${table.name}: ${error.message}`); }
+      return { sets, errors };
+    }));
+    return { coordinate_sets: results.flatMap(r => r.sets), coordinate_errors: results.flatMap(r => r.errors),
+      coordinate_supplied: tables.length > 0 };
+  };
+
+  api._attachCoordinateSets = async function (meta, files, options) {
+    if (typeof BIDSLoader === 'undefined') return meta;
+    try {
+      const bundle = await api.loadCoordinateSets(files, options);
+      if (!bundle.coordinate_supplied) return meta;
+      Object.assign(meta, bundle);
+      const first = bundle.coordinate_sets[0];
+      if (first) {
+        meta.sidecar_sources[first.kind] = first.source;
+        meta.sidecar_sources.coordsystem = first.coordinate_source;
+      }
+    } catch (error) {
+      meta.coordinate_supplied = true;
+      meta.coordinate_errors = [error.message];
+      meta.coordinate_sets = [];
+      meta.electrodes = meta.optodes = null;
+    }
+    return meta;
+  };
+
   // ---- top-level loader ---------------------------------------
   // Fetches every BIDS sidecar that goes with a recording and returns
   // a single metadata bundle. Optional sidecars (electrodes, coordsys,
@@ -720,13 +817,14 @@
     // independently, so a missing run-level file falls through to the
     // dataset root (BIDS principle). Fetches are tiny; the CORS
     // round-trip dominates so parallel is the right call.
-    const [eeg_json, channels, events, electrodes, coordsystem] =
+    const [eeg_json, channels, events, electrodes, coordsystem, optodes] =
       await Promise.all([
         fetchInheritedSidecar(dir, prefix, '_eeg.json'),
         fetchInheritedSidecar(dir, prefix, '_channels.tsv'),
         fetchInheritedSidecar(dir, prefix, '_events.tsv'),
         fetchInheritedSidecar(dir, prefix, '_electrodes.tsv'),
         fetchInheritedSidecar(dir, prefix, '_coordsystem.json'),
+        suffix === 'nirs' ? fetchInheritedSidecar(dir, prefix, '_optodes.tsv') : null,
       ]);
     if (eeg_json == null) {
       // Soft-required: format-specific readers (BrainVision .vhdr,
@@ -735,10 +833,17 @@
       // pass a stub through and let the reader override.
       console.warn(`No _eeg.json found via BIDS inheritance for ${eegUrl}; deferring to format header.`);
     }
-    return assembleRecordingMetadata({
+    const meta = assembleRecordingMetadata({
       eeg_url: eegUrl, ext, dir, prefix, suffix,
-      hits: { eeg_json, channels, events, electrodes, coordsystem },
+      hits: { eeg_json, channels, events, electrodes, coordsystem, optodes },
     });
+    if (eegUrl.startsWith('https://localdrop.invalid/') && globalThis.HttpRange.localEntries) {
+      const files = globalThis.HttpRange.localEntries().map(({ name, blob }) => ({
+        name, size: blob.size, source: `https://localdrop.invalid/${encodeURIComponent(name)}`, text: () => blob.text(),
+      }));
+      return api._attachCoordinateSets(meta, files, { prefix, suffix });
+    }
+    return meta;
   };
 
   // Parses the five canonical BIDS sidecars from already-fetched
@@ -749,7 +854,7 @@
   // them is *how* hits get materialised, not how they're parsed.
   function assembleRecordingMetadata({ eeg_url, ext, dir, prefix, suffix = 'eeg', hits, recordMeta = null }) {
     const { eeg_json: eegJsonHit, channels: channelsHit, events: eventsHit,
-            electrodes: electrodesHit, coordsystem: coordSysHit } = hits;
+            electrodes: electrodesHit, coordsystem: coordSysHit, optodes: optodesHit } = hits;
 
     let eegJson;
     if (eegJsonHit) {
@@ -783,20 +888,25 @@
     }
     const events = eventsHit ? api.parseEventsTsv(eventsHit.text) : [];
 
-    let electrodes = null, coordsystem = null;
+    let electrodes = null, coordsystem = null, optodes = null;
+    const coordinate_errors = [];
+    if (optodesHit && typeof BIDSLoader !== 'undefined') {
+      try { optodes = BIDSLoader.parseElectrodesTSV(optodesHit.text, coordinate_errors); }
+      catch (e) { coordinate_errors.push(`optodes.tsv: ${e.message}`); }
+    }
     if (electrodesHit && typeof BIDSLoader !== 'undefined') {
-      try { electrodes = BIDSLoader.parseElectrodesTSV(electrodesHit.text); }
-      catch (e) { console.warn(`electrodes.tsv unparseable, skipping: ${e.message}`); }
+      try { electrodes = BIDSLoader.parseElectrodesTSV(electrodesHit.text, coordinate_errors); }
+      catch (e) { coordinate_errors.push(`electrodes.tsv: ${e.message}`); }
     }
     if (coordSysHit && typeof BIDSLoader !== 'undefined') {
-      try { coordsystem = BIDSLoader.parseCoordsystem(coordSysHit.text); }
-      catch (e) { console.warn(`coordsystem.json unparseable, skipping: ${e.message}`); }
+      try { coordsystem = BIDSLoader.parseCoordsystem(coordSysHit.text, electrodesHit && suffix === 'meg' ? 'eeg' : suffix); }
+      catch (e) { coordinate_errors.push(`coordsystem.json: ${e.message}`); }
     }
 
     return {
       eeg_url, ext, dir, prefix, suffix,
       eeg_json: eegJson,
-      channels, events, electrodes, coordsystem,
+      channels, events, electrodes, coordsystem, optodes, coordinate_errors,
       // Provenance: which key the walker found each sidecar at —
       // a real https URL for OpenNeuro, an `inline:<rawKey>` tag for
       // NEMAR. renderProvenance treats both as opaque labels.
@@ -806,6 +916,7 @@
         events:      eventsHit?.url    ?? null,
         electrodes:  electrodesHit?.url ?? null,
         coordsystem: coordSysHit?.url  ?? null,
+        optodes:     optodesHit?.url   ?? null,
       },
     };
   }

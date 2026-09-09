@@ -48,6 +48,25 @@ const SnirfReader = require('../formats/snirf.js');
 
 const FIXTURE = 'file://' + path.resolve('tests/fixtures/nirs/snirf-tiny.snirf');
 
+test('snirf geometry reads 3D probe coordinates and units, never promotes 2D coordinates', () => {
+  const group = values => ({ keys: Object.keys(values), get: key => values[key] });
+  const probe = group({
+    sourcePos3D: { shape: [1, 3], value: [1, 2, 3] },
+    detectorPos3D: { shape: [2, 3], value: [[4, 5, 6], [NaN, 0, 0]] },
+    sourceLabels: { value: ['source-A'] },
+    detectorPos2D: { shape: [1, 2], value: [2, 3] },
+  });
+  const [geometry] = SnirfReader._sensorGeometry(group({
+    probe, metaDataTags: group({ LengthUnit: { value: ['mm'] } }),
+  }));
+  assert.equal(geometry.units, 'mm');
+  assert.deepEqual(geometry.points, [
+    { name: 'source-A', type: 'source', x: 1, y: 2, z: 3 },
+    { name: 'D1', type: 'detector', x: 4, y: 5, z: 6 },
+  ]);
+  assert.deepEqual(SnirfReader._sensorGeometry(group({ probe: group({ sourcePos2D: { shape: [1, 2], value: [2, 3] } }) })), []);
+});
+
 test('snirf.open: returns a reader with the cross-format contract', async () => {
   const r = await SnirfReader.open({ eeg_url: FIXTURE });
   assert.ok(r.n_channels > 0, 'n_channels');

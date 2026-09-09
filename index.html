@@ -4,11 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Electrophysiology Trace Viewer</title>
+<meta name="description" content="Explore BIDS recordings, inspect electrophysiology traces, and view EEG, iEEG, MEG, fNIRS and EMG sensor geometry in 3D." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
-<link rel="stylesheet" href="styles.css?v=4" />
-<script src="bids-loader.js?v=1"></script>
+<link rel="stylesheet" href="styles.css?v=7" />
+<script src="bids-loader.js?v=3"></script>
 <script src="formats/_buffers.js?v=1"></script>
 <script src="formats/_labels.js?v=1"></script>
 <script src="formats/_decode.js?v=1"></script>
@@ -23,15 +24,15 @@
 <script src="formats/_mat73.js?v=1"></script>
 <!-- bids-recording.js sub-module (Lane E2) — must load BEFORE
      bids-recording.js so the mount step finds globalThis.BIDSRecordingNemar. -->
-<script src="bids-recording/nemar.js?v=1"></script>
-<script src="bids-recording.js?v=6"></script>
+<script src="bids-recording/nemar.js?v=3"></script>
+<script src="bids-recording.js?v=8"></script>
 <script src="formats/eeglab.js?v=2"></script>
 <script src="formats/edf.js?v=2"></script>
 <script src="formats/brainvision.js?v=2"></script>
 <!-- Tag-directory walker — loaded BEFORE fiff.js so the range-based
      api.open can reach through globalThis.FiffDir. -->
 <script src="formats/_fiff-dir.js?v=1"></script>
-<script src="formats/fiff.js?v=3"></script>
+<script src="formats/fiff.js?v=5"></script>
 <script src="formats/_ctf-res4.js?v=1"></script>
 <script src="formats/_ctf-marker.js?v=1"></script>
 <script src="formats/ctf.js?v=2"></script>
@@ -40,7 +41,7 @@
 <script src="formats/kit.js?v=1"></script>
 <!-- SNIRF (Shared NIR Spectroscopy Format) — pure HDF5; depends on
      formats/_jsfive.js loaded above for the MAT v7.3 EEGLAB reader. -->
-<script src="formats/snirf.js?v=1"></script>
+<script src="formats/snirf.js?v=2"></script>
 <!-- Lane H: BIDS-allowed formats. See formats/<name>.js for support tier. -->
 <!-- NWB (HDF5) iEEG — reuses _jsfive loaded above. _h5-stream is the
      streaming (HTTP-range) HDF5 reader nwb.js delegates to for
@@ -75,12 +76,15 @@
      Loads before viewer.js is invoked but has no load-order dependency
      (all integration points are optional-chained globals). -->
 <script src="pose-kinematics.js?v=1"></script>
-<script src="pose-panel.js?v=1"></script>
+<script src="pose-panel.js?v=2"></script>
 <script src="stimulus-panel.js?v=2"></script>
-<script src="viewer.js?v=12"></script>
+<script src="sensor-montage.js?v=2"></script>
+<script src="sensor-geometry.js?v=2"></script>
+<script src="viewer.js?v=15"></script>
 <script src="perf.js?v=1"></script>
 </head>
 <body>
+<a class="skip-link" href="#stage">Skip to visualization</a>
 
 <div class="app">
   <header class="header">
@@ -96,7 +100,7 @@
         </svg>
       </span>
       <div class="brand-title"><span class="brand-title-display">M/EEG</span> Trace Viewer</div>
-      <div class="brand-sub">BIDS · Electrophysiology signal preview (EEG, iEEG, EMG, MEG, fNIRS)</div>
+      <div class="brand-sub">Signals &amp; sensor geometry</div>
     </div>
     <div class="header-right">
       <span class="pill" id="pill-format">—</span>
@@ -122,8 +126,13 @@
   <aside class="rail left">
     <section class="rail-section">
       <h3 class="rail-title"><span>Recording</span></h3>
-      <div id="status" class="status">Drop a BIDS recording or pass <code>?eeg=&lt;url&gt;</code>, <code>?ieeg=</code>, <code>?emg=</code>, etc.</div>
-      <div id="provenance" class="provenance" data-embed="hide"></div>
+      <button id="open-recording" class="control-button open-recording" data-embed="hide">Open recording <span aria-hidden="true">↗</span></button>
+      <input type="file" id="recording-files" aria-label="Recording and BIDS sidecar files" multiple hidden />
+      <div id="status" class="status" role="status">No recording loaded. Select your data file and its BIDS sidecars together.</div>
+      <details class="recording-sources" data-embed="hide" open>
+        <summary>Recording sources</summary>
+        <div id="provenance" class="provenance"></div>
+      </details>
     </section>
 
     <section class="rail-section">
@@ -148,7 +157,7 @@
     </section>
 
     <section class="rail-section" data-embed="hide">
-      <h3 class="rail-title"><span>Channel Colors</span></h3>
+      <h3 class="rail-title"><span>Channel colors</span></h3>
       <div id="channel-colors"></div>
     </section>
 
@@ -161,7 +170,7 @@
         <div class="filter-row">
           <label>
             <input type="checkbox" id="filter-hp-enable" />
-            HP
+            High-pass
           </label>
           <input type="number" id="filter-hp-cutoff" aria-label="High-pass cutoff frequency in Hertz" min="0.1" max="100" step="0.1" value="0.5" />
           <span class="filter-unit">Hz</span>
@@ -169,7 +178,7 @@
         <div class="filter-row">
           <label>
             <input type="checkbox" id="filter-lp-enable" />
-            LP
+            Low-pass
           </label>
           <input type="number" id="filter-lp-cutoff" aria-label="Low-pass cutoff frequency in Hertz" min="1" max="500" step="1" value="45" />
           <span class="filter-unit">Hz</span>
@@ -198,14 +207,36 @@
     </section>
   </aside>
 
-  <main class="stage" id="stage">
+  <main class="stage" id="stage" tabindex="-1">
+    <div class="stage-toolbar">
+      <div class="view-switch" role="group" aria-label="Visualization view">
+        <button id="view-traces" aria-pressed="true" aria-controls="traces">
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 10h4l2-6 4 12 2-6h6" /></svg>Traces
+        </button>
+        <button id="view-geometry" aria-pressed="false" aria-controls="geometry-panel">
+          <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.3"><path d="m10 1 8 4.5v9L10 19l-8-4.5v-9Z M2 5.5l8 5 8-5 M10 10.5V19" /></svg>3D geometry
+        </button>
+      </div>
+      <div class="stage-actions">
+        <button id="show-metadata" class="control-button" disabled title="Recording information (i)">Info</button>
+        <button id="show-shortcuts" class="control-button" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
+      </div>
+    </div>
+    <div class="stage-content">
     <div id="stage-hint" class="stage-hint">
-      <p>No recording loaded</p>
-      <p>Drop a <code>*_{eeg,ieeg,emg}.*</code> file anywhere on this page,
-         or pass <code>?eeg=&lt;url&gt;</code>, <code>?ieeg=</code>, <code>?emg=</code> in the address bar.
-         OpenNeuro datasets work with
-         <code>?dataset=ds00XXXX&amp;sub=01&amp;task=rest</code> or <code>?dataset=...&amp;suffix=ieeg</code>.</p>
-      <p>Supported raw formats: <code>.set</code>+<code>.fdt</code> · <code>.edf</code> · <code>.bdf</code> · <code>.vhdr</code>+<code>.eeg</code> (EEG/iEEG/EMG compatible)</p>
+      <p class="empty-eyebrow">EEG · iEEG · MEG · fNIRS · EMG</p>
+      <h1>A closer look at your signals.</h1>
+      <p>Inspect a recording, explore its channels, and see the sensors in three dimensions. All in your browser.</p>
+      <button id="empty-open" class="control-button primary-button">Open a recording <span aria-hidden="true">↗</span></button>
+      <p class="drop-note">or drop your recording and sidecars anywhere here</p>
+      <div class="empty-guide">
+        <span class="empty-step">01</span><div><strong>Bring your BIDS files</strong><p>Select the data file with its companion files. Add <code>electrodes.tsv</code> or <code>optodes.tsv</code> and <code>coordsystem.json</code> for sensor positions.</p></div>
+        <span class="empty-step">02</span><div><strong>Switch your perspective</strong><p>Use Traces to inspect signals, then 3D geometry to explore the sensor layout.</p></div>
+      </div>
+      <details class="open-help"><summary>Formats &amp; opening a remote recording</summary>
+        <p>EEGLAB SET/FDT, EDF/BDF, BrainVision, FIFF, CTF, KIT, BTi, ITAB, SNIRF, NWB and MEF. Keep companion files together and use BIDS recording names.</p>
+        <p>Open a URL with <code>?eeg=&lt;url&gt;</code> (also <code>ieeg</code>, <code>meg</code>, <code>nirs</code>, <code>emg</code>), or use <code>?dataset=ds00XXXX&amp;sub=01&amp;task=rest</code>.</p>
+      </details>
     </div>
     <canvas id="traces" class="traces" hidden></canvas>
     <!-- Cursor readout bar: time, channel label, amplitude on hover. -->
@@ -218,6 +249,44 @@
     <div id="cursor-dot" class="cursor-dot" hidden></div>
     <!-- Engraved instrument legend, populated from the loaded recording. -->
     <div id="stage-caption" class="stage-caption" hidden></div>
+    <section id="geometry-panel" class="geometry-panel" aria-label="3D sensor geometry" hidden>
+      <div class="geometry-heading">
+        <div><p id="geometry-source" class="empty-eyebrow">Sensor positions</p><h2>Sensor geometry</h2><p id="geometry-summary" role="status"></p></div>
+        <button id="geometry-import" class="control-button">Add coordinates</button>
+        <input id="geometry-files" type="file" accept=".tsv,.json" multiple hidden aria-label="Electrode or optode TSV and coordinate system JSON" />
+        <label id="geometry-frame-label" hidden>Coordinate frame<select id="geometry-frame"></select></label>
+      </div>
+      <p id="geometry-error" class="geometry-error" role="status" hidden></p>
+      <div id="geometry-tools" class="geometry-tools" hidden>
+        <div role="group" aria-label="Camera orientation"><button data-camera="front">Front</button><button data-camera="side">Side</button><button data-camera="top">Top</button><button data-camera="reset" title="Reset camera and zoom">Reset</button></div>
+        <label><input id="geometry-labels" type="checkbox" checked /> Labels</label>
+        <label><input id="geometry-head" type="checkbox" /> Reference head</label>
+        <label>Head opacity <input id="geometry-head-opacity" type="range" min="0.1" max="1" step="0.1" value="0.4" /></label>
+        <label id="geometry-references-label" hidden><input id="geometry-references" type="checkbox" /> Reference coils <span id="geometry-reference-count"></span></label>
+        <div role="group" aria-label="Zoom"><button id="geometry-zoom-out" aria-label="Zoom out">−</button><button id="geometry-zoom-in" aria-label="Zoom in">+</button></div>
+      </div>
+      <p id="geometry-head-note" class="geometry-head-note"></p>
+      <details id="geometry-coordinate-controls" class="geometry-coordinate-controls" hidden>
+        <summary>Coordinate interpretation</summary>
+        <div>
+          <label>Frame <select id="geometry-coordinate-frame"><option value="">From file</option><option value="CapTrak">Head RAS · origin between ears</option><option value="EEGLAB">Head ALS · origin between ears</option></select></label>
+          <label>Units <select id="geometry-coordinate-units"><option value="">From file</option><option value="mm">Millimetres</option><option value="cm">Centimetres</option><option value="m">Metres</option><option value="percent">Percent</option></select></label>
+        </div>
+        <p>Set these only when you know how the coordinates were measured. Head frames require an origin between the ears.</p>
+      </details>
+      <div id="geometry-empty" class="geometry-empty">
+        <h3 id="geometry-empty-title">See where your signals come from</h3>
+        <p id="geometry-empty-copy"></p>
+        <button id="geometry-preview" class="control-button">Explore the standard EEG montage</button>
+      </div>
+      <canvas id="geometry-canvas" class="geometry-canvas" role="img" tabindex="0" aria-label="Interactive 3D sensor layout. Drag or use arrow keys to rotate. Use plus and minus to zoom, Home to reset. Select a sensor using the selector below." hidden></canvas>
+      <div id="geometry-details" class="geometry-details" hidden>
+        <div class="geometry-selection"><label>Sensor <select id="geometry-sensor"></select></label><span class="geometry-gesture">Drag to rotate · scroll to zoom</span></div>
+        <p id="geometry-readout" role="status"></p>
+        <p id="geometry-note"></p>
+      </div>
+    </section>
+    </div>
   </main>
 
   <!-- F02: Keyboard shortcuts overlay. Hidden until user presses '?'. -->

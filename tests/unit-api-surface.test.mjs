@@ -102,6 +102,7 @@ const EXPECTED = {
     'discoverSubject',
     'discoverSuffix',
     'isNemarDatasetId',
+    'loadCoordinateSets',
     'loadNemarRecording',
     'loadRecordingMetadata',
     'parseChannelsTsv',

@@ -1,0 +1,1723 @@
+{
+  "revision": "ca54a02e55548090fced87f38a28bae13a1f692d",
+  "source": "https://github.com/bids-standard/bids-examples/tree/ca54a02e55548090fced87f38a28bae13a1f692d",
+  "coordinateFiles": 260,
+  "downloadFailures": [],
+  "tables": 116,
+  "datasets": 21,
+  "renderable": 103,
+  "noValid3D": 13,
+  "results": [
+    {
+      "file": "eeg_ds000117/sub-01/eeg/sub-01_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-02/eeg/sub-02_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-03/eeg/sub-03_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-04/eeg/sub-04_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-05/eeg/sub-05_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-06/eeg/sub-06_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-07/eeg/sub-07_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-08/eeg/sub-08_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-09/eeg/sub-09_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-10/eeg/sub-10_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-11/eeg/sub-11_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-12/eeg/sub-12_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-13/eeg/sub-13_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-14/eeg/sub-14_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-15/eeg/sub-15_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds000117/sub-16/eeg/sub-16_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_ds003645s_hed_demo/sub-004/ses-1/eeg/sub-004_ses-1_run-1_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "ElektaNeuromag",
+          "axes": "ElektaNeuromag",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": [
+        "sub-004_ses-1_run-1_electrodes.tsv: 5 row(s) skipped: missing or invalid 3D coordinates or sensor names."
+      ]
+    },
+    {
+      "file": "eeg_ds003645s_hed_demo/sub-004/ses-1/eeg/sub-004_ses-1_run-2_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "ElektaNeuromag",
+          "axes": "ElektaNeuromag",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": [
+        "sub-004_ses-1_run-2_electrodes.tsv: 5 row(s) skipped: missing or invalid 3D coordinates or sensor names."
+      ]
+    },
+    {
+      "file": "eeg_ds003645s_hed_demo/sub-004/ses-1/eeg/sub-004_ses-1_run-3_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 70,
+      "frames": [
+        {
+          "name": "ElektaNeuromag",
+          "axes": "ElektaNeuromag",
+          "units": "mm",
+          "count": 70
+        }
+      ],
+      "issues": [
+        "sub-004_ses-1_run-3_electrodes.tsv: 5 row(s) skipped: missing or invalid 3D coordinates or sensor names."
+      ]
+    },
+    {
+      "file": "eeg_face13/sub-001/eeg/sub-001_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_face13/sub-002/eeg/sub-002_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_face13/sub-003/eeg/sub-003_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_face13/sub-004/eeg/sub-004_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_face13/sub-005/eeg/sub-005_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_face13/sub-006/eeg/sub-006_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_face13/sub-007/eeg/sub-007_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_face13/sub-008/eeg/sub-008_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_face13/sub-009/eeg/sub-009_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eeg_face13/sub-010/eeg/sub-010_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 128,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 128
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "emg_ConcurrentIndependentUnits/sub-01/emg/sub-01_recording-highDensity_electrodes.tsv",
+      "modality": "emg",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-01_recording-highDensity_electrodes.tsv: electrodes.tsv is missing one of: name, x, y, z"
+      ]
+    },
+    {
+      "file": "emg_CustomBipolarFace/sub-01/emg/sub-01_electrodes.tsv",
+      "modality": "emg",
+      "status": "renderable",
+      "positions": 12,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "percent",
+          "count": 12
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "emg_MultiBodyParts/sub-01/emg/sub-01_task-mechPerturbations_electrodes.tsv",
+      "modality": "emg",
+      "status": "renderable",
+      "positions": 2,
+      "frames": [
+        {
+          "name": "hand",
+          "axes": "Other",
+          "units": "percent",
+          "count": 1
+        },
+        {
+          "name": "lowerLeg",
+          "axes": "Other",
+          "units": "percent",
+          "count": 1
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "emg_Multimodal/sub-01/eeg/sub-01_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 133,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 133
+        }
+      ],
+      "issues": [
+        "sub-01_electrodes.tsv: 16 row(s) skipped: missing or invalid 3D coordinates or sensor names."
+      ]
+    },
+    {
+      "file": "emg_Multimodal/sub-01/emg/sub-01_electrodes.tsv",
+      "modality": "emg",
+      "status": "renderable",
+      "positions": 2,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "m",
+          "count": 2
+        }
+      ],
+      "issues": [
+        "sub-01_electrodes.tsv: 8 row(s) skipped: missing or invalid 3D coordinates or sensor names."
+      ]
+    },
+    {
+      "file": "emg_TwoHDsEMG/sub-01/emg/sub-01_electrodes.tsv",
+      "modality": "emg",
+      "status": "renderable",
+      "positions": 130,
+      "frames": [
+        {
+          "name": "grid1",
+          "axes": "Other",
+          "units": "mm",
+          "count": 64
+        },
+        {
+          "name": "grid2",
+          "axes": "Other",
+          "units": "mm",
+          "count": 64
+        },
+        {
+          "name": "forearm",
+          "axes": "Other",
+          "units": "percent",
+          "count": 2
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "emg_TwoWristbands/sub-01/emg/sub-01_electrodes.tsv",
+      "modality": "emg",
+      "status": "renderable",
+      "positions": 32,
+      "frames": [
+        {
+          "name": "leftForearm",
+          "axes": "Other",
+          "units": "percent",
+          "count": 16
+        },
+        {
+          "name": "rightForearm",
+          "axes": "Other",
+          "units": "percent",
+          "count": 16
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "eyetracking_eeg_ds007338/sub-EP10/ses-01/eeg/sub-EP10_ses-01_space-CapTrak_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 129,
+      "frames": [
+        {
+          "name": "CapTrak",
+          "axes": "CapTrak",
+          "units": "m",
+          "count": 129
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-06/nirs/sub-06_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-10/nirs/sub-10_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-19/nirs/sub-19_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-21/nirs/sub-21_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-27/nirs/sub-27_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-31/nirs/sub-31_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-33/nirs/sub-33_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-34/nirs/sub-34_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-38/nirs/sub-38_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-43/nirs/sub-43_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-44/nirs/sub-44_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-52/nirs/sub-52_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-53/nirs/sub-53_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-63/nirs/sub-63_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-67/nirs/sub-67_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-69/nirs/sub-69_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-74/nirs/sub-74_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-75/nirs/sub-75_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-77/nirs/sub-77_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-84/nirs/sub-84_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-87/nirs/sub-87_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-88/nirs/sub-88_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-90/nirs/sub-90_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_automaticity/sub-95/nirs/sub-95_optodes.tsv",
+      "modality": "nirs",
+      "status": "renderable",
+      "positions": 36,
+      "frames": [
+        {
+          "name": "CTF",
+          "axes": "CTF",
+          "units": "mm",
+          "count": 36
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "fnirs_tapping/sub-01/nirs/sub-01_optodes.tsv",
+      "modality": "nirs",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-01_optodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "fnirs_tapping/sub-02/nirs/sub-02_optodes.tsv",
+      "modality": "nirs",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-02_optodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "fnirs_tapping/sub-03/nirs/sub-03_optodes.tsv",
+      "modality": "nirs",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-03_optodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "fnirs_tapping/sub-04/nirs/sub-04_optodes.tsv",
+      "modality": "nirs",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-04_optodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "fnirs_tapping/sub-05/nirs/sub-05_optodes.tsv",
+      "modality": "nirs",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-05_optodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "ieeg_epilepsy_ecog/sub-ecog01/ses-postimp/ieeg/sub-ecog01_ses-postimp_space-IXI549Space_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 96,
+      "frames": [
+        {
+          "name": "IXI549Space",
+          "axes": "IXI549Space",
+          "units": "mm",
+          "count": 96
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_epilepsy_ecog/sub-ecog01/ses-postimp/ieeg/sub-ecog01_ses-postimp_space-ScanRAS_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 96,
+      "frames": [
+        {
+          "name": "ScanRAS",
+          "axes": "ScanRAS",
+          "units": "mm",
+          "count": 96
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_epilepsy/sub-01/ses-postimp/ieeg/sub-01_ses-postimp_space-IXI549Space_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 124,
+      "frames": [
+        {
+          "name": "IXI549Space",
+          "axes": "IXI549Space",
+          "units": "mm",
+          "count": 124
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_epilepsy/sub-01/ses-postimp/ieeg/sub-01_ses-postimp_space-ScanRAS_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 124,
+      "frames": [
+        {
+          "name": "ScanRAS",
+          "axes": "ScanRAS",
+          "units": "mm",
+          "count": 124
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_epilepsyNWB/sub-01/ses-postimp/ieeg/sub-01_ses-postimp_space-IXI549Space_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 124,
+      "frames": [
+        {
+          "name": "IXI549Space",
+          "axes": "IXI549Space",
+          "units": "mm",
+          "count": 124
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_epilepsyNWB/sub-01/ses-postimp/ieeg/sub-01_ses-postimp_space-ScanRAS_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 124,
+      "frames": [
+        {
+          "name": "ScanRAS",
+          "axes": "ScanRAS",
+          "units": "mm",
+          "count": 124
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_filtered_speech/sub-cm4/ieeg/sub-cm4_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-cm4_electrodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "ieeg_filtered_speech/sub-cm8/ieeg/sub-cm8_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-cm8_electrodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "ieeg_filtered_speech/sub-ir05/ieeg/sub-ir05_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-ir05_electrodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "ieeg_filtered_speech/sub-ir07/ieeg/sub-ir07_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-ir07_electrodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "ieeg_filtered_speech/sub-ir08/ieeg/sub-ir08_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-ir08_electrodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "ieeg_filtered_speech/sub-jh17/ieeg/sub-jh17_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-jh17_electrodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "ieeg_filtered_speech/sub-jh19/ieeg/sub-jh19_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "no-valid-3d-positions",
+      "positions": 0,
+      "frames": [],
+      "issues": [
+        "sub-jh19_electrodes.tsv: No sensors with finite x,y,z"
+      ]
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-bp/ses-01/ieeg/sub-bp_ses-01_space-ACPC_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 47,
+      "frames": [
+        {
+          "name": "ACPC",
+          "axes": "ACPC",
+          "units": "mm",
+          "count": 47
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-bp/ses-01/ieeg/sub-bp_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 47,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 47
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-ca/ses-01/ieeg/sub-ca_ses-01_space-ACPC_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 59,
+      "frames": [
+        {
+          "name": "ACPC",
+          "axes": "ACPC",
+          "units": "mm",
+          "count": 59
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-ca/ses-01/ieeg/sub-ca_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 59,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 59
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-cc/ses-01/ieeg/sub-cc_ses-01_space-ACPC_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 60,
+      "frames": [
+        {
+          "name": "ACPC",
+          "axes": "ACPC",
+          "units": "mm",
+          "count": 60
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-cc/ses-01/ieeg/sub-cc_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 60,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 60
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-de/ses-01/ieeg/sub-de_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 64,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 64
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-fp/ses-01/ieeg/sub-fp_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 62,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 62
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-gc/ses-01/ieeg/sub-gc_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 64,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 64
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-hh/ses-01/ieeg/sub-hh_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 41,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 41
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-hl/ses-01/ieeg/sub-hl_ses-01_space-ACPC_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 64,
+      "frames": [
+        {
+          "name": "ACPC",
+          "axes": "ACPC",
+          "units": "mm",
+          "count": 64
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-hl/ses-01/ieeg/sub-hl_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 64,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 64
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-jc/ses-01/ieeg/sub-jc_ses-01_space-ACPC_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 48,
+      "frames": [
+        {
+          "name": "ACPC",
+          "axes": "ACPC",
+          "units": "mm",
+          "count": 48
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-jc/ses-01/ieeg/sub-jc_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 48,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 48
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-jm/ses-01/ieeg/sub-jm_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 63,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 63
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-jt/ses-01/ieeg/sub-jt_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 62,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 62
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-rh/ses-01/ieeg/sub-rh_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 63,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 63
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-rr/ses-01/ieeg/sub-rr_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 49,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 49
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-ug/ses-01/ieeg/sub-ug_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 25,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 25
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-wc/ses-01/ieeg/sub-wc_ses-01_space-ACPC_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 64,
+      "frames": [
+        {
+          "name": "ACPC",
+          "axes": "ACPC",
+          "units": "mm",
+          "count": 64
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-wc/ses-01/ieeg/sub-wc_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 64,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 64
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-zt/ses-01/ieeg/sub-zt_ses-01_space-ACPC_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 48,
+      "frames": [
+        {
+          "name": "ACPC",
+          "axes": "ACPC",
+          "units": "mm",
+          "count": 48
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_motorMiller2007/sub-zt/ses-01/ieeg/sub-zt_ses-01_space-Talairach_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 48,
+      "frames": [
+        {
+          "name": "Talairach",
+          "axes": "Talairach",
+          "units": "mm",
+          "count": 48
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_visual_multimodal/sub-som682/ses-somecog01/ieeg/sub-som682_ses-somecog01_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 94,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 94
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "ieeg_visual/sub-01/ses-01/ieeg/sub-01_ses-01_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 117,
+      "frames": [
+        {
+          "name": "ACPC",
+          "axes": "ACPC",
+          "units": "mm",
+          "count": 117
+        }
+      ],
+      "issues": [
+        "sub-01_ses-01_electrodes.tsv: 1 row(s) skipped: missing or invalid 3D coordinates or sensor names."
+      ]
+    },
+    {
+      "file": "ieeg_visual/sub-02/ses-01/ieeg/sub-02_ses-01_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 96,
+      "frames": [
+        {
+          "name": "ACPC",
+          "axes": "ACPC",
+          "units": "mm",
+          "count": 96
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-01/ses-body/eeg/sub-01_ses-body_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-01/ses-joy/eeg/sub-01_ses-joy_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-02/ses-body/eeg/sub-02_ses-body_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-02/ses-joy/eeg/sub-02_ses-joy_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-03/ses-body/eeg/sub-03_ses-body_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-03/ses-joy/eeg/sub-03_ses-joy_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-04/ses-body/eeg/sub-04_ses-body_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-04/ses-joy/eeg/sub-04_ses-joy_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-05/ses-body/eeg/sub-05_ses-body_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "motion_spotrotation/sub-05/ses-joy/eeg/sub-05_ses-joy_electrodes.tsv",
+      "modality": "eeg",
+      "status": "renderable",
+      "positions": 157,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 157
+        }
+      ],
+      "issues": []
+    },
+    {
+      "file": "xeeg_hed_score/sub-ieegModulator/ses-ieeg01/ieeg/sub-ieegModulator_ses-ieeg01_electrodes.tsv",
+      "modality": "ieeg",
+      "status": "renderable",
+      "positions": 166,
+      "frames": [
+        {
+          "name": "Other",
+          "axes": "Other",
+          "units": "mm",
+          "count": 166
+        }
+      ],
+      "issues": []
+    }
+  ]
+}

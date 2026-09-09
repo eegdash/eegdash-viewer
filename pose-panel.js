@@ -381,7 +381,7 @@
    *
    * view: { yaw, pitch, zoom } radians/ratio; w/h CSS pixels; pad px.
    */
-  function rotateProject(positions, nJoints, yaw, pitch, w, h, pad, zoom) {
+  function rotateProject(positions, nJoints, yaw, pitch, w, h, pad, zoom, fitRadius) {
     // Trig locals deliberately suffixed — plain `cy`/`sy` collided with
     // the screen-y scratch below (caught by unit tests; kept suffixed so
     // it cannot regress).
@@ -411,8 +411,11 @@
 
     const spanX = Math.max(maxX - minX, 1e-6);
     const spanY = Math.max(maxY - minY, 1e-6);
-    const scale = Math.min((w - 2 * pad) / spanX, (h - 2 * pad) / spanY) * (zoom || 1);
-    const cx = (minX + maxX) / 2, cyy = (minY + maxY) / 2;
+    // Sensor views use a fixed bounding sphere so rotation does not
+    // continually change zoom. Hand views retain their existing auto-fit.
+    const scale = (fitRadius > 0 ? Math.min(w - 2 * pad, h - 2 * pad) / (2 * fitRadius)
+      : Math.min((w - 2 * pad) / spanX, (h - 2 * pad) / spanY)) * (zoom || 1);
+    const cx = fitRadius > 0 ? 0 : (minX + maxX) / 2, cyy = fitRadius > 0 ? 0 : (minY + maxY) / 2;
 
     const sx = rotateProject._sx && rotateProject._sx.length >= n
       ? rotateProject._sx : (rotateProject._sx = new Float32Array(n));

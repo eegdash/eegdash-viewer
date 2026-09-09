@@ -24,12 +24,9 @@ test('parseElectrodesTSV: rejects file with header only (no data rows)', () => {
     /no rows/);
 });
 
-test('parseElectrodesTSV: rejects file with fewer than 4 valid rows', () => {
-  // The sphere fit needs ≥ 4 finite points. Less than that → throw,
-  // since a 2- or 3-electrode "cap" can't produce a valid head sphere.
+test('parseElectrodesTSV: accepts small layouts without requiring a sphere fit', () => {
   const tsv = 'name\tx\ty\tz\nFp1\t-0.029\t0.083\t-0.012\nCz\t0\t0\t0.087\n';
-  assert.throws(() => BIDSLoader.parseElectrodesTSV(tsv),
-    /at least 4 electrodes/);
+  assert.equal(BIDSLoader.parseElectrodesTSV(tsv).length, 2);
 });
 
 test('parseElectrodesTSV: rejects missing required column', () => {
@@ -72,10 +69,10 @@ test('parseCoordsystem: accepts the iEEG prefix variant', () => {
   assert.equal(cs.space, 'ACPC');
 });
 
-test('parseCoordsystem: defaults to EEG/Other/m when missing', () => {
+test('parseCoordsystem: preserves unspecified units rather than inventing metres', () => {
   const cs = BIDSLoader.parseCoordsystem('{}');
   assert.equal(cs.space, 'Other');
-  assert.equal(cs.units, 'm');
+  assert.equal(cs.units, 'n/a');
 });
 
 test('parseCoordsystem: pulls AnatomicalLandmarkCoordinates through', () => {

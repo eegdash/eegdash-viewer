@@ -403,7 +403,7 @@
     // `workerFetchWindow(Streaming)` aliases the rest of boot() reaches.
     const _RpcMod = (typeof globalThis !== 'undefined' && globalThis.ViewerWorkerRpc)
       || (typeof require !== 'undefined' ? require('./viewer/worker-rpc.js') : null);
-    const rpc = _RpcMod.createWorkerRpc({ workerUrl: 'worker.js?v=3' });
+    const rpc = _RpcMod.createWorkerRpc({ workerUrl: 'worker.js?v=6' });
     const worker = rpc.worker;
     const workerReadyPromise = rpc.ready;
     const workerFetchWindow = rpc.fetchWindow;
@@ -796,6 +796,14 @@
     }
 
     function attachInput() {
+      $('open-recording')?.addEventListener('click', () => $('recording-files').click());
+      $('empty-open')?.addEventListener('click', () => $('recording-files').click());
+      $('recording-files')?.addEventListener('change', (e) => {
+        if (e.target.files.length) openLocalFiles(e.target.files);
+        e.target.value = '';
+      });
+      $('show-shortcuts')?.addEventListener('click', () => showOverlay('shortcuts-overlay'));
+      $('show-metadata')?.addEventListener('click', () => showOverlay('metadata-overlay'));
       let dragging = false, dragX0 = 0, t0 = 0;
       tracesCanvas.addEventListener('pointerdown', (e) => {
         dragging = true; dragX0 = e.clientX; t0 = view.start_sec;
@@ -865,6 +873,7 @@
           }
           return;
         }
+        if ($('stage')?.dataset.view === 'geometry') return;
         if (e.key === 'ArrowLeft')  { lastPanDir = -1; view.start_sec = clampStart(view.start_sec - view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
         if (e.key === 'ArrowRight') { lastPanDir = +1; view.start_sec = clampStart(view.start_sec + view.window_sec / 2, readerInfo && readerInfo.duration_s, view.window_sec); requestRender(); }
         // PgUp / PgDn: page through channels when the recording has more
@@ -962,6 +971,7 @@
     let loadEpoch = 0;
     async function loadFromMeta(metaFn, statusText) {
       const epoch = ++loadEpoch;
+      globalThis.SensorGeometry?.clear();
       // New recording → previous reader's sample-keyed cache and the
       // render pipeline's last-window fast path are moot.
       clearReadCache();
@@ -977,32 +987,10 @@
         setPill('pill-channels', (meta.channels?.length ?? '?') + ' ch');
         setPill('pill-duration', (meta.eeg_json.recording_duration ?? '?') + ' s');
         renderProvenance(meta, provenance);
-        renderChannels(meta.channels, $('ch-list'), $('channel-count'));
         // F09: defer renderEvents until after the reader opens so we can
         // merge in EDF+ annotation-channel events when no _events.tsv
         // sidecar was found.
         updateElectrodeLink(meta, $('electrode-link'));
-
-        // Initialise per-type colour mapping for the new recording.
-        const _metaChannels = meta.channels || [];
-        const distinctTypes = [...new Set(_metaChannels.map(ch => (ch.type || 'MISC').toUpperCase()))];
-        typeColors = buildTypeColors(distinctTypes);
-        const colorContainer = $('channel-colors');
-        if (colorContainer) {
-          renderChannelColors(_metaChannels, colorContainer, typeColors, (type, hex) => {
-            typeColors[type] = hex;
-            // Swap .active on all swatches for this type row.
-            const rows = colorContainer.querySelectorAll('.color-swatch-row');
-            rows.forEach(row => {
-              const lbl = row.querySelector('.ch-type-label');
-              if (!lbl || lbl.textContent !== type) return;
-              row.querySelectorAll('button.color-swatch').forEach(btn => {
-                btn.classList.toggle('active', btn.getAttribute('data-color') === hex);
-              });
-            });
-            requestRender();
-          });
-        }
 
         if (worker) {
           // Wait for INIT_OK before sending LOAD_FILE.
@@ -1038,12 +1026,46 @@
             sampling_frequency: fallbackReader.sampling_frequency,
             duration_s:         fallbackReader.duration_s,
             channel_labels:     fallbackReader.channel_labels || null,
+            channel_types:      fallbackReader.channel_types || null,
             bytes_per_sample:   fallbackReader.bytes_per_sample,
             n_samples:          fallbackReader.n_samples,
             recording_start_iso: fallbackReader.recording_start_iso ?? null,
             annotation_events:  fallbackReader.annotation_events || null,
+            sensor_geometry:    fallbackReader.sensor_geometry || null,
           };
         }
+        if (epoch !== loadEpoch) return;
+        channelLabels = deriveChannelLabels(readerInfo, meta.channels);
+        // Use the format header when no channels.tsv is available. All
+        // channel controls and the metadata overlay need the same rows.
+        if (!meta.channels?.length) {
+          meta.channels = channelLabels.map((name, i) => ({
+            name, type: readerInfo.channel_types?.[i] || null, status: 'good',
+          }));
+        }
+        renderChannels(meta.channels, $('ch-list'), $('channel-count'));
+        // Initialise per-type colour mapping for the new recording.
+        metaChannels = meta.channels;
+        const distinctTypes = [...new Set(metaChannels.map(ch => (ch.type || 'MISC').toUpperCase()))];
+        typeColors = buildTypeColors(distinctTypes);
+        const colorContainer = $('channel-colors');
+        if (colorContainer) {
+          renderChannelColors(metaChannels, colorContainer, typeColors, (type, hex) => {
+            typeColors[type] = hex;
+            // Swap .active on all swatches for this type row.
+            const rows = colorContainer.querySelectorAll('.color-swatch-row');
+            rows.forEach(row => {
+              const lbl = row.querySelector('.ch-type-label');
+              if (!lbl || lbl.textContent !== type) return;
+              row.querySelectorAll('button.color-swatch').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-color') === hex);
+              });
+            });
+            requestRender();
+          });
+        }
+
+        globalThis.SensorGeometry?.setRecording(meta, readerInfo);
 
         // F09: merge EDF+ annotation-channel events when no _events.tsv
         // was found. Sidecar events always win; annotation events fall
@@ -1056,9 +1078,7 @@
         // Cache events for the renderer (on-canvas event-onset markers).
         metaEvents = meta.events || [];
 
-        channelLabels = deriveChannelLabels(readerInfo, meta.channels);
         channelBadMask = deriveBadMask(meta.channels, readerInfo.n_channels);
-        metaChannels = _metaChannels.length ? _metaChannels : (meta.channels || null);
 
         setPill('pill-fs', readerInfo.sampling_frequency + ' Hz');
         setPill('pill-channels', readerInfo.n_channels + ' ch');
@@ -1223,6 +1243,7 @@
           renderStageCaption(meta, readerInfo, $('stage-caption'));
         }
         populateMetadataOverlay(meta, readerInfo);
+        if ($('show-metadata')) $('show-metadata').disabled = false;
 
         // Pre-warm the cache before the first render: the "prev"
         // neighbour clamps to start=0 (same key as the foreground
@@ -1238,6 +1259,7 @@
         prefetchNeighbours();
         requestRender();
       } catch (err) {
+        if (epoch !== loadEpoch) return;
         status.replaceChildren(el('span', 'err', err.message));
         console.error(err);
       }
@@ -1256,6 +1278,10 @@
       // Pick the recording first: an unsupported payload must not tear
       // down the recording that is on screen.
       const physio = [...files].find(f => PHYSIO_FILENAME.test(f.name));
+      if (!physio && [...files].some(f => /\.tsv$/i.test(f.name)) && globalThis.SensorGeometry) {
+        globalThis.SensorGeometry.openFiles(files);
+        return null;
+      }
       if (!physio) {
         const supported = Object.keys(READERS).join(',');
         status.replaceChildren(el('span', 'err',
@@ -1306,7 +1332,7 @@
         depth = 0; hasFiles = false; hide();
         const files = e.dataTransfer && e.dataTransfer.files;
         if (!files || !files.length) return;
-        globalThis.StimulusPanel?.clear();
+        if ([...files].some(f => PHYSIO_FILENAME.test(f.name))) globalThis.StimulusPanel?.clear();
         openLocalFiles(files);
       });
     }
@@ -1459,6 +1485,7 @@
     }
 
     attachInput();
+    globalThis.SensorGeometry?.boot({ onTraces: requestRender });
     attachChListClick();
     attachFilterControls();
     attachDragDrop();
@@ -1470,7 +1497,9 @@
     // Node path: require() the file directly so unit tests work.
     const _UrlResolverMod = (typeof globalThis !== 'undefined' && globalThis.ViewerUrlResolver)
       || (typeof require !== 'undefined' ? require('./viewer/url-resolver.js') : null);
-    _UrlResolverMod.resolveAndLoad(params, {
+    const coordinatesUrl = params.get('tsv') || params.get('electrodes') || params.get('optodes');
+    if (coordinatesUrl) globalThis.SensorGeometry?.openUrls(coordinatesUrl, params.get('coords'));
+    else _UrlResolverMod.resolveAndLoad(params, {
       load,
       loadNemar,
       setStatus: (text) => { status.textContent = text; },

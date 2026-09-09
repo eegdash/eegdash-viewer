@@ -57,6 +57,7 @@
     TAG_DATA_PACK: 202,
     TAG_CH_INFO: 203,
     TAG_MEAS_DATE: 204,
+    TAG_COORD_TRANS: 222,
     TAG_DATA_BUFFER: 300,
     TAG_DATA_SKIP: 301,
     TAG_EPOCH: 304,
@@ -185,6 +186,27 @@
               if (ch) meas.chs.push(ch);
               break;
             }
+            case FIFF.TAG_COORD_TRANS: {
+              if (tag.size < 104 || blockStack.at(-1) !== FIFF.BLOCK_MEAS_INFO) break;
+              const from = view.getInt32(dataPos, false), to = view.getInt32(dataPos + 4, false);
+              if (!((from === 1 && to === 4) || (from === 4 && to === 1))) break;
+              // FIFF stores both directions. Normalize to device -> head.
+              const start = dataPos + (from === 1 ? 8 : 56);
+              const matrix = Array(16).fill(0);
+              matrix[15] = 1;
+              for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 3; col++) matrix[row * 4 + col] = view.getFloat32(start + (row * 3 + col) * 4, false);
+                matrix[row * 4 + 3] = view.getFloat32(start + 36 + row * 4, false);
+              }
+              const rows = [0, 1, 2].map(i => matrix.slice(i * 4, i * 4 + 3));
+              const dot = (a, b) => a.reduce((sum, v, i) => sum + v * b[i], 0);
+              const orthogonal = rows.every((r, i) => rows.every((s, j) => Math.abs(dot(r, s) - (i === j ? 1 : 0)) < 0.002));
+              const determinant = rows[0][0] * (rows[1][1]*rows[2][2]-rows[1][2]*rows[2][1])
+                - rows[0][1] * (rows[1][0]*rows[2][2]-rows[1][2]*rows[2][0])
+                + rows[0][2] * (rows[1][0]*rows[2][1]-rows[1][1]*rows[2][0]);
+              if (matrix.every(Number.isFinite) && orthogonal && determinant > 0) meas.dev_head_t = matrix;
+              break;
+            }
           }
         } else if (inRawData && tag.kind === FIFF.TAG_DATA_BUFFER) {
           const buf2 = extractDataBuffer(view, dataPos, tag, meas.nchan);
@@ -269,6 +291,7 @@
     return {
       name,
       kind,
+      position: [24, 28, 32].map(i => view.getFloat32(offset + i, false)),
       cal: Number.isFinite(cal) ? cal : 1.0,
       range: Number.isFinite(range) ? range : 1.0,
     };
@@ -602,6 +625,22 @@
   // still return a reader (readWindow throws); when it is present we
   // serve windows from the in-memory channel arrays — same as the
   // pre-refactor behaviour.
+  // FIFF loc[:3] is metres: MEG coils are in device coordinates,
+  // EEG electrodes in head coordinates. Preserve device coordinates and
+  // pass their explicit transform to the visualization, as MNE does.
+  function sensorGeometry(meas) {
+    return [
+      { kinds: [1, 301], type: 'MEG', space: 'FIFF device' },
+      { kinds: [2], type: 'EEG', space: 'CapTrak' },
+    ].map(({ kinds, type, space }) => ({
+      source: 'FIFF channel locations', space, units: 'm',
+      to_head: type === 'MEG' ? meas.dev_head_t || null : null,
+      points: (meas.chs || []).filter(c => kinds.includes(c.kind) &&
+        c.position?.every(Number.isFinite) && c.position.some(v => v !== 0))
+        .map(c => ({ name: c.name, type: c.kind === 301 ? 'MEGREF' : type, x: c.position[0], y: c.position[1], z: c.position[2] })),
+    })).filter(group => group.points.length);
+  }
+
   function buildReaderFromMeas(meas) {
     const channelLabels = Array.isArray(meas.chs) && meas.chs.length > 0
       ? meas.chs.map((c, i) => (c && c.name) || `Ch${i + 1}`)
@@ -620,6 +659,7 @@
       sampling_frequency: sfreq,
       duration_s:         duration,
       channel_labels:     channelLabels,
+      sensor_geometry:    sensorGeometry(meas),
       bytes_per_sample:   4,
       n_samples:          nsamp,
       recording_start_iso: null,
@@ -695,6 +735,7 @@
       sampling_frequency: sfreq,
       duration_s:         duration,
       channel_labels:     channelLabels,
+      sensor_geometry:    sensorGeometry(meas),
       bytes_per_sample:   4,
       n_samples:          totalSamples,
       recording_start_iso: null,

@@ -48,7 +48,7 @@ importScripts(
   // Tag-directory walker — must load BEFORE fiff.js because the range-
   // based api.open reaches through globalThis.FiffDir.
   'formats/_fiff-dir.js',
-  'formats/fiff.js',
+  'formats/fiff.js?v=5',
   'formats/_ctf-res4.js',
   'formats/_ctf-marker.js',
   'formats/ctf.js',
@@ -57,7 +57,7 @@ importScripts(
   'formats/kit.js',
   // SNIRF (HDF5) fNIRS reader. Depends on _jsfive loaded above (same
   // engine used for the MAT v7.3 EEGLAB path).
-  'formats/snirf.js',
+  'formats/snirf.js?v=2',
   // NWB (HDF5) iEEG reader — reuses _jsfive loaded above for SNIRF +
   // MAT v7.3. _h5-stream is the range-fetch HDF5 reader nwb.js routes
   // to for files > 200 MB whose metadata fits in the head buffer;
@@ -324,10 +324,12 @@ self.onmessage = async function (evt) {
           sampling_frequency:  reader.sampling_frequency,
           duration_s:          reader.duration_s,
           channel_labels:      reader.channel_labels || null,
+          channel_types:       reader.channel_types || null,
           bytes_per_sample:    reader.bytes_per_sample,
           n_samples:           reader.n_samples,
           recording_start_iso: reader.recording_start_iso ?? null,
           annotation_events:   reader.annotation_events || null,
+          sensor_geometry:     reader.sensor_geometry || null,
         });
         break;
       }

@@ -180,6 +180,36 @@
     return labels;
   }
 
+  function sensorGeometry(nirs) {
+    if (!nirs.keys.includes('probe')) return [];
+    try {
+      const probe = nirs.get('probe');
+      const tags = nirs.keys.includes('metaDataTags') ? nirs.get('metaDataTags') : null;
+      const units = tags?.keys.includes('LengthUnit')
+        ? readStringDataset(tags.get('LengthUnit')) : 'n/a';
+      const points = [];
+      for (const [kind, prefix] of [['source', 'S'], ['detector', 'D']]) {
+        const key = kind + 'Pos3D';
+        if (!probe.keys.includes(key)) continue; // 2D positions are not 3D geometry.
+        const ds = probe.get(key), values = ds.value;
+        if (ds.shape?.length !== 2 || ds.shape[1] !== 3) continue;
+        const labels = probe.keys.includes(kind + 'Labels') ? probe.get(kind + 'Labels').value : null;
+        for (let i = 0; i < ds.shape[0]; i++) {
+          const xyz = [0, 1, 2].map(j => Array.isArray(values[i]) || ArrayBuffer.isView(values[i])
+            ? values[i][j] : values[i * 3 + j]);
+          if (xyz.every(Number.isFinite)) points.push({
+            name: labels?.[i] ? String(labels[i]) : `${prefix}${i + 1}`,
+            type: kind, x: xyz[0], y: xyz[1], z: xyz[2],
+          });
+        }
+      }
+      return points.length ? [{ source: 'SNIRF probe positions', space: 'Other', units, points }] : [];
+    } catch (e) {
+      console.warn(`SNIRF: optional probe geometry unavailable: ${e.message}`);
+      return [];
+    }
+  }
+
   function normaliseToFloat32(value, nSamples, nChannels) {
     const expected = nSamples * nChannels;
     if (value && typeof value.length === 'number' && value.length === expected) {
@@ -321,6 +351,7 @@
       duration_s: nSamples / fs,
       n_samples: nSamples,
       channel_labels: channelLabels,
+      sensor_geometry: sensorGeometry(nirs),
       // SNIRF dataTimeSeries is typically float64; we display Float32
       // but quote the source width so the UI can show the on-disk dtype.
       bytes_per_sample: 8,
@@ -347,6 +378,7 @@
   // Re-exposed for tests.
   api._isHdf5AtZero = isHdf5AtZero;
   api._extractStimEvents = extractStimEvents;
+  api._sensorGeometry = sensorGeometry;
 
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof globalThis !== 'undefined') globalThis.SnirfReader = api;

@@ -74,6 +74,11 @@ test('host bridge: File + pose data URL over postMessage renders traces and the 
   expect(p.x).toBeGreaterThanOrEqual(c.x + c.width - 1);
   expect(p.width).toBeGreaterThanOrEqual(240);
 
+  await frame.locator('#view-geometry').click();
+  await expect(panel).toBeVisible();
+  await frame.locator('#view-traces').click();
+  await expect(panel).toBeVisible();
+
   // Toolbar: view + filter controls on screen in embed mode, lists off.
   await expect(frame.locator('#window-sec')).toBeVisible();
   await expect(frame.locator('#gain')).toBeVisible();
@@ -181,6 +186,10 @@ test('host bridge: BIDS image assets follow the hovered event', async ({ page })
   await expect(frame.locator('#traces')).toBeVisible({ timeout: 30_000 });
   await expect(frame.locator('#event-count')).toHaveText('3');
   await expect(frame.locator('#stimulus-panel')).toBeVisible();
+
+  await frame.locator('#view-geometry').click();
+  await expect(frame.locator('#stimulus-panel')).toBeVisible();
+  await frame.locator('#view-traces').click();
 
   const trace = frame.locator('#traces');
   const box = await trace.boundingBox();

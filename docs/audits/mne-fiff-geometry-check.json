@@ -1,0 +1,10 @@
+{
+  "fixture": "tests/fixtures/meg/test_ctf_comp_raw.fif",
+  "mneVersion": "1.11.0",
+  "reference": "mne.transforms.apply_trans(raw.info[\"dev_head_t\"], channel[\"loc\"][:3])",
+  "positionsCompared": 303,
+  "measurementCoils": 274,
+  "referenceCoils": 29,
+  "displayFrame": "MNE head",
+  "maxAbsoluteErrorMm": 0
+}
