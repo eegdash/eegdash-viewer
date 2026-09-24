@@ -41,8 +41,9 @@
   const CURSOR_TTL_MS = 200;
   // Default camera distance-ish padding fraction for auto-fit.
   const DEFAULT_PAD = 24; // px inside the canvas edge
-  // Mesh base colour, matching the EEGDash waveform purple (#BB53E5).
-  // Lambert shading scales it per face; see drawMesh.
+  // Default mesh base colour, matching the EEGDash waveform purple (#BB53E5).
+  // Lambert shading scales it per face; see drawMesh. Callers override it with
+  // opts.color (any #rgb/#rrggbb) when the hand has to match another palette.
   const MESH_RGB = [187, 83, 229];
   // Quantised shading palette. Lambert |n·l| ∈ [0,1] indexes it directly, so
   // the hot loop looks a colour up instead of building one `rgb()` string per
@@ -50,17 +51,33 @@
   // palette spans is ~39 RGB units wide, so 32 bins sit ~1 unit apart — below
   // anything the eye resolves.
   const MESH_SHADES = 32;
-  const MESH_PALETTE = (() => {
+
+  /** Parse #rgb / #rrggbb into [r,g,b]; throws on anything else. */
+  function parseHexRGB(hex) {
+    const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex).trim());
+    if (!m) throw new Error(`pose renderer: color must be #rgb or #rrggbb, got ${JSON.stringify(hex)}`);
+    const h = m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1];
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
+  }
+
+  // ponytail: one palette per distinct colour, cached forever. A render only
+  // ever uses a handful of colours, so an unbounded Map is the whole story.
+  const MESH_PALETTES = new Map();
+  function meshPalette(rgb) {
+    const key = rgb.join(',');
+    const hit = MESH_PALETTES.get(key);
+    if (hit) return hit;
     const out = new Array(MESH_SHADES);
     for (let i = 0; i < MESH_SHADES; i++) {
       // Mirrors the old inline maths: shade = 0.45 + 0.55·|n·l|, then the
       // narrow 0.79–1.0 luminance band that keeps facets readable without
       // banding the hue into a different colour.
       const lum = 0.62 + 0.38 * (0.45 + 0.55 * (i / (MESH_SHADES - 1)));
-      out[i] = `rgb(${Math.round(MESH_RGB[0] * lum)},${Math.round(MESH_RGB[1] * lum)},${Math.round(MESH_RGB[2] * lum)})`;
+      out[i] = `rgb(${Math.round(rgb[0] * lum)},${Math.round(rgb[1] * lum)},${Math.round(rgb[2] * lum)})`;
     }
+    MESH_PALETTES.set(key, out);
     return out;
-  })();
+  }
 
   // ---- pure: base64 / parsing --------------------------------
 
@@ -506,6 +523,7 @@
       return false;
     }
     const verts = skinMesh(parsed, fr.angles);
+    const palette = meshPalette(opts.color == null ? MESH_RGB : parseHexRGB(opts.color));
     // rotateProject is vertex-count agnostic; reuse it for all V verts.
     const proj = rotateProject(
       verts, mesh.nVerts,
@@ -556,7 +574,7 @@
       // Assigning fillStyle re-parses the CSS string, so skip it when the
       // depth-sorted run happens to stay in the same shading bin.
       const bin = shade[t];
-      if (bin !== lastBin) { ctx.fillStyle = MESH_PALETTE[bin]; lastBin = bin; }
+      if (bin !== lastBin) { ctx.fillStyle = palette[bin]; lastBin = bin; }
       ctx.beginPath();
       const a = mesh.triangles[t * 3], b = mesh.triangles[t * 3 + 1], c = mesh.triangles[t * 3 + 2];
       ctx.moveTo(proj.sx[a], proj.sy[a]);
@@ -607,23 +625,13 @@
    * `scale` controls the exported pixel density. It works for skeleton-only
    * sidecars and for any compatible mesh supplied by the caller.
    */
-  function renderPNG(sidecar, options = {}) {
+  function resolveRenderOptions(sidecar, options) {
     if (!options || typeof options !== 'object' || Array.isArray(options)) {
       throw new Error('pose renderer: options must be an object');
-    }
-    const doc = globalThis.document;
-    if (!doc || typeof doc.createElement !== 'function') {
-      throw new Error('pose renderer: a browser canvas document is required');
     }
     const parsed = parseSidecar(sidecar);
     const width = positiveNumber(options.width, 480, 'width', 4096);
     const height = positiveNumber(options.height, 480, 'height', 4096);
-    const scale = positiveNumber(options.scale, 2, 'scale', 8);
-    const pixelWidth = Math.round(width * scale);
-    const pixelHeight = Math.round(height * scale);
-    if (pixelWidth * pixelHeight > 16_777_216) {
-      throw new Error('pose renderer: requested image exceeds 16 megapixels');
-    }
     const time = options.time == null
       ? parsed.startS + parsed.durationS / 2
       : Number(options.time);
@@ -641,6 +649,32 @@
     if (![yaw, pitch, zoom].every(Number.isFinite) || zoom <= 0) {
       throw new Error('pose renderer: camera yaw, pitch, and zoom must be finite; zoom must be positive');
     }
+    if (options.color != null) parseHexRGB(options.color); // fail before painting
+    return {
+      parsed,
+      time,
+      paint: {
+        yaw, pitch, zoom, w: width, h: height,
+        mode: options.mode || 'auto',
+        ...(options.color == null ? {} : { color: options.color }),
+      },
+    };
+  }
+
+  function renderPNG(sidecar, options = {}) {
+    const doc = globalThis.document;
+    if (!doc || typeof doc.createElement !== 'function') {
+      throw new Error('pose renderer: a browser canvas document is required');
+    }
+    const { parsed, time, paint } = resolveRenderOptions(sidecar, options);
+    const width = paint.w;
+    const height = paint.h;
+    const scale = positiveNumber(options.scale, 2, 'scale', 8);
+    const pixelWidth = Math.round(width * scale);
+    const pixelHeight = Math.round(height * scale);
+    if (pixelWidth * pixelHeight > 16_777_216) {
+      throw new Error('pose renderer: requested image exceeds 16 megapixels');
+    }
     const canvas = doc.createElement('canvas');
     canvas.width = pixelWidth;
     canvas.height = pixelHeight;
@@ -648,10 +682,68 @@
     if (!ctx) throw new Error('pose renderer: 2D canvas is unavailable');
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.clearRect(0, 0, width, height);
-    paintPose(ctx, parsed, time, {
-      yaw, pitch, zoom, w: width, h: height, mode: options.mode || 'auto',
-    });
+    paintPose(ctx, parsed, time, paint);
     return canvas.toDataURL('image/png');
+  }
+
+  /**
+   * Canvas-2D shim that records the same drawing calls as `<path>` elements.
+   * Only the subset drawFrame/drawMesh actually use is implemented — enough
+   * to get a true vector of the painter's-algorithm render with zero
+   * duplicated geometry, and it needs no DOM at all.
+   * ponytail: no transforms, gradients or clipping; the pose renderer uses none.
+   */
+  function svgContext(width, height) {
+    const parts = [];
+    const n = (v) => Math.round(v * 100) / 100;
+    let d = '';
+    const ctx = {
+      fillStyle: '#000', strokeStyle: '#000', lineWidth: 1,
+      lineCap: 'butt', lineJoin: 'miter', font: '', textAlign: 'start',
+      beginPath() { d = ''; },
+      moveTo(x, y) { d += `M${n(x)} ${n(y)}`; },
+      lineTo(x, y) { d += `L${n(x)} ${n(y)}`; },
+      closePath() { d += 'Z'; },
+      arc(x, y, r) {
+        // Only full circles are drawn (joint dots), so two half arcs suffice.
+        d += `M${n(x - r)} ${n(y)}A${n(r)} ${n(r)} 0 1 0 ${n(x + r)} ${n(y)}`
+          + `A${n(r)} ${n(r)} 0 1 0 ${n(x - r)} ${n(y)}Z`;
+      },
+      fill() {
+        if (!d) return;
+        // Hairline seams: SVG anti-aliases each triangle independently, so
+        // adjacent fills leave background slivers. A 0.4px stroke in the fill
+        // colour closes them without changing the silhouette.
+        parts.push(`<path d="${d}" fill="${ctx.fillStyle}" stroke="${ctx.fillStyle}" stroke-width="0.4"/>`);
+      },
+      stroke() {
+        if (!d) return;
+        parts.push(`<path d="${d}" fill="none" stroke="${ctx.strokeStyle}"`
+          + ` stroke-width="${n(ctx.lineWidth)}" stroke-linecap="${ctx.lineCap}"`
+          + ` stroke-linejoin="${ctx.lineJoin}"/>`);
+      },
+      fillText(text, x, y) {
+        const escaped = String(text).replace(/[<&>]/g, (c) => `&#${c.charCodeAt(0)};`);
+        parts.push(`<text x="${n(x)}" y="${n(y)}" fill="${ctx.fillStyle}"`
+          + ` text-anchor="${ctx.textAlign === 'center' ? 'middle' : 'start'}"`
+          + ` font-family="IBM Plex Mono, monospace" font-size="11">${escaped}</text>`);
+      },
+    };
+    const toSVG = () => `<svg xmlns="http://www.w3.org/2000/svg" width="${width}"`
+      + ` height="${height}" viewBox="0 0 ${width} ${height}">\n${parts.join('\n')}\n</svg>\n`;
+    return { ctx, toSVG };
+  }
+
+  /**
+   * Render one sidecar frame to an SVG string. Same options as renderPNG
+   * minus `scale` (vectors do not have a pixel density), plus `color`.
+   * Runs in plain Node — no canvas, no browser.
+   */
+  function renderSVG(sidecar, options = {}) {
+    const { parsed, time, paint } = resolveRenderOptions(sidecar, options);
+    const { ctx, toSVG } = svgContext(paint.w, paint.h);
+    paintPose(ctx, parsed, time, paint);
+    return toSVG();
   }
 
   // ---- DOM glue ------------------------------------------------
@@ -954,7 +1046,7 @@
     FK_DOF, FK_FRAMES,
     b64ToBytes, parseSidecar, parseMeshBlock, frameAt, anglesAt,
     umetrackFrames, skinPoints, skinMesh, skinLandmarks,
-    rotateProject, drawFrame, drawMesh, nextMode, renderPNG,
+    rotateProject, drawFrame, drawMesh, nextMode, renderPNG, renderSVG, parseHexRGB,
     mount, attachKeys, openUrl, hideActive, bootFromParams, syncWindow, syncCursor,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

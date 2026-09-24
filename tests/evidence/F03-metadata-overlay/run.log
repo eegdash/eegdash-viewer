@@ -1,0 +1,7 @@
+[1A[2K[2m[WebServer] [22mStatic server listening on http://localhost:8011/ (root: /Users/bruaristimunha/Projects/eegdash-viewer)
+
+
+Running 1 test using 1 worker
+
+[1A[2K[1/1] [chromium] › tests/e2e/eegdrop-features.spec.mjs:97:3 › eegdrop incorporation › F03: file metadata overlay opens with i, lists sidecar provenance
+[1A[2K  1 passed (3.5s)

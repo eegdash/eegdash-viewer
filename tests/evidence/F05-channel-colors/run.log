@@ -1,0 +1,7 @@
+[1A[2K[2m[WebServer] [22mStatic server listening on http://localhost:8011/ (root: /Users/bruaristimunha/Projects/eegdash-viewer)
+
+
+Running 1 test using 1 worker
+
+[1A[2K[1/1] [chromium] › tests/e2e/eegdrop-features.spec.mjs:168:3 › eegdrop incorporation › F05: per-channel-type colors render and accept overrides
+[1A[2K  1 passed (5.4s)

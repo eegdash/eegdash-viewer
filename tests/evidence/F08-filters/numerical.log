@@ -1,0 +1,12 @@
+✔ HP 1 Hz at 250 Hz: coefficients match RBJ formula to 1e-9 (0.617042ms)
+✔ LP 45 Hz at 250 Hz: 100 Hz component attenuated by ≥ 30 dB (0.924ms)
+✔ Notch 60 Hz at 250 Hz: pure 60 Hz sinusoid RMS reduced by ≥ 20 dB (0.217375ms)
+✔ filtfilt zero-phase: Gaussian pulse peak position preserved to ±1 sample (0.212584ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 69.594042

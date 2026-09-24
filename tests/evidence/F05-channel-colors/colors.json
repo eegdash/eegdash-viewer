@@ -1,0 +1,17 @@
+{
+  "types": [
+    "EEG",
+    "MISC",
+    "TRIG"
+  ],
+  "default_colors": {
+    "EEG": "rgb(0, 114, 178)",
+    "MISC": "rgb(230, 159, 0)",
+    "TRIG": "rgb(86, 180, 233)"
+  },
+  "after_change": {
+    "EEG": "rgb(0, 0, 0)",
+    "MISC": "rgb(230, 159, 0)",
+    "TRIG": "rgb(86, 180, 233)"
+  }
+}

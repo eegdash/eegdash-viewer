@@ -6,6 +6,7 @@ import './_jsdom-bootstrap.mjs';
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
 import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 
 const require = createRequire(import.meta.url);
 const PosePanel = require('../pose-panel.js');
@@ -64,4 +65,20 @@ test('renderPNG: public artifact API renders a supplied sidecar without mounting
   assert.equal(lastCanvas.height, 540);
   assert.deepEqual(calls[0], ['setTransform', 3, 0, 0, 3, 0, 0]);
   assert.ok(calls.some(([name]) => name === 'stroke' || name === 'fill'));
+});
+
+test('renderSVG: vector output, honouring --color, with no canvas involved', () => {
+  const svg = PosePanel.renderSVG(SIDECAR, { time: 0.1, width: 320, height: 180, mode: 'skeleton' });
+  assert.match(svg, /^<svg [^>]*viewBox="0 0 320 180"/);
+  assert.ok(svg.includes('<path '), 'geometry emitted as paths');
+
+  // The real EMG-derived hand carries a mesh, so the base colour is visible.
+  const mesh = JSON.parse(readFileSync(new URL('fixtures/pose/sub-01_run-17_2s_desc-pose.json', import.meta.url), 'utf8'));
+  const brand = PosePanel.renderSVG(mesh, { width: 256, height: 256 });
+  const custom = PosePanel.renderSVG(mesh, { width: 256, height: 256, color: '#C77738' });
+  assert.ok(brand.includes('rgb(187,83,229)'), 'default stays the EEGDash purple');
+  assert.ok(custom.includes('rgb(199,119,56)'), 'requested colour reaches the brightest shade');
+  assert.ok(!custom.includes('rgb(187,83,229)'), 'no purple left once a colour is given');
+
+  assert.throws(() => PosePanel.renderSVG(mesh, { color: 'purple' }), /#rgb or #rrggbb/);
 });

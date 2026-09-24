@@ -1,0 +1,10 @@
+{
+  "canvas": {
+    "w": 960,
+    "h": 668,
+    "total_pixels": 641280
+  },
+  "non_zero_pixels": 0,
+  "diff_ratio": 0,
+  "rms_delta_rgb_per_255": 0
+}

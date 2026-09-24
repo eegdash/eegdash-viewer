@@ -14,14 +14,16 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from '@playwright/test';
 
-const USAGE = `Usage: node scripts/render-hand-png.mjs --sidecar <pose.json> --output <pose.png>
+const USAGE = `Usage: node scripts/render-hand-png.mjs --sidecar <pose.json> --output <pose.png|pose.svg>
   [--time <seconds>] [--width <pixels>] [--height <pixels>] [--scale <factor>]
-  [--mode auto|skeleton|mesh|both] [--camera-yaw <radians>]
+  [--mode auto|skeleton|mesh|both] [--color '#rrggbb'] [--camera-yaw <radians>]
   [--camera-pitch <radians>] [--camera-zoom <factor>]
   [--executable-path <browser>]
+
+A .svg output is rendered as vector, in-process — no browser, no --scale.
 `;
 const VIEWER_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -81,9 +83,19 @@ const options = {
   height: optionalNumber(args, 'height'),
   scale: optionalNumber(args, 'scale'),
   mode: args.mode,
+  color: args.color,
   ...(Object.keys(camera).length ? { camera } : {}),
 };
 for (const key of Object.keys(options)) if (options[key] == null) delete options[key];
+
+if (outputPath.endsWith('.svg')) {
+  const mod = await import(pathToFileURL(resolve(VIEWER_ROOT, 'pose-panel.js')).href);
+  const { renderSVG } = mod.default ?? mod; // pose-panel.js is CommonJS
+  delete options.scale; // vectors have no pixel density
+  await writeFile(outputPath, renderSVG(sidecar, options), { flag: 'wx' });
+  process.stdout.write(`${outputPath}\n`);
+  process.exit(0);
+}
 
 const browser = await chromium.launch({
   headless: true,

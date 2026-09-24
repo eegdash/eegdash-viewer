@@ -1,5 +1,8 @@
 {
-  "startHeap": 10600000,
-  "endHeap": 10600000,
-  "growthBytes": 0
+  "startHeap": 10000000,
+  "endHeap": 10000000,
+  "growthBytes": 0,
+  "growthMb": 0,
+  "gcAvailable": true,
+  "measurementProtocol": "Joyee-Cheung-tryGC-30x-setImmediate"
 }

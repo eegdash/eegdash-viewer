@@ -1,0 +1,14 @@
+[
+  {
+    "onset": "0.500s",
+    "label": "Stimulus"
+  },
+  {
+    "onset": "1.500s",
+    "label": "Page change"
+  },
+  {
+    "onset": "3.000s",
+    "label": "Eye blink"
+  }
+]
