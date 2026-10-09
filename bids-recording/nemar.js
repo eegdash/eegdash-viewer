@@ -13,14 +13,17 @@
    BDF/.set/.vhdr+.eeg/...) and inline-git sidecars (small
    JSON/TSV).
 
-   Two URL shapes appear in the manifest:
+   Three URL shapes appear in the manifest:
      - git-tree:  https://raw.githubusercontent.com/nemarDatasets/<id>/<tag>/<bidsPath>
                   Has CORS — fetched as-is.
      - annex S3:  https://nemar.s3.<region>.amazonaws.com/<id>/objects/<sha>?<presign>
-                  No CORS on bare S3 → routed through the cdn-worker's
-                  existing /<id>/objects/<sha> proxy. That URL is
-                  content-addressed so it's infinitely cacheable; we
-                  drop the per-request presigned query string entirely.
+                  Legacy manifests are routed through the CDN's
+                  content-addressed /<id>/objects/<sha> proxy.
+     - data-plane: https://data.nemar.org/<id>/<version>/<bidsPath>
+                  Stable URL for plain and chunked files. It is rewritten
+                  to the CDN's allowlisted /data/<id>/<version>/<bidsPath>
+                  route, which preserves Range support and CORS while
+                  bounding cache lifetime for visibility changes.
 
    The data.nemar.org route itself also lacks
    Access-Control-Allow-Origin (verified May 2026), so manifest.json
@@ -40,7 +43,7 @@
 'use strict';
 (function () {
   // Lockstep with cdn-worker's VALID_NEMAR (objects/) and
-  // VALID_NEMAR_API (/data/) regexes — a 5- or 7-digit id, or any
+  // /data/ path validation — a 5- or 7-digit id, or any
   // prefix outside {nm,on,xx}, would 404 against the worker.
   //   nm = native NEMAR ingest
   //   on = OpenNeuro mirror (added in nemar-cli sprint #514 May 2026
@@ -60,6 +63,7 @@
   // can't drift out of lockstep.
   const _CDN_BASE = 'https://cdn.eegdash.org';
   const _NEMAR_DATA_BASE = 'https://data.nemar.org';
+  const _NEMAR_DATA_FILE_URL = /^https:\/\/data\.nemar\.org\/((?:nm|on|xx)\d{6})\/(latest|v\d+\.\d+\.\d+)\/([^?#]+)$/;
   // Versions accepted by data.nemar.org: 'latest' or 'vMAJOR.MINOR.PATCH'.
   // Lockstep with the cdn-worker's VALID_NEMAR_API version segment so
   // a value rejected here would also be rejected at the proxy.
@@ -102,10 +106,22 @@
   // Transform a manifest entry's `url` into one the viewer can fetch
   // cross-origin. Returns null when the URL fails the trust-boundary
   // check (caller surfaces a clear error with context).
-  function transformManifestUrl(entryUrl, dsId) {
+  function transformManifestUrl(entryUrl, dsId, expectedPath) {
     if (typeof entryUrl !== 'string' || !entryUrl) return null;
     const git = _GIT_TREE_URL.exec(entryUrl);
     if (git && git[1] === dsId) return entryUrl;
+    const dataPlane = _NEMAR_DATA_FILE_URL.exec(entryUrl);
+    if (dataPlane && dataPlane[1] === dsId) {
+      const encodedPath = dataPlane[3];
+      const path = decodeSafeBidsPath(encodedPath);
+      if (path === null) return null;
+      if (expectedPath !== undefined && path !== expectedPath) return null;
+      // ?direct=1 is used by Node tests and diagnostic runs that can fetch
+      // data.nemar.org without browser CORS. Normal viewer loads use the
+      // CDN route, which adds CORS and keeps the URL allowlisted.
+      if (_DIRECT_S3) return entryUrl;
+      return `${_CDN_BASE}/data/${dataPlane[1]}/${dataPlane[2]}/${encodedPath}`;
+    }
     const annex = _ANNEX_S3_URL.exec(entryUrl);
     if (annex && annex[1] === dsId) {
       // ?direct=1 keeps the presigned URL intact for Node tests, where
@@ -125,6 +141,28 @@
     }
     if (_DIRECT_S3) return `${_NEMAR_DATA_BASE}/${dsId}/${ver}/manifest.json`;
     return `${_CDN_BASE}/data/${dsId}/${ver}/manifest.json`;
+  }
+
+  // `buildBytesUrl` percent-encodes each path segment with encodeURIComponent.
+  // Decode one segment at a time so encoded slashes cannot change the route
+  // hierarchy, and require canonical encoding to reject ambiguous spellings.
+  function decodeSafeBidsPath(encodedPath) {
+    const decoded = [];
+    for (const segment of encodedPath.split('/')) {
+      if (!segment) return null;
+      let value;
+      try {
+        value = decodeURIComponent(segment);
+      } catch {
+        return null;
+      }
+      if (value === '.' || value === '..' || !/^[A-Za-z0-9_-][A-Za-z0-9_.+-]*$/.test(value) ||
+          encodeURIComponent(value) !== segment) {
+        return null;
+      }
+      decoded.push(value);
+    }
+    return decoded.join('/');
   }
 
   // Single-shot loader for NEMAR recordings. Returns a metadata
@@ -170,7 +208,7 @@
       if (!e.path.startsWith(dir)) continue;
       const rest = e.path.slice(dir.length);
       if (!rest || rest.includes('/')) continue;
-      const u = transformManifestUrl(e.url, ds);
+      const u = transformManifestUrl(e.url, ds, e.path);
       if (u) sibling_urls[rest] = u;
     }
 
@@ -182,7 +220,7 @@
         `or pin a specific version with ?version=vX.Y.Z.`
       );
     }
-    const eegUrl = transformManifestUrl(rawEntry.url, ds);
+    const eegUrl = transformManifestUrl(rawEntry.url, ds, rawEntry.path);
     if (!eegUrl) {
       throw new Error(`NEMAR manifest url has unrecognised shape: ${rawEntry.url}`);
     }
@@ -210,8 +248,8 @@
     const meta = BR._assembleRecordingMetadata({ eeg_url: eegUrl, ext, dir, prefix, suffix: params.suffix, hits });
     meta.sibling_urls = sibling_urls;
     return BR._attachCoordinateSets(meta, manifest.filter(e => e && typeof e.path === 'string').map(e => ({
-      name: e.path, source: transformManifestUrl(e.url, ds),
-      text: () => globalThis.HttpRange.fetchText(transformManifestUrl(e.url, ds)),
+      name: e.path, source: transformManifestUrl(e.url, ds, e.path),
+      text: () => globalThis.HttpRange.fetchText(transformManifestUrl(e.url, ds, e.path)),
     })), { prefix, suffix: params.suffix, dir });
   }
 
@@ -278,7 +316,7 @@
       for (const p of paths) {
         const entry = byPath.get(p);
         if (!entry) continue;
-        const u = transformManifestUrl(entry.url, ds);
+        const u = transformManifestUrl(entry.url, ds, p);
         if (!u) continue;
         try {
           const text = await globalThis.HttpRange.fetchText(u);
