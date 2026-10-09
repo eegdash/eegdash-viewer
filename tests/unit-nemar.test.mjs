@@ -5,12 +5,16 @@
 // covering every file in the dataset. The viewer fetches the manifest
 // through the cdn-worker proxy (CORS bridge) and resolves both the
 // raw binary URL and the sidecar URLs against the manifest's path
-// index. Tests cover the happy path, 404 manifest, missing file,
-// trust-boundary URL guards, the inline-git → raw.githubusercontent
-// fast path, and BrainVision sibling synthesis.
+// index. Tests cover stable data-plane and legacy annex URLs, missing
+// manifests/files, trust-boundary guards, the inline-git fast path, and
+// BrainVision sibling synthesis.
 import { test } from 'node:test';
 import { strict as assert } from 'node:assert';
+import { createRequire } from 'node:module';
 import { BIDSRecording, BrainVisionReader } from './_bootstrap.mjs';
+
+const require = createRequire(import.meta.url);
+const NemarLoader = require('../bids-recording/nemar.js');
 
 // ----- isNemarDatasetId -------------------------------------------
 
@@ -83,9 +87,8 @@ test('resolveTargets: ds-prefixed dataset + ?suffix=eeg → kind=bids-path (expl
 // a flat array of {path,size,checksum_algorithm,checksum,url}. The
 // loader only consumes `path` (for lookup) and `url` (for fetching).
 // We mix git-tree-backed sidecars (raw.githubusercontent.com) with
-// annex-backed binaries (nemar.s3.*.amazonaws.com presigned) — both
-// shapes appear in real manifests and have separate trust-boundary
-// validations.
+// legacy annex-backed binaries (nemar.s3.*.amazonaws.com presigned) —
+// both legacy shapes appear in real manifests and have trust checks.
 function bdfManifest(dsId = 'nm000135', dir = 'sub-1/ses-0train/eeg/', prefix = 'sub-1_ses-0train_task-imagery_run-0') {
   const annex = (relpath, sha, sizeBytes) =>
     `https://nemar.s3.us-east-2.amazonaws.com/${dsId}/objects/SHA256E-s${sizeBytes}--${sha}.${relpath.split('.').pop()}` +
@@ -211,6 +214,69 @@ test('loadNemarRecording: happy path returns full meta bundle', async () => {
       assert.ok(meta.sidecar_sources.eeg_json.startsWith('https://raw.githubusercontent.com/nemarDatasets/'),
         `expected raw.githubusercontent URL in provenance, got ${meta.sidecar_sources.eeg_json}`);
     }
+  );
+});
+
+test('loadNemarRecording: stable data-plane manifest URLs preserve version and BIDS path through CDN', async () => {
+  const dsId = 'nm000135';
+  const manifest = bdfManifest(dsId);
+  const stablePath = manifest[0].path;
+  manifest[0].url = `https://data.nemar.org/${dsId}/v1.0.0/${stablePath}`;
+  await withStubFetch(
+    manifestStub(manifest),
+    async () => {
+      const meta = await BIDSRecording.loadNemarRecording({
+        dataset: dsId, sub: '1', ses: '0train', task: 'imagery', run: '0', ext: 'bdf',
+      });
+      const expected = `https://cdn.eegdash.org/data/${dsId}/v1.0.0/${stablePath}`;
+      assert.equal(meta.eeg_url, expected);
+      assert.equal(meta.sibling_urls[stablePath.split('/').at(-1)], expected);
+    }
+  );
+});
+
+test('stable data-plane URL transformer accepts nm/on/xx and rejects path or dataset mismatches', () => {
+  const path = 'sub-01/ses-02/eeg/sub-01_ses-02_task-rest_eeg.edf';
+  for (const dsId of ['nm000135', 'on005262', 'xx000001']) {
+    const url = `https://data.nemar.org/${dsId}/v1.2.3/${path}`;
+    assert.equal(
+      NemarLoader._transformManifestUrl(url, dsId, path),
+      `https://cdn.eegdash.org/data/${dsId}/v1.2.3/${path}`
+    );
+  }
+  const encodedPlusPath = 'sub-01/eeg/sub-01_task-rest%2Bface_eeg.edf';
+  assert.equal(
+    NemarLoader._transformManifestUrl(
+      `https://data.nemar.org/nm000135/v1.2.3/${encodedPlusPath}`,
+      'nm000135',
+      'sub-01/eeg/sub-01_task-rest+face_eeg.edf'
+    ),
+    `https://cdn.eegdash.org/data/nm000135/v1.2.3/${encodedPlusPath}`
+  );
+  assert.equal(
+    NemarLoader._transformManifestUrl(`https://data.nemar.org/nm999999/v1.2.3/${path}`, 'nm000135', path),
+    null
+  );
+  assert.equal(
+    NemarLoader._transformManifestUrl(`https://data.nemar.org/nm000135/v1.2.3/${path}`, 'nm000135', 'sub-02/eeg/other.edf'),
+    null
+  );
+  for (const unsafePath of [
+    '../private.edf',
+    'sub-01/../private.edf',
+    'sub-01/%2e%2e/private.edf',
+    'sub-01%2Feeg%2Ffile.edf',
+    'sub-01/%252e%252e/private.edf',
+  ]) {
+    assert.equal(
+      NemarLoader._transformManifestUrl(`https://data.nemar.org/nm000135/v1.2.3/${unsafePath}`, 'nm000135'),
+      null,
+      `unsafe path should be rejected: ${unsafePath}`
+    );
+  }
+  assert.equal(
+    NemarLoader._transformManifestUrl(`https://data.nemar.org/nm000135/v1.2.3/${path}?token=x`, 'nm000135', path),
+    null
   );
 });
 

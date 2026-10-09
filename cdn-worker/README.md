@@ -4,7 +4,9 @@ Reverse-proxies `s3.amazonaws.com/openneuro.org` through Cloudflare's global
 edge network, dropping cold-pan latency from ~700 ms (raw S3 us-east-1,
 HTTP/1.1) to ~50 ms (edge POP, HTTP/3, multiplexed cache hit).
 
-**This is a standalone deploy — it does NOT modify the viewer source.**
+**The Worker deploy is separate from viewer source changes.** Deploy the
+`/data/<id>/<version>/<BIDS path>` route before enabling the viewer's rewrite
+of stable data-plane manifest URLs to this CDN.
 
 ---
 
@@ -24,6 +26,25 @@ S3 us-east-1  (hit once per fixture per POP, then served from edge cache)
 - HTTP/3 (QUIC) between browser and Cloudflare means parallel Range fetches
   share one connection, removing the 6-TCP-connection ceiling imposed by
   raw S3 + HTTP/1.1.
+
+### NEMAR stable data-plane files
+
+The worker also proxies NEMAR metadata and stable per-file URLs:
+
+```text
+/data/(nm|on|xx)NNNNNN/(latest|vMAJOR.MINOR.PATCH)/manifest.json
+/data/(nm|on|xx)NNNNNN/(latest|vMAJOR.MINOR.PATCH)/<BIDS path>
+```
+
+Both routes use the fixed `https://data.nemar.org` origin. File paths use
+canonical per-segment URL encoding and safe BIDS-style names; query strings,
+encoded separators, dot segments, and arbitrary origins are rejected. The file
+route forwards `Range` and HTTP conditional headers, returns range metadata with CORS,
+and keeps dataset, version, and full BIDS path in the cache identity. Range
+requests have separate cache keys, and conditional requests bypass the edge
+cache; responses also vary on `Range` for downstream HTTP caches. Per-file
+cache TTL and browser `max-age` are capped at 300 seconds so a cached response
+cannot outlive the data API's visibility authorization window.
 
 ---
 
@@ -183,7 +204,10 @@ a 125 MB EDF viewed 1,000 times, that's $0.011 origin bandwidth total.
 ## Cache invalidation
 
 OpenNeuro datasets are **published immutable** — a `ds002893` file never
-changes after publication. The 1-year `cacheTtl` is safe.
+changes after publication. The 1-year `cacheTtl` is safe for OpenNeuro and
+content-addressed NEMAR `/objects/` files. NEMAR `/data/` files are mutable in
+authorization even when their bytes are versioned, so their edge and browser
+cache lifetimes stay at or below 300 seconds.
 
 If you ever need to purge (e.g., you redeploy the worker or a dataset
 correction is issued through OpenNeuro's own system):

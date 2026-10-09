@@ -39,6 +39,15 @@ function makeRequest(path, { method = 'GET', headers = {} } = {}) {
   });
 }
 
+/** Preserve an unnormalized URL path to test encoded and dot-segment rejection. */
+function makeRawRequest(path, { method = 'GET', headers = {} } = {}) {
+  return {
+    url: `https://eeg-cdn.example.com${path}`,
+    method,
+    headers: new Headers(headers),
+  };
+}
+
 /** Build a minimal ExecutionContext mock (waitUntil is a no-op). */
 function makeCtx() {
   return { waitUntil: () => {} };
@@ -157,7 +166,13 @@ describe('eegdash-cdn worker', async () => {
 
   // 5. OPTIONS → CORS preflight 204 ----------------------------------------
   it('returns 204 with CORS headers for OPTIONS preflight', async () => {
-    const req = makeRequest('/ds002893/sub-001/eeg/foo.edf', { method: 'OPTIONS' });
+    const req = makeRequest('/data/nm000148/latest/sub-01/eeg/foo.edf', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://eegdash.org',
+        'Access-Control-Request-Headers': 'Range, If-None-Match, If-Range',
+      },
+    });
     const res = await worker.fetch(req, {}, makeCtx());
     assert.equal(res.status, 204);
     assert.ok(
@@ -168,6 +183,10 @@ describe('eegdash-cdn worker', async () => {
       res.headers.has('access-control-expose-headers'),
       'CORS expose-headers must be present'
     );
+    const allowed = res.headers.get('access-control-allow-headers').toLowerCase();
+    for (const header of ['range', 'if-match', 'if-none-match', 'if-modified-since', 'if-unmodified-since', 'if-range']) {
+      assert.ok(allowed.includes(header), `CORS must allow ${header}`);
+    }
   });
 
   // 6. Origin fetch throws → 502 -------------------------------------------
@@ -393,27 +412,144 @@ describe('eegdash-cdn worker', async () => {
     }
   });
 
-  // 18. Open-proxy guard: only manifest.json and metadata.json are
-  // allowed under /data/. A bare BIDS path or anything else 404s, so
-  // this route can't be used as a generic data.nemar.org relay.
-  it('rejects /data/<id>/<version>/<arbitrary-path>', async () => {
+  // 18. /data file paths are allowlisted to safe BIDS-like path segments.
+  it('rejects malformed, encoded, traversing, and query-bearing /data file paths', async () => {
     const cases = [
-      '/data/nm000148/latest/sub-1/eeg/foo.edf',
       '/data/nm000148/latest/',
-      '/data/nm000148/latest/index.html',
       '/data/nm000148/v1.0/manifest.json',          // version must be vX.Y.Z
-      '/data/nm000148/latest/qa/dataqual.json',     // QA out of scope here
       '/data/ds002893/latest/manifest.json',        // ds is OpenNeuro, not NEMAR
+      '/data/nm000148/latest/sub-1//eeg/foo.edf',
+      '/data/nm000148/latest/sub-1/eeg/bad name.edf',
+      '/data/nm000148/latest/sub-1/eeg/foo.edf?redirect=https://evil.example',
     ];
     for (const p of cases) {
       const req = makeRequest(p);
       const res = await worker.fetch(req, {}, makeCtx());
       assert.equal(res.status, 404, `expected 404 for ${p}`);
     }
+    for (const p of [
+      '/data/nm000148/latest/sub-1/%2e%2e/private.edf',
+      '/data/nm000148/latest/sub-1/%252e%252e/private.edf',
+      '/data/nm000148/latest/sub-1%2Feeg%2Ffoo.edf',
+      '/data/nm000148/latest/sub-1/../private.edf',
+    ]) {
+      const res = await worker.fetch(makeRawRequest(p), {}, makeCtx());
+      assert.equal(res.status, 404, `expected 404 for unsafe raw path ${p}`);
+    }
   });
 
-  // 19. Manifest carries 1-hour presigned URLs. We cap CF cache at 5 min
-  // so any served-from-cache manifest still has 55 min of presign margin.
+  it('proxies stable per-file data-plane URLs with dataset, version, and BIDS path intact', async () => {
+    let capturedUrl = null;
+    let capturedCf = null;
+    const restore = mockFetch((url, init) => {
+      capturedUrl = String(url);
+      capturedCf = init?.cf;
+      return fakeOriginResponse({
+        status: 200,
+        headers: {
+          'cache-control': 'public, max-age=31536000, immutable, stale-while-revalidate=3600',
+        },
+      });
+    });
+    try {
+      const path = '/data/on005262/v1.2.3/sub-01/ses-02/eeg/sub-01_ses-02_task-rest%2Bface_eeg.edf';
+      const res = await worker.fetch(makeRequest(path), {}, makeCtx());
+      assert.equal(res.status, 200);
+      assert.equal(
+        capturedUrl,
+        'https://data.nemar.org/on005262/v1.2.3/sub-01/ses-02/eeg/sub-01_ses-02_task-rest%2Bface_eeg.edf'
+      );
+      assert.equal(capturedCf?.cacheTtl, 300);
+      assert.equal(
+        capturedCf?.cacheKey,
+        'https://data.nemar.org/on005262/v1.2.3/sub-01/ses-02/eeg/sub-01_ses-02_task-rest%2Bface_eeg.edf'
+      );
+      assert.equal(res.headers.get('cache-control'), 'public, max-age=300');
+      assert.equal(res.headers.get('vary'), 'Range');
+      assert.equal(res.headers.get('access-control-allow-origin'), '*');
+      assert.ok(res.headers.get('access-control-expose-headers').toLowerCase().includes('content-range'));
+    } finally {
+      restore();
+    }
+  });
+
+  it('forwards Range and conditional headers for data files and returns range metadata with CORS', async () => {
+    let capturedHeaders = null;
+    let capturedCf = null;
+    const restore = mockFetch((_url, init) => {
+      capturedHeaders = new Headers(init?.headers);
+      capturedCf = init?.cf;
+      return fakeOriginResponse({
+        status: 206,
+        body: 'bytes',
+        headers: { 'content-range': 'bytes 0-4/100', 'cache-control': 'public, max-age=300' },
+      });
+    });
+    try {
+      const res = await worker.fetch(makeRequest(
+        '/data/nm000148/latest/sub-01/eeg/sub-01_task-rest_eeg.edf',
+        { headers: {
+          Range: 'bytes=0-4',
+          'If-Match': '"etag-1"',
+          'If-None-Match': '"etag-1"',
+          'If-Modified-Since': 'Wed, 21 Oct 2015 07:28:00 GMT',
+          'If-Unmodified-Since': 'Wed, 21 Oct 2015 07:28:00 GMT',
+          'If-Range': '"etag-1"',
+        } }
+      ), {}, makeCtx());
+      assert.equal(res.status, 206);
+      assert.equal(res.headers.get('content-range'), 'bytes 0-4/100');
+      assert.equal(res.headers.get('access-control-allow-origin'), '*');
+      assert.equal(capturedHeaders.get('range'), 'bytes=0-4');
+      assert.equal(capturedHeaders.get('if-match'), '"etag-1"');
+      assert.equal(capturedHeaders.get('if-none-match'), '"etag-1"');
+      assert.equal(capturedHeaders.get('if-modified-since'), 'Wed, 21 Oct 2015 07:28:00 GMT');
+      assert.equal(capturedHeaders.get('if-unmodified-since'), 'Wed, 21 Oct 2015 07:28:00 GMT');
+      assert.equal(capturedHeaders.get('if-range'), '"etag-1"');
+      assert.equal(capturedCf?.cacheTtl, 0, 'conditional responses must not share an unconditional cache entry');
+    } finally {
+      restore();
+    }
+  });
+
+  it('uses distinct cache keys for different Range requests to the same data file', async () => {
+    const capturedKeys = [];
+    const restore = mockFetch((_url, init) => {
+      capturedKeys.push(init?.cf?.cacheKey);
+      return fakeOriginResponse({ status: 206, headers: { 'content-range': 'bytes 0-4/100' } });
+    });
+    try {
+      const path = '/data/nm000148/v1.0.0/sub-01/eeg/sub-01_task-rest_eeg.edf';
+      for (const range of ['bytes=0-4', 'bytes=5-9']) {
+        await worker.fetch(makeRequest(path, { headers: { Range: range } }), {}, makeCtx());
+      }
+      assert.equal(capturedKeys.length, 2);
+      assert.notEqual(capturedKeys[0], capturedKeys[1]);
+      assert.ok(capturedKeys[0].includes('__eegdash_range=bytes%3D0-4'));
+      assert.ok(capturedKeys[1].includes('__eegdash_range=bytes%3D5-9'));
+    } finally {
+      restore();
+    }
+  });
+
+  it('sets a browser max-age cap when the origin only supplies s-maxage', async () => {
+    const restore = mockFetch(() => fakeOriginResponse({
+      headers: { 'cache-control': 'public, s-maxage=3600' },
+    }));
+    try {
+      const res = await worker.fetch(
+        makeRequest('/data/nm000148/latest/sub-01/eeg/sub-01_task-rest_eeg.edf'),
+        {},
+        makeCtx()
+      );
+      assert.equal(res.headers.get('cache-control'), 'public, s-maxage=300, max-age=300');
+    } finally {
+      restore();
+    }
+  });
+
+  // 19. Metadata response cache stays short, and per-file routes separately
+  // cap lifetime to the data API's visibility authorization window.
   it('caps cache TTL at 300s for /data/ responses', async () => {
     let capturedCf = null;
     const restore = mockFetch((url, init) => {
@@ -429,7 +565,46 @@ describe('eegdash-cdn worker', async () => {
       const cc = res.headers.get('cache-control') || '';
       assert.ok(/max-age=(60|300)/.test(cc), `cache-control should be short for metadata, got ${cc}`);
       assert.ok(!cc.includes('immutable'),
-        'manifest URLs expire — must not be marked immutable');
+        'mutable /data responses must not be marked immutable');
+    } finally {
+      restore();
+    }
+  });
+
+  it('caps browser freshness at 300s for manifest and metadata responses', async () => {
+    for (const path of [
+      '/data/nm000148/latest/manifest.json',
+      '/data/nm000148/latest/metadata.json',
+    ]) {
+      let capturedCf = null;
+      const restore = mockFetch((_url, init) => {
+        capturedCf = init?.cf;
+        return fakeOriginResponse({
+          headers: { 'cache-control': 'public, max-age=86400' },
+        });
+      });
+      try {
+        const res = await worker.fetch(makeRequest(path), {}, makeCtx());
+        assert.equal(res.status, 200);
+        assert.equal(capturedCf?.cacheTtl, 300);
+        assert.equal(res.headers.get('cache-control'), 'public, max-age=300');
+      } finally {
+        restore();
+      }
+    }
+  });
+
+  it('preserves stricter cache directives on NEMAR metadata responses', async () => {
+    const restore = mockFetch(() => fakeOriginResponse({
+      headers: { 'cache-control': 'private, no-store, max-age=86400' },
+    }));
+    try {
+      const res = await worker.fetch(
+        makeRequest('/data/nm000148/latest/metadata.json'),
+        {},
+        makeCtx()
+      );
+      assert.equal(res.headers.get('cache-control'), 'private, no-store, max-age=300');
     } finally {
       restore();
     }
