@@ -570,4 +570,43 @@ describe('eegdash-cdn worker', async () => {
       restore();
     }
   });
+
+  it('caps browser freshness at 300s for manifest and metadata responses', async () => {
+    for (const path of [
+      '/data/nm000148/latest/manifest.json',
+      '/data/nm000148/latest/metadata.json',
+    ]) {
+      let capturedCf = null;
+      const restore = mockFetch((_url, init) => {
+        capturedCf = init?.cf;
+        return fakeOriginResponse({
+          headers: { 'cache-control': 'public, max-age=86400' },
+        });
+      });
+      try {
+        const res = await worker.fetch(makeRequest(path), {}, makeCtx());
+        assert.equal(res.status, 200);
+        assert.equal(capturedCf?.cacheTtl, 300);
+        assert.equal(res.headers.get('cache-control'), 'public, max-age=300');
+      } finally {
+        restore();
+      }
+    }
+  });
+
+  it('preserves stricter cache directives on NEMAR metadata responses', async () => {
+    const restore = mockFetch(() => fakeOriginResponse({
+      headers: { 'cache-control': 'private, no-store, max-age=86400' },
+    }));
+    try {
+      const res = await worker.fetch(
+        makeRequest('/data/nm000148/latest/metadata.json'),
+        {},
+        makeCtx()
+      );
+      assert.equal(res.headers.get('cache-control'), 'private, no-store, max-age=300');
+    } finally {
+      restore();
+    }
+  });
 });

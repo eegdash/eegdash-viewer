@@ -219,15 +219,15 @@ export default {
 
     // Ensure downstream browsers can also cache immutable responses.
     // S3 object bytes are content-addressed → safe to mark immutable.
-    // data.nemar.org metadata is mutable on reindex → short TTL, no
-    // immutable flag, and we prefer the upstream's own cache-control
-    // (which already sets 60s/300s) when it provides one.
-    if (isNemarDataFile) {
+    // data.nemar.org responses are mutable or authorization-gated, so their
+    // browser freshness must stay within the same 5-minute bound as the edge
+    // cache. Keep stricter upstream directives such as private/no-store.
+    if (isNemarApi) {
       responseHeaders.set(
         'cache-control',
         capCacheControl(responseHeaders.get('cache-control'), 300)
       );
-      responseHeaders.set('vary', 'Range');
+      if (isNemarDataFile) responseHeaders.set('vary', 'Range');
     } else if (!responseHeaders.has('cache-control')) {
       responseHeaders.set(
         'cache-control',
