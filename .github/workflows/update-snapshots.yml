@@ -12,7 +12,8 @@ env:
 jobs:
   update-snapshots:
     name: Regenerate visual-regression baselines (Linux)
-    runs-on: ubuntu-latest
+    # Pinned: Playwright 1.59 has no chromium build for ubuntu-latest (26.04).
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4

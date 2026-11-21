@@ -27,8 +27,11 @@ beside the same traces.
 
 The bridge takes exactly the drag-and-drop path (`HttpRange.registerLocal`
 → `load()`), so every format the viewer reads from a drop works here.
-Any origin may post: the payload only selects what to render, and the
-viewer holds no credentials.
+Any origin may post, but the message must come from the page that frames
+the viewer (`event.source === window.parent`); messages from other windows,
+including a page that opened the viewer with `window.open`, are ignored with
+a console warning. The payload only selects what to render, and the viewer
+holds no credentials.
 
 ```html
 <iframe id="v" src="https://eegdash.github.io/eegdash-viewer/index.html?embed=1"

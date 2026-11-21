@@ -8,9 +8,9 @@
     "dev": "wrangler dev"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "devDependencies": {
-    "wrangler": "latest"
+    "wrangler": "4.158.0"
   }
 }
