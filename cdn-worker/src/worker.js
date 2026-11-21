@@ -43,6 +43,9 @@ const VALID_NEMAR     = /^\/(?:nm|on|xx)\d{6}\/objects\/[A-Za-z0-9._-]+$/;
 const NEMAR_API_PREFIX = '/data';
 const VALID_NEMAR_API = /^\/data\/(?:nm|on|xx)\d{6}\/(?:latest|v\d+\.\d+\.\d+)\/(?:manifest|metadata)\.json$/;
 
+// Content types that cannot execute script, so they skip the sandbox CSP.
+const PASSIVE_CONTENT_TYPE = /^\s*(?:application\/pdf|audio\/|video\/|image\/(?:png|jpeg|gif|webp|avif))/i;
+
 // Status codes we are willing to pass through to the client
 const ALLOWED_STATUS = new Set([200, 206, 304, 404]);
 
@@ -184,9 +187,12 @@ export default {
 
     // Anyone can publish files to OpenNeuro, so an uploaded .html/.svg
     // must never run as a page on cdn.eegdash.org. fetch() ignores these
-    // headers, so the viewer's reads are unaffected.
+    // headers, so the viewer's reads are unaffected. Passive types (PDF,
+    // media, raster images) skip the sandbox so they still open in a tab.
     responseHeaders.set('x-content-type-options', 'nosniff');
-    responseHeaders.set('content-security-policy', "default-src 'none'; sandbox");
+    if (!PASSIVE_CONTENT_TYPE.test(responseHeaders.get('content-type') || '')) {
+      responseHeaders.set('content-security-policy', "default-src 'none'; sandbox");
+    }
 
     // Ensure downstream browsers can also cache immutable responses.
     // S3 object bytes are content-addressed → safe to mark immutable.

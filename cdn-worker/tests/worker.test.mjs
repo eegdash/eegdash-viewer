@@ -128,6 +128,19 @@ describe('eegdash-cdn worker', async () => {
     }
   });
 
+  it('leaves passive types (PDF) openable: nosniff but no sandbox', async () => {
+    const restore = mockFetch(() => fakeOriginResponse({
+      body: '%PDF-1.7', headers: { 'content-type': 'application/pdf' },
+    }));
+    try {
+      const res = await worker.fetch(makeRequest('/ds002893/paper.pdf'), {}, makeCtx());
+      assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+      assert.equal(res.headers.get('content-security-policy'), null);
+    } finally {
+      restore();
+    }
+  });
+
   // 3. HEAD forwarded as HEAD ----------------------------------------------
   it('forwards HEAD requests to origin as HEAD', async () => {
     let capturedMethod;

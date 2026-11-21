@@ -1349,9 +1349,9 @@
     // itself with { type: 'eegdash-viewer:ready' } once boot() ran so
     // hosts don't race the iframe load. Any origin may post: the
     // payload only selects what to render (same trust as a drag-drop)
-    // and the viewer holds no credentials. The sender must still be our
-    // host — the embedding parent, or the opener when not framed — so an
-    // unrelated window holding a reference to us cannot push recordings.
+    // and the viewer holds no credentials. The sender must still be the
+    // embedding parent: a site that merely window.open()s the viewer (or
+    // any other window holding a reference) cannot push recordings.
     const BRIDGE_OPEN = 'eegdash-viewer:open';
     const BRIDGE_READY = 'eegdash-viewer:ready';
 
@@ -1373,8 +1373,11 @@
       window.addEventListener('message', (e) => {
         const msg = e && e.data;
         if (!msg || msg.type !== BRIDGE_OPEN) return;
-        const host = globalThis.parent !== globalThis ? globalThis.parent : globalThis.opener;
-        if ((e.source ?? null) !== (host ?? null)) return;
+        const host = (globalThis.parent !== globalThis && globalThis.parent) || null;
+        if ((e.source ?? null) !== host) {
+          console.warn(`${BRIDGE_OPEN}: ignored, sender is not the embedding parent`);
+          return;
+        }
         const files = Array.isArray(msg.files)
           ? msg.files.filter(f => f && typeof f.name === 'string' && typeof f.slice === 'function')
           : [];

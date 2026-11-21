@@ -42,7 +42,7 @@ jobs:
           cp -r index.html viewer.js traces.js \
                 bids-loader.js bids-recording.js pose-kinematics.js pose-panel.js stimulus-panel.js \
                 sensor-montage.js sensor-geometry.js \
-                worker.js filters.js perf.js \
+                worker.js filters.js perf.js boot.js \
                 styles.css eegdash-logo.svg \
                 formats viewer bids-recording traces \
                 _site/
