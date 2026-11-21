@@ -3,92 +3,94 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- GitHub Pages cannot send headers, so the policy lives here. It sits above
+     every <script> so all scripts run under it; external scripts use defer so
+     the HTML parser queues all fetches in parallel without relying on Chromium's
+     speculative preload scanner (which any CSP meta disables) and runs them in
+     document order before DOMContentLoaded. Scripts are first-party files only
+     (boot lives in boot.js). connect/img allow any http(s) because ?url= and
+     notebook hosts point at arbitrary servers. frame-ancestors is header-only,
+     and the viewer is meant to be embedded anyway. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; connect-src 'self' data: blob: https: http:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <title>Electrophysiology Trace Viewer</title>
 <meta name="description" content="Explore BIDS recordings, inspect electrophysiology traces, and view EEG, iEEG, MEG, fNIRS and EMG sensor geometry in 3D." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
 <link rel="stylesheet" href="styles.css?v=7" />
-<script src="bids-loader.js?v=3"></script>
-<script src="formats/_buffers.js?v=1"></script>
-<script src="formats/_labels.js?v=1"></script>
-<script src="formats/_decode.js?v=1"></script>
-<script src="formats/_http_range.js?v=1"></script>
-<script src="formats/_streaming.js?v=1"></script>
-<script src="formats/_sidecar.js?v=1"></script>
-<script src="formats/_matv5.js?v=1"></script>
+<script defer src="bids-loader.js?v=3"></script>
+<script defer src="formats/_buffers.js?v=1"></script>
+<script defer src="formats/_labels.js?v=1"></script>
+<script defer src="formats/_decode.js?v=1"></script>
+<script defer src="formats/_http_range.js?v=1"></script>
+<script defer src="formats/_streaming.js?v=1"></script>
+<script defer src="formats/_sidecar.js?v=1"></script>
+<script defer src="formats/_matv5.js?v=1"></script>
 <!-- MAT v7.3 (HDF5) reader for modern EEGLAB .set files.
      _jsfive is the vendored jsfive IIFE bundle exposing globalThis.hdf5;
      _mat73 patches it for compact storage and exposes Mat73.parse. -->
-<script src="formats/_jsfive.js?v=1"></script>
-<script src="formats/_mat73.js?v=1"></script>
+<script defer src="formats/_jsfive.js?v=1"></script>
+<script defer src="formats/_mat73.js?v=1"></script>
 <!-- bids-recording.js sub-module (Lane E2) — must load BEFORE
      bids-recording.js so the mount step finds globalThis.BIDSRecordingNemar. -->
-<script src="bids-recording/nemar.js?v=3"></script>
-<script src="bids-recording.js?v=8"></script>
-<script src="formats/eeglab.js?v=2"></script>
-<script src="formats/edf.js?v=2"></script>
-<script src="formats/brainvision.js?v=2"></script>
+<script defer src="bids-recording/nemar.js?v=3"></script>
+<script defer src="bids-recording.js?v=8"></script>
+<script defer src="formats/eeglab.js?v=2"></script>
+<script defer src="formats/edf.js?v=2"></script>
+<script defer src="formats/brainvision.js?v=2"></script>
 <!-- Tag-directory walker — loaded BEFORE fiff.js so the range-based
      api.open can reach through globalThis.FiffDir. -->
-<script src="formats/_fiff-dir.js?v=1"></script>
-<script src="formats/fiff.js?v=5"></script>
-<script src="formats/_ctf-res4.js?v=1"></script>
-<script src="formats/_ctf-marker.js?v=1"></script>
-<script src="formats/ctf.js?v=2"></script>
+<script defer src="formats/_fiff-dir.js?v=1"></script>
+<script defer src="formats/fiff.js?v=5"></script>
+<script defer src="formats/_ctf-res4.js?v=1"></script>
+<script defer src="formats/_ctf-marker.js?v=1"></script>
+<script defer src="formats/ctf.js?v=2"></script>
 <!-- KIT/Yokogawa/Ricoh MEG (.con / .sqd) — single-file binary, no
      sub-module dependencies. Same modality (MEG) as fiff + ctf above. -->
-<script src="formats/kit.js?v=1"></script>
+<script defer src="formats/kit.js?v=1"></script>
 <!-- SNIRF (Shared NIR Spectroscopy Format) — pure HDF5; depends on
      formats/_jsfive.js loaded above for the MAT v7.3 EEGLAB reader. -->
-<script src="formats/snirf.js?v=2"></script>
+<script defer src="formats/snirf.js?v=2"></script>
 <!-- Lane H: BIDS-allowed formats. See formats/<name>.js for support tier. -->
 <!-- NWB (HDF5) iEEG — reuses _jsfive loaded above. _h5-stream is the
      streaming (HTTP-range) HDF5 reader nwb.js delegates to for
      files > 200 MB; must load BEFORE nwb.js. -->
-<script src="formats/_h5-stream.js?v=1"></script>
-<script src="formats/nwb.js?v=2"></script>
+<script defer src="formats/_h5-stream.js?v=1"></script>
+<script defer src="formats/nwb.js?v=2"></script>
 <!-- MEF3 iEEG (Mayo) — Tier 3 full decode via RED. Segment + RED codec must load BEFORE mef.js. -->
-<script src="formats/_mef-segment.js?v=1"></script>
-<script src="formats/_mef-red.js?v=1"></script>
-<script src="formats/mef.js?v=1"></script>
+<script defer src="formats/_mef-segment.js?v=1"></script>
+<script defer src="formats/_mef-red.js?v=1"></script>
+<script defer src="formats/mef.js?v=1"></script>
 <!-- BTi/4D Neuroimaging MEG — directory bundle, no .ext. Config parser first. -->
-<script src="formats/_bti-config.js?v=1"></script>
-<script src="formats/bti.js?v=1"></script>
+<script defer src="formats/_bti-config.js?v=1"></script>
+<script defer src="formats/bti.js?v=1"></script>
 <!-- ITAB MEG (Chieti ARGOS) — .raw + .mhd companion. Single-file binary. -->
-<script src="formats/itab.js?v=1"></script>
+<script defer src="formats/itab.js?v=1"></script>
 <!-- KRISS .kdf — stub-reader pending public spec. -->
-<script src="formats/kriss.js?v=1"></script>
+<script defer src="formats/kriss.js?v=1"></script>
 <!-- traces.js sub-modules (Lane E1) — must load BEFORE traces.js so
      the IIFE finds globalThis.TraceScaleBar / .TraceEventMarkers. -->
-<script src="traces/scale-bar.js?v=1"></script>
-<script src="traces/event-markers.js?v=1"></script>
-<script src="traces.js?v=2"></script>
-<script src="filters.js?v=1"></script>
+<script defer src="traces/scale-bar.js?v=1"></script>
+<script defer src="traces/event-markers.js?v=1"></script>
+<script defer src="traces.js?v=2"></script>
+<script defer src="filters.js?v=1"></script>
 <!-- viewer.js sub-modules (Lane E3) — must load BEFORE viewer.js so
      the IIFE finds globalThis.ViewerWorkerRpc. -->
-<script src="viewer/worker-rpc.js?v=2"></script>
-<script src="viewer/url-resolver.js?v=1"></script>
-<script src="viewer/render-helpers.js?v=1"></script>
-<script src="viewer/render-pipeline.js?v=2"></script>
+<script defer src="viewer/worker-rpc.js?v=2"></script>
+<script defer src="viewer/url-resolver.js?v=1"></script>
+<script defer src="viewer/render-helpers.js?v=1"></script>
+<script defer src="viewer/render-pipeline.js?v=2"></script>
 <!-- F10: hand-pose sidecar panel — skeleton playback synced to the
      time cursor via PosePanel.syncWindow/syncCursor hooks in viewer.js.
      Loads before viewer.js is invoked but has no load-order dependency
      (all integration points are optional-chained globals). -->
-<script src="pose-kinematics.js?v=1"></script>
-<script src="pose-panel.js?v=2"></script>
-<script src="stimulus-panel.js?v=2"></script>
-<script src="sensor-montage.js?v=2"></script>
-<script src="sensor-geometry.js?v=2"></script>
-<script src="viewer.js?v=15"></script>
-<script src="perf.js?v=1"></script>
-<!-- GitHub Pages cannot send headers, so the policy lives here. It sits last in
-     <head> on purpose: Chromium stops preload-scanning after a CSP meta, so the
-     first-party scripts above keep their parallel fetch. Scripts are
-     first-party files only (no inline script; boot lives in boot.js). connect/img allow any http(s) because ?url= and
-     notebook hosts point at arbitrary servers. frame-ancestors is header-only,
-     and the viewer is meant to be embedded anyway. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; connect-src 'self' data: blob: https: http:; object-src 'none'; base-uri 'none'; form-action 'none'" />
+<script defer src="pose-kinematics.js?v=1"></script>
+<script defer src="pose-panel.js?v=2"></script>
+<script defer src="stimulus-panel.js?v=2"></script>
+<script defer src="sensor-montage.js?v=2"></script>
+<script defer src="sensor-geometry.js?v=2"></script>
+<script defer src="viewer.js?v=15"></script>
+<script defer src="perf.js?v=1"></script>
 </head>
 <body>
 <a class="skip-link" href="#stage">Skip to visualization</a>
@@ -370,6 +372,6 @@
   </div>
 </div>
 
-<script src="boot.js?v=1"></script>
+<script defer src="boot.js?v=1"></script>
 </body>
 </html>
