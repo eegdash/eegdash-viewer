@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788983751808,
+  "lastUpdate": 1795288263830,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -4519,6 +4519,233 @@ window.BENCHMARK_DATA = {
             "range": "±13.88%",
             "unit": "ms",
             "extra": "p99=525.336ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4f1c979d2fa15eab1d6b94784830e8fc4a6c7218",
+          "message": "fix: CSP, host-checked bridge, sandboxed CDN, patched deps (#4)\n\n* fix: CSP, host-checked bridge, sandboxed CDN, patched deps\n\nSecurity review 2026-11-18 follow-up for the viewer.\n\n- index.html ships a meta CSP: first-party scripts only (the inline\n  Viewer.boot() is pinned by hash), Google Fonts only, object-src\n  'none', base-uri/form-action 'none'. connect/img stay open to http(s)\n  because ?url= and notebook hosts point at arbitrary servers.\n- postMessage bridge only accepts eegdash-viewer:open from the host\n  window (parent when framed, opener otherwise).\n- cdn-worker: every proxied response carries nosniff and\n  \"default-src 'none'; sandbox\", so an HTML/SVG file uploaded to\n  OpenNeuro cannot run as a page on cdn.eegdash.org. wrangler pinned.\n- npm: audit fix (axios 1.21.1, undici 7.30.2, ...) plus overrides for\n  minimatch ^11.0.9 / glob ^14.0.6; npm audit reports 0.\n- osv-scanner workflow over package-lock.json.\n\n* ci: pin Playwright e2e runner to ubuntu-24.04\n\n* fix: address code review on the security hardening\n\n- Bridge accepts eegdash-viewer:open only from the embedding parent; a\n  window.open() opener could be any site, so it no longer qualifies.\n  Dropped messages log a console warning; docs/embedding.md documents\n  the sender rule. New unit test fails if the opener branch returns.\n- Viewer.boot() moves to boot.js, so the CSP is plain script-src 'self'\n  with no hash to keep in sync (pages.yml stages boot.js).\n- cdn-worker: sandbox CSP only on types that can execute (PDF, audio,\n  video and raster images still open in a tab; nosniff stays on all);\n  engines node >=22 to match wrangler 4.158.0.\n- nightly and update-snapshots Playwright jobs pinned to ubuntu-24.04\n  like ci.yml.\n\n* fix: move the CSP meta to the end of <head> so Chromium keeps preload-scanning the scripts; drop the default-valued referrer meta",
+          "timestamp": "2026-11-21T20:08:52+01:00",
+          "tree_id": "95db1f2754f0fcfcd3c4f5ded1446dadc749f2aa",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/4f1c979d2fa15eab1d6b94784830e8fc4a6c7218"
+        },
+        "date": 1795288263348,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.3611,
+            "range": "±1.50%",
+            "unit": "ms",
+            "extra": "p99=3.965ms, n=848samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.2425,
+            "range": "±1.22%",
+            "unit": "ms",
+            "extra": "p99=3.848ms, n=892samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.2385,
+            "range": "±1.23%",
+            "unit": "ms",
+            "extra": "p99=3.833ms, n=894samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.1154,
+            "range": "±1.30%",
+            "unit": "ms",
+            "extra": "p99=6.156ms, n=486samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.5644,
+            "range": "±1.37%",
+            "unit": "ms",
+            "extra": "p99=6.557ms, n=439samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.6011,
+            "range": "±1.42%",
+            "unit": "ms",
+            "extra": "p99=6.619ms, n=435samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.6058,
+            "range": "±1.36%",
+            "unit": "ms",
+            "extra": "p99=6.617ms, n=435samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 8.4522,
+            "range": "±1.36%",
+            "unit": "ms",
+            "extra": "p99=10.565ms, n=237samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 9.4219,
+            "range": "±1.66%",
+            "unit": "ms",
+            "extra": "p99=11.227ms, n=213samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 9.5443,
+            "range": "±1.66%",
+            "unit": "ms",
+            "extra": "p99=11.277ms, n=210samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 9.4539,
+            "range": "±1.65%",
+            "unit": "ms",
+            "extra": "p99=11.234ms, n=212samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 17.1353,
+            "range": "±1.52%",
+            "unit": "ms",
+            "extra": "p99=21.731ms, n=117samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0096,
+            "range": "±0.62%",
+            "unit": "ms",
+            "extra": "p99=0.019ms, n=208476samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0095,
+            "range": "±0.22%",
+            "unit": "ms",
+            "extra": "p99=0.019ms, n=210393samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0095,
+            "range": "±0.20%",
+            "unit": "ms",
+            "extra": "p99=0.019ms, n=210514samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 14.6076,
+            "range": "±7.73%",
+            "unit": "ms",
+            "extra": "p99=25.681ms, n=137samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0027,
+            "range": "±0.67%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=751368samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0027,
+            "range": "±1.44%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=749651samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0027,
+            "range": "±1.70%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=748830samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.7018,
+            "range": "±0.03%",
+            "unit": "ms",
+            "extra": "p99=241.976ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.4488,
+            "range": "±0.02%",
+            "unit": "ms",
+            "extra": "p99=272.450ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.1866,
+            "range": "±0.05%",
+            "unit": "ms",
+            "extra": "p99=30.385ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.1728,
+            "range": "±0.06%",
+            "unit": "ms",
+            "extra": "p99=30.273ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 21.6922,
+            "range": "±10.35%",
+            "unit": "ms",
+            "extra": "p99=53.879ms, n=93samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 24.8354,
+            "range": "±7.37%",
+            "unit": "ms",
+            "extra": "p99=60.091ms, n=81samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 36.1662,
+            "range": "±7.60%",
+            "unit": "ms",
+            "extra": "p99=70.359ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
