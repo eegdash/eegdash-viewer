@@ -110,6 +110,24 @@ describe('eegdash-cdn worker', async () => {
     }
   });
 
+  // 2b. Uploaded HTML must not execute on cdn.eegdash.org ----------------
+  it('serves upstream HTML sandboxed and with nosniff', async () => {
+    const restore = mockFetch(() => fakeOriginResponse({
+      body: '<script>alert(document.domain)</script>',
+      headers: { 'content-type': 'text/html' },
+    }));
+    try {
+      const res = await worker.fetch(makeRequest('/ds002893/README.html'), {}, makeCtx());
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+      const csp = res.headers.get('content-security-policy') || '';
+      assert.match(csp, /default-src 'none'/);
+      assert.match(csp, /sandbox/);
+    } finally {
+      restore();
+    }
+  });
+
   // 3. HEAD forwarded as HEAD ----------------------------------------------
   it('forwards HEAD requests to origin as HEAD', async () => {
     let capturedMethod;

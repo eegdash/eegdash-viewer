@@ -330,3 +330,20 @@ test('bridge: ready handshake is posted to the parent when framed', () => {
     Object.defineProperty(globalThis, 'parent', { value: globalThis, configurable: true });
   }
 });
+
+test('bridge ignores messages from a window that is not the host', async () => {
+  const before = workerInstance.sent.filter(m => m.type === 'LOAD_FILE').length;
+  const file = new globalThis.window.File([new Uint8Array(512)], 'sub-09_task-x_eeg.edf');
+  // A real cross-window message always carries its sender; any window
+  // other than our parent (framed) or opener (popup) must be ignored.
+  const foreign = { postMessage() {} };
+  const ev = new globalThis.window.MessageEvent('message', {
+    data: { type: 'eegdash-viewer:open', files: [file] },
+    source: null,
+  });
+  Object.defineProperty(ev, 'source', { value: foreign });
+  globalThis.window.dispatchEvent(ev);
+  await new Promise(r => setTimeout(r, 20));
+  const after = workerInstance.sent.filter(m => m.type === 'LOAD_FILE').length;
+  assert.equal(after, before, 'foreign-window message must not load files');
+});

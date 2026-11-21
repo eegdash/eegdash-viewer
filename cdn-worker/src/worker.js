@@ -182,6 +182,12 @@ export default {
     // Instrument cache hit rate — the viewer (or devtools) can read this
     responseHeaders.set('x-eegdash-cdn', cacheStatus);
 
+    // Anyone can publish files to OpenNeuro, so an uploaded .html/.svg
+    // must never run as a page on cdn.eegdash.org. fetch() ignores these
+    // headers, so the viewer's reads are unaffected.
+    responseHeaders.set('x-content-type-options', 'nosniff');
+    responseHeaders.set('content-security-policy', "default-src 'none'; sandbox");
+
     // Ensure downstream browsers can also cache immutable responses.
     // S3 object bytes are content-addressed → safe to mark immutable.
     // data.nemar.org metadata is mutable on reindex → short TTL, no
