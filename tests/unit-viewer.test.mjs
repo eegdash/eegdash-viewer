@@ -383,3 +383,19 @@ test('pickDefaultWindowSec: degenerate reader (zero rate) → safe 10 s default'
   const reader = { n_channels: 0, sampling_frequency: 250, bytes_per_sample: 4 };
   assert.equal(Viewer.pickDefaultWindowSec(reader), 10);
 });
+
+test('index.html: CSP meta precedes all scripts and every script is external + defer', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const html = fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'index.html'), 'utf8');
+  const code = html.replace(/<!--[\s\S]*?-->/g, '');
+  const cspIdx = code.search(/<meta\s+http-equiv="Content-Security-Policy"/);
+  const firstScriptIdx = code.indexOf('<script');
+  assert.ok(cspIdx > 0 && cspIdx < firstScriptIdx, 'CSP meta must appear before every <script> tag');
+  const scripts = [...code.matchAll(/<script\b([^>]*)><\/script>/g)].map(m => m[1]);
+  assert.ok(scripts.length >= 30, 'expected external script tags in index.html');
+  for (const attrs of scripts) {
+    assert.match(attrs, /\bsrc="/, `script tag missing src=: <script${attrs}>`);
+    assert.match(attrs, /\bdefer\b/, `script tag missing defer (causes serial fetch under CSP meta): <script${attrs}>`);
+  }
+});
