@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795288263830,
+  "lastUpdate": 1795305682173,
   "repoUrl": "https://github.com/eegdash/eegdash-viewer",
   "entries": {
     "Benchmark": [
@@ -4746,6 +4746,233 @@ window.BENCHMARK_DATA = {
             "range": "±7.60%",
             "unit": "ms",
             "extra": "p99=70.359ms, n=64samples"
+          },
+          {
+            "name": "readwindow_bv_large_2s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_10s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          },
+          {
+            "name": "readwindow_bv_large_30s",
+            "value": 0,
+            "range": "±NaN%",
+            "unit": "ms",
+            "extra": "p99=NaNms, n=0samples"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "b.aristimunha@gmail.com",
+            "name": "Bru",
+            "username": "bruAristimunha"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ca11a7417c0e6855d76a04d266a6cf44b5a55660",
+          "message": "fix: keep CSP meta above scripts and use defer to preserve parallel fetch (#5)",
+          "timestamp": "2026-11-22T00:59:11+01:00",
+          "tree_id": "99ffd5ea870068e3b614e68bcb00ac1fabacc88b",
+          "url": "https://github.com/eegdash/eegdash-viewer/commit/ca11a7417c0e6855d76a04d266a6cf44b5a55660"
+        },
+        "date": 1795305681535,
+        "tool": "customSmallerIsBetter",
+        "benches": [
+          {
+            "name": "filter_hp_250hz",
+            "value": 2.3376,
+            "range": "±1.26%",
+            "unit": "ms",
+            "extra": "p99=4.020ms, n=856samples"
+          },
+          {
+            "name": "filter_lp_250hz",
+            "value": 2.3161,
+            "range": "±1.23%",
+            "unit": "ms",
+            "extra": "p99=4.001ms, n=864samples"
+          },
+          {
+            "name": "filter_notch_250hz",
+            "value": 2.2852,
+            "range": "±1.10%",
+            "unit": "ms",
+            "extra": "p99=3.935ms, n=876samples"
+          },
+          {
+            "name": "filter_bp_250hz",
+            "value": 4.2874,
+            "range": "±1.20%",
+            "unit": "ms",
+            "extra": "p99=6.149ms, n=467samples"
+          },
+          {
+            "name": "filter_hp_512hz",
+            "value": 4.716,
+            "range": "±1.28%",
+            "unit": "ms",
+            "extra": "p99=6.648ms, n=425samples"
+          },
+          {
+            "name": "filter_lp_512hz",
+            "value": 4.7772,
+            "range": "±1.27%",
+            "unit": "ms",
+            "extra": "p99=6.602ms, n=419samples"
+          },
+          {
+            "name": "filter_notch_512hz",
+            "value": 4.7079,
+            "range": "±1.25%",
+            "unit": "ms",
+            "extra": "p99=6.570ms, n=425samples"
+          },
+          {
+            "name": "filter_bp_512hz",
+            "value": 8.8237,
+            "range": "±1.15%",
+            "unit": "ms",
+            "extra": "p99=10.609ms, n=227samples"
+          },
+          {
+            "name": "filter_hp_1000hz",
+            "value": 9.275,
+            "range": "±1.26%",
+            "unit": "ms",
+            "extra": "p99=10.950ms, n=216samples"
+          },
+          {
+            "name": "filter_lp_1000hz",
+            "value": 9.1474,
+            "range": "±1.25%",
+            "unit": "ms",
+            "extra": "p99=10.953ms, n=219samples"
+          },
+          {
+            "name": "filter_notch_1000hz",
+            "value": 9.1971,
+            "range": "±1.15%",
+            "unit": "ms",
+            "extra": "p99=11.025ms, n=218samples"
+          },
+          {
+            "name": "filter_bp_1000hz",
+            "value": 17.1439,
+            "range": "±0.95%",
+            "unit": "ms",
+            "extra": "p99=18.702ms, n=117samples"
+          },
+          {
+            "name": "matv5_pipeline_32ch_250hz_30s_single",
+            "value": 0.0085,
+            "range": "±0.19%",
+            "unit": "ms",
+            "extra": "p99=0.018ms, n=234070samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_512hz_60s_single",
+            "value": 0.0085,
+            "range": "±0.20%",
+            "unit": "ms",
+            "extra": "p99=0.018ms, n=234026samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_single",
+            "value": 0.0084,
+            "range": "±0.21%",
+            "unit": "ms",
+            "extra": "p99=0.018ms, n=237025samples"
+          },
+          {
+            "name": "matv5_pipeline_64ch_1000hz_120s_double",
+            "value": 17.8166,
+            "range": "±4.95%",
+            "unit": "ms",
+            "extra": "p99=24.384ms, n=113samples"
+          },
+          {
+            "name": "matv5_parse_raw_1MB",
+            "value": 0.0024,
+            "range": "±0.62%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=817570samples"
+          },
+          {
+            "name": "matv5_parse_raw_10MB",
+            "value": 0.0025,
+            "range": "±1.55%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=790659samples"
+          },
+          {
+            "name": "matv5_parse_raw_50MB",
+            "value": 0.0026,
+            "range": "±1.72%",
+            "unit": "ms",
+            "extra": "p99=0.004ms, n=761368samples"
+          },
+          {
+            "name": "cache_scrub_lru",
+            "value": 241.8483,
+            "range": "±0.07%",
+            "unit": "ms",
+            "extra": "p99=243.998ms, n=64samples"
+          },
+          {
+            "name": "cache_scrub_fifo",
+            "value": 271.4322,
+            "range": "±0.02%",
+            "unit": "ms",
+            "extra": "p99=271.805ms, n=64samples"
+          },
+          {
+            "name": "cache_concurrent_dedup",
+            "value": 30.2312,
+            "range": "±0.18%",
+            "unit": "ms",
+            "extra": "p99=31.241ms, n=67samples"
+          },
+          {
+            "name": "cache_concurrent_no_dedup",
+            "value": 30.2244,
+            "range": "±0.07%",
+            "unit": "ms",
+            "extra": "p99=30.498ms, n=67samples"
+          },
+          {
+            "name": "readwindow_edf_2s",
+            "value": 15.839,
+            "range": "±5.06%",
+            "unit": "ms",
+            "extra": "p99=38.964ms, n=127samples"
+          },
+          {
+            "name": "readwindow_edf_10s",
+            "value": 25.0915,
+            "range": "±6.68%",
+            "unit": "ms",
+            "extra": "p99=50.345ms, n=80samples"
+          },
+          {
+            "name": "readwindow_edf_30s",
+            "value": 40.8201,
+            "range": "±19.08%",
+            "unit": "ms",
+            "extra": "p99=152.015ms, n=64samples"
           },
           {
             "name": "readwindow_bv_large_2s",
